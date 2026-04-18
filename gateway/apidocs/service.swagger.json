@@ -1,0 +1,188 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "Service API",
+    "version": "1.0"
+  },
+  "tags": [
+    {
+      "name": "Service"
+    }
+  ],
+  "basePath": "/service",
+  "consumes": [
+    "application/json"
+  ],
+  "produces": [
+    "application/json"
+  ],
+  "paths": {
+    "/v1/admin/namespace/{namespace}/progress": {
+      "post": {
+        "summary": "Update Guild progression",
+        "description": "Update Guild progression if not existed yet will create a new one",
+        "operationId": "Service_CreateOrUpdateGuildProgress",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/serviceCreateOrUpdateGuildProgressResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/ServiceCreateOrUpdateGuildProgressBody"
+            }
+          }
+        ],
+        "tags": [
+          "Service"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v1/admin/namespace/{namespace}/progress/{guildId}": {
+      "get": {
+        "summary": "Get guild progression",
+        "description": "Get guild progression",
+        "operationId": "Service_GetGuildProgress",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/serviceGetGuildProgressResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "guildId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Service"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    }
+  },
+  "definitions": {
+    "ServiceCreateOrUpdateGuildProgressBody": {
+      "type": "object",
+      "properties": {
+        "guildProgress": {
+          "$ref": "#/definitions/serviceGuildProgress"
+        }
+      }
+    },
+    "protobufAny": {
+      "type": "object",
+      "properties": {
+        "@type": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": {}
+    },
+    "rpcStatus": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "message": {
+          "type": "string"
+        },
+        "details": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/protobufAny"
+          }
+        }
+      }
+    },
+    "serviceCreateOrUpdateGuildProgressResponse": {
+      "type": "object",
+      "properties": {
+        "guildProgress": {
+          "$ref": "#/definitions/serviceGuildProgress"
+        }
+      }
+    },
+    "serviceGetGuildProgressResponse": {
+      "type": "object",
+      "properties": {
+        "guildProgress": {
+          "$ref": "#/definitions/serviceGuildProgress"
+        }
+      }
+    },
+    "serviceGuildProgress": {
+      "type": "object",
+      "properties": {
+        "guildId": {
+          "type": "string"
+        },
+        "namespace": {
+          "type": "string"
+        },
+        "objectives": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      }
+    }
+  },
+  "securityDefinitions": {
+    "Bearer": {
+      "type": "apiKey",
+      "name": "Authorization",
+      "in": "header"
+    }
+  }
+}

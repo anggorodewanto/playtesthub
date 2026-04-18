@@ -1,0 +1,31 @@
+# playtesthub — gRPC error-code reference
+
+Byte-exact error codes and messages surfaced by MVP RPCs. This document is the **byte-exact reference** implementers build against. If any row here diverges from PRD prose, the **PRD prose is authoritative** and the row in this table is a bug.
+
+Consolidated from prose in PRD §4.1, §4.3, §4.6, §5.1, §5.4, §5.6 for implementer convenience.
+
+| RPC                       | Condition                                                                                     | gRPC code            | Message (byte-exact)                                                      |
+| ------------------------- | --------------------------------------------------------------------------------------------- | -------------------- | ------------------------------------------------------------------------- |
+| `CreatePlaytest`          | request specifies `distributionModel=AGS_CAMPAIGN` in M1 — PRD §4.6 / §10 M1                  | `Unimplemented`      | (implementation-defined; message SHOULD reference that AGS_CAMPAIGN lands in M2) |
+| `ApproveApplicant`        | fenced finalize affects 0 rows (reservation reclaimed and re-reserved mid-approve) — §4.1 6b  | `Aborted`            | `reservation expired, please retry`                                       |
+| `ApproveApplicant`        | two admins click Approve on the same PENDING applicant simultaneously — §5.4                  | `FailedPrecondition` | `applicant already approved`                                              |
+| `ApproveApplicant`        | pool empty at reserve time, STEAM_KEYS playtest — §5.4                                        | `ResourceExhausted`  | `No codes remaining in pool. Upload more codes to continue approving.`    |
+| `ApproveApplicant`        | pool empty at reserve time, AGS_CAMPAIGN playtest — §5.4                                      | `ResourceExhausted`  | `No codes remaining in pool. Generate more codes to continue approving.`  |
+| `ApproveApplicant`        | attempt to approve a REJECTED applicant — §5.4                                                | `FailedPrecondition` | `applicant is rejected and cannot be re-approved`                         |
+| `ApproveApplicant` / `RejectApplicant` | playtest status = CLOSED — §5.4                                                  | `FailedPrecondition` | `playtest is closed; approve/reject is no longer allowed`                 |
+| `ApproveApplicant` / `RejectApplicant` | playtest status = DRAFT (defensive; signup is impossible in DRAFT per §5.1 visibility, so unreachable in practice) — §5.4 / Table A | `FailedPrecondition` | `playtest is in draft; approve/reject requires OPEN status`               |
+| `CreatePlaytest`          | namespace has reached the 100-playtest soft cap — PRD §6 Pagination                           | `ResourceExhausted`  | (implementation-defined; message SHOULD reference the 100-playtest cap)   |
+| `CreatePlaytest`          | slug collision within namespace — §5.1                                                        | `AlreadyExists`      | (implementation-defined; message SHOULD reference the offending slug)     |
+| `EditPlaytest`            | attempt to edit any immutable field (incl. `distributionModel`, `slug`, `namespace`, `status`, `initialCodeQuantity`, `ags*` IDs, timestamps) — §5.1 | `InvalidArgument`    | (implementation-defined; message MUST reference the offending field name) |
+| `TransitionPlaytestStatus` | invalid transition (e.g. DRAFT → CLOSED, or any backward transition) — §5.1                  | `FailedPrecondition` | (implementation-defined; message SHOULD reference the invalid transition) |
+| AGS-backed RPCs (`CreatePlaytest` AGS_CAMPAIGN, `TopUpCodes`, `SyncFromAGS`) | upstream AGS returned HTTP 429 — §4.6 / `ags-failure-modes.md`     | `ResourceExhausted`  | (implementation-defined; message SHOULD reference upstream AGS rate limit) |
+| AGS-backed RPCs (`CreatePlaytest` AGS_CAMPAIGN, `TopUpCodes`, `SyncFromAGS`) | upstream AGS returned HTTP 5xx / timeout after 3 retries exhausted — §4.6 / `ags-failure-modes.md` | `Unavailable`        | (implementation-defined; message SHOULD reference upstream AGS unavailability and retry exhaustion) |
+| `UploadCodes`             | non-UTF-8 CSV file — §4.3                                                                     | `InvalidArgument`    | (implementation-defined; message SHOULD reference UTF-8 requirement)      |
+| `UploadCodes`             | bounds / charset / duplicate violation (whole-file reject) — §4.3                             | `InvalidArgument`    | (implementation-defined; response body lists offending line numbers / values) |
+| `CreatePlaytest` (AGS_CAMPAIGN) | `initialCodeQuantity` outside 1–50,000 — §4.6 / §5.1                                    | `InvalidArgument`    | (implementation-defined; message SHOULD reference the 1–50,000 bound)     |
+| `GetPlaytest` (unauth)    | slug targets a DRAFT, CLOSED, or soft-deleted playtest — §5.1                                 | `NotFound`           | (empty / standard NotFound; indistinguishable from non-existent slug)     |
+| `GetPlaytestForPlayer`    | DRAFT or soft-deleted playtest, or CLOSED playtest for a non-approved caller — §5.1           | `NotFound`           | (empty / standard NotFound)                                               |
+| `GetGrantedCode`          | any soft-deleted playtest, regardless of applicant state — §5.1                               | `NotFound`           | (empty / standard NotFound)                                               |
+| `SubmitSurveyResponse`    | second submit by the same `(playtestId, userId)` — §4.7 / §5.6                                | `AlreadyExists`      | (empty body)                                                              |
+
+Rows marked "implementation-defined" fix the gRPC code contractually; the exact message string may be refined during implementation but MUST reference the cited condition. All other rows are byte-exact and MUST match verbatim.
