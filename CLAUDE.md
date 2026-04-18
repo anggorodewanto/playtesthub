@@ -22,6 +22,7 @@ Before touching code, orient against these — they are the sources of truth:
 | `docs/ags-failure-modes.md` | AGS Platform retry policy, cleanup matrix, M2 sub-cap rules. |
 | `docs/STATUS.md` | Build status + intra-milestone ordering + cut-if-behind tracking. |
 | `docs/engineering.md` | Repo layout, test strategy, TDD workflow, CI gates. |
+| `docs/cli.md` | `pth` CLI spec — surface for humans + AI to exercise the app e2e; also the e2e test harness. |
 | `docs/CHANGELOG.md` | PRD version history. Do not duplicate it. |
 
 ## Stack
