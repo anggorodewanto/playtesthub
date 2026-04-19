@@ -125,19 +125,43 @@ func (f *fakePlaytestStore) TransitionStatus(_ context.Context, namespace string
 	return nil, repo.ErrStatusCASMismatch
 }
 
-// fakeApplicantStore covers only the lookup path GetPlaytestForPlayer
-// needs — every other method panics so an accidental dependency surfaces
-// loudly.
+// fakeApplicantStore is an in-memory ApplicantStore for service unit
+// tests. It mirrors the real UNIQUE (playtest_id, user_id) constraint so
+// the Signup idempotency path exercises the same ErrUniqueViolation
+// branch as production.
 type fakeApplicantStore struct {
-	rows []*repo.Applicant
+	rows      []*repo.Applicant
+	insertErr error // set per-test to force a non-unique error path
 }
 
-func (f *fakeApplicantStore) Insert(context.Context, *repo.Applicant) (*repo.Applicant, error) {
-	panic("fakeApplicantStore.Insert not wired")
+func (f *fakeApplicantStore) Insert(_ context.Context, a *repo.Applicant) (*repo.Applicant, error) {
+	if f.insertErr != nil {
+		return nil, f.insertErr
+	}
+	for _, existing := range f.rows {
+		if existing.PlaytestID == a.PlaytestID && existing.UserID == a.UserID {
+			return nil, repo.ErrUniqueViolation
+		}
+	}
+	clone := *a
+	clone.ID = uuid.New()
+	clone.CreatedAt = time.Now()
+	if clone.Status == "" {
+		clone.Status = "PENDING"
+	}
+	f.rows = append(f.rows, &clone)
+	ret := clone
+	return &ret, nil
 }
 
-func (f *fakeApplicantStore) GetByID(context.Context, uuid.UUID) (*repo.Applicant, error) {
-	panic("fakeApplicantStore.GetByID not wired")
+func (f *fakeApplicantStore) GetByID(_ context.Context, id uuid.UUID) (*repo.Applicant, error) {
+	for _, a := range f.rows {
+		if a.ID == id {
+			clone := *a
+			return &clone, nil
+		}
+	}
+	return nil, repo.ErrNotFound
 }
 
 func (f *fakeApplicantStore) GetByPlaytestUser(_ context.Context, playtestID, userID uuid.UUID) (*repo.Applicant, error) {
@@ -150,12 +174,32 @@ func (f *fakeApplicantStore) GetByPlaytestUser(_ context.Context, playtestID, us
 	return nil, repo.ErrNotFound
 }
 
-func (f *fakeApplicantStore) ListByPlaytest(context.Context, uuid.UUID, string) ([]*repo.Applicant, error) {
-	panic("fakeApplicantStore.ListByPlaytest not wired")
+func (f *fakeApplicantStore) ListByPlaytest(_ context.Context, playtestID uuid.UUID, statusFilter string) ([]*repo.Applicant, error) {
+	out := make([]*repo.Applicant, 0)
+	for _, a := range f.rows {
+		if a.PlaytestID != playtestID {
+			continue
+		}
+		if statusFilter != "" && a.Status != statusFilter {
+			continue
+		}
+		clone := *a
+		out = append(out, &clone)
+	}
+	return out, nil
 }
 
-func (f *fakeApplicantStore) UpdateStatus(context.Context, *repo.Applicant) (*repo.Applicant, error) {
-	panic("fakeApplicantStore.UpdateStatus not wired")
+func (f *fakeApplicantStore) UpdateStatus(_ context.Context, a *repo.Applicant) (*repo.Applicant, error) {
+	for i, existing := range f.rows {
+		if existing.ID == a.ID {
+			clone := *a
+			clone.CreatedAt = existing.CreatedAt
+			f.rows[i] = &clone
+			ret := clone
+			return &ret, nil
+		}
+	}
+	return nil, repo.ErrNotFound
 }
 
 // ---------------- test helpers ----------------------------------------------

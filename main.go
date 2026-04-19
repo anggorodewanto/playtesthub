@@ -20,6 +20,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/anggorodewanto/playtesthub/pkg/discord"
 	"github.com/anggorodewanto/playtesthub/pkg/service"
 
 	"github.com/go-openapi/loads"
@@ -204,7 +205,11 @@ func main() {
 
 	playtestStore := repo.NewPgPlaytestStore(dbPool)
 	applicantStore := repo.NewPgApplicantStore(dbPool)
-	pb.RegisterPlaytesthubServiceServer(s, service.NewPlaytesthubServiceServer(playtestStore, applicantStore, cfg.AGSNamespace))
+	svcServer := service.NewPlaytesthubServiceServer(playtestStore, applicantStore, cfg.AGSNamespace)
+	if botClient := discord.NewBotClient(cfg.DiscordBotToken); botClient != nil {
+		svcServer = svcServer.WithDiscordLookup(botClient)
+	}
+	pb.RegisterPlaytesthubServiceServer(s, svcServer)
 
 	// Enable gRPC Reflection
 	reflection.Register(s)

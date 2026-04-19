@@ -186,15 +186,22 @@ func checkAuthorizationMetadata(ctx context.Context, permission *iam.Permission)
 		return ctx, status.Error(codes.PermissionDenied, err.Error())
 	}
 
-	// Decode the subject *after* the SDK validates the signature, so we
+	// Decode the claims *after* the SDK validates the signature, so we
 	// trust the payload bytes. A missing sub is surfaced as Unauthenticated
 	// rather than Internal — it means the token shape is wrong, which is
 	// a client problem.
-	sub, err := iampkg.DecodeSubject(token)
+	claims, err := iampkg.DecodeClaims(token)
 	if err != nil {
-		return ctx, status.Error(codes.Unauthenticated, fmt.Sprintf("invalid token subject: %v", err))
+		return ctx, status.Error(codes.Unauthenticated, fmt.Sprintf("invalid token claims: %v", err))
 	}
-	return iampkg.WithActorUserID(ctx, sub), nil
+	if claims.Sub == "" {
+		return ctx, status.Error(codes.Unauthenticated, "invalid token subject: jwt: missing sub claim")
+	}
+	ctx = iampkg.WithActorUserID(ctx, claims.Sub)
+	if did := iampkg.DiscordIDFromClaims(claims); did != "" {
+		ctx = iampkg.WithDiscordID(ctx, did)
+	}
+	return ctx, nil
 }
 
 func NewUnaryAuthServerIntercept() func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) { // nolint

@@ -10,6 +10,7 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/anggorodewanto/playtesthub/pkg/discord"
 	iampkg "github.com/anggorodewanto/playtesthub/pkg/iam"
 	pb "github.com/anggorodewanto/playtesthub/pkg/pb/playtesthub/v1"
 	"github.com/anggorodewanto/playtesthub/pkg/repo"
@@ -22,6 +23,14 @@ const (
 	statusDraft  = "DRAFT"
 	statusOpen   = "OPEN"
 	statusClosed = "CLOSED"
+)
+
+// Applicant.status TEXT values (migration 0001). CHECK constraint on the
+// column pins these exact strings.
+const (
+	applicantStatusPending  = "PENDING"
+	applicantStatusApproved = "APPROVED"
+	applicantStatusRejected = "REJECTED"
 )
 
 // PlaytesthubServiceServer is the gRPC handler for the playtesthub.v1
@@ -38,6 +47,7 @@ type PlaytesthubServiceServer struct {
 
 	playtest  repo.PlaytestStore
 	applicant repo.ApplicantStore
+	discord   discord.HandleLookup
 	namespace string
 }
 
@@ -362,7 +372,7 @@ func (s *PlaytesthubServiceServer) isApprovedApplicant(ctx context.Context, play
 	if err != nil {
 		return false, status.Errorf(codes.Internal, "fetching applicant: %v", err)
 	}
-	return got.Status == "APPROVED", nil
+	return got.Status == applicantStatusApproved, nil
 }
 
 // checkNamespace enforces PRD §5.1: the path-param namespace must match

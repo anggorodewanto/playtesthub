@@ -140,4 +140,22 @@ code=$(curl -s -o /dev/null -w '%{http_code}' \
 [[ "$code" == "401" ]] \
     || { tail -30 /tmp/playtesthub-smoke.log >&2; fail "expected 401 Unauthenticated from ListPlaytests, got $code"; }
 
+log "player Signup requires auth (expect Unauthenticated with auth disabled)"
+# M1 phase 7: Signup is wired to the handler layer. Without a bearer
+# token the auth interceptor short-circuits before any DB or Discord
+# call. Confirms the POST body path + route reach Signup, not the 501
+# Unimplemented stub.
+code=$(curl -s -o /dev/null -w '%{http_code}' \
+    -H 'Content-Type: application/json' \
+    -d '{"platforms":["PLATFORM_STEAM"]}' \
+    "http://localhost:$APP_PORT_HTTP$BASE_PATH/v1/player/playtests/smoke-test/signup")
+[[ "$code" == "401" ]] \
+    || { tail -30 /tmp/playtesthub-smoke.log >&2; fail "expected 401 Unauthenticated from Signup, got $code"; }
+
+log "player GetApplicantStatus requires auth (expect Unauthenticated with auth disabled)"
+code=$(curl -s -o /dev/null -w '%{http_code}' \
+    "http://localhost:$APP_PORT_HTTP$BASE_PATH/v1/player/playtests/smoke-test/applicant")
+[[ "$code" == "401" ]] \
+    || { tail -30 /tmp/playtesthub-smoke.log >&2; fail "expected 401 Unauthenticated from GetApplicantStatus, got $code"; }
+
 log "PASS"

@@ -77,6 +77,46 @@ func TestDecodeSubject_MalformedToken(t *testing.T) {
 	}
 }
 
+func TestDiscordID_RoundTrip(t *testing.T) {
+	ctx := iam.WithDiscordID(context.Background(), "snowflake-1")
+	got, ok := iam.DiscordIDFromContext(ctx)
+	if !ok {
+		t.Fatal("DiscordIDFromContext returned ok=false")
+	}
+	if got != "snowflake-1" {
+		t.Errorf("got %q, want snowflake-1", got)
+	}
+}
+
+func TestDiscordID_EmptyIgnored(t *testing.T) {
+	ctx := iam.WithDiscordID(context.Background(), "")
+	if _, ok := iam.DiscordIDFromContext(ctx); ok {
+		t.Fatal("empty discord id should not be stored")
+	}
+}
+
+func TestDecodeClaims_PullsPlatformFields(t *testing.T) {
+	token := makeJWT(t, `{"sub":"user-1","platform_id":"discord","platform_user_id":"999"}`)
+	c, err := iam.DecodeClaims(token)
+	if err != nil {
+		t.Fatalf("unexpected: %v", err)
+	}
+	if got := iam.DiscordIDFromClaims(c); got != "999" {
+		t.Errorf("discord id = %q, want 999", got)
+	}
+}
+
+func TestDiscordIDFromClaims_NonDiscordPlatform_Empty(t *testing.T) {
+	token := makeJWT(t, `{"sub":"user-1","platform_id":"steam","platform_user_id":"76561"}`)
+	c, err := iam.DecodeClaims(token)
+	if err != nil {
+		t.Fatalf("unexpected: %v", err)
+	}
+	if got := iam.DiscordIDFromClaims(c); got != "" {
+		t.Errorf("discord id = %q, want empty (platform=steam)", got)
+	}
+}
+
 // makeJWT builds a signatureless JWT whose payload is the given JSON. The
 // signature segment is a constant — DecodeSubject does not verify it; the
 // AGS SDK has already done so by the time this helper is used in
