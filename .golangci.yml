@@ -97,6 +97,7 @@ linters:
       - third_party$
       - builtin$
       - examples$
+      - admin/
 issues:
   max-same-issues: 20
 formatters:
@@ -109,3 +110,4 @@ formatters:
       - third_party$
       - builtin$
       - examples$
+      - admin/

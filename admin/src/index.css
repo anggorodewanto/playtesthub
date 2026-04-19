@@ -1,0 +1,2 @@
+@import "tailwindcss/theme" prefix(appui);
+@import "tailwindcss/utilities.css" prefix(appui);

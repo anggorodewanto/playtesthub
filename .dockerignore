@@ -2,3 +2,11 @@ Dockerfile
 Makefile
 pkg/pb
 .cache/
+.git/
+.env*
+admin/
+player/
+docs/
+scripts/smoke/
+e2e/
+*.md

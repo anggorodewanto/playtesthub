@@ -11,7 +11,7 @@ FROM --platform=$BUILDPLATFORM ubuntu:22.04 AS proto-builder
 ENV DEBIAN_FRONTEND=noninteractive
 
 ARG PROTOC_VERSION=21.9
-ARG GO_VERSION=1.24.10
+ARG GO_VERSION=1.25.1
 
 # Configure apt and install packages
 RUN apt-get update \
@@ -77,7 +77,7 @@ RUN chmod +x proto.sh && \
 # ----------------------------------------
 # Stage 2: gRPC Server Builder
 # ----------------------------------------
-FROM --platform=$BUILDPLATFORM golang:1.24 AS builder
+FROM --platform=$BUILDPLATFORM golang:1.25 AS builder
 
 ARG TARGETOS
 ARG TARGETARCH

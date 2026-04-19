@@ -5,7 +5,7 @@
 SHELL := /bin/bash
 
 PROJECT_NAME := $(shell basename "$$(pwd)")
-GOLANG_IMAGE := golang:1.24
+GOLANG_IMAGE := golang:1.25
 PROTOC_IMAGE := proto-builder
 BUF_IMAGE := bufbuild/buf:1.50.0
 
@@ -47,6 +47,7 @@ endif
 lint-proto:
 ifneq ($(IS_INSIDE_DEVCONTAINER),true)
 	docker run --tty --rm --user $$(id -u):$$(id -g) \
+		--env HOME=/tmp \
 		--volume $$(pwd):/workspace \
 		--workdir /workspace \
 		$(BUF_IMAGE) lint
@@ -55,7 +56,7 @@ else
 endif
 
 test:
-	go test ./...
+	go test $$(go list ./... | grep -v /admin/)
 
 smoke:
 	./scripts/smoke/boot.sh

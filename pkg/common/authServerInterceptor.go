@@ -157,7 +157,7 @@ func hasSecurityScheme(methodOptions protoreflect.ProtoMessage, schemeName strin
 }
 
 func getNamespace() string {
-	return GetEnv("AB_NAMESPACE", "accelbyte")
+	return GetEnv("AGS_NAMESPACE", "accelbyte")
 }
 
 // checkAuthorizationMetadata validates the incoming bearer token against

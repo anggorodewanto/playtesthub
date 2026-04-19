@@ -169,12 +169,14 @@ To be able to run this app, you will need to follow these setup steps.
 2. Fill in the required environment variables in `.env` file as shown below.
 
    ```
-   AB_BASE_URL='http://test.accelbyte.io'    # Your environment's domain Base URL
-   AB_CLIENT_ID='xxxxxxxxxx'                 # Client ID from the Prerequisites section
-   AB_CLIENT_SECRET='xxxxxxxxxx'             # Client Secret from the Prerequisites section
-   AB_NAMESPACE='xxxxxxxxxx'                 # Namespace ID from the Prerequisites section
-   PLUGIN_GRPC_SERVER_AUTH_ENABLED=true      # Enable or disable access token and permission validation
-   BASE_PATH='/guild'                        # The base path used for the app
+   AGS_BASE_URL='http://test.accelbyte.io'      # Your environment's domain Base URL
+   AGS_IAM_CLIENT_ID='xxxxxxxxxx'               # Client ID from the Prerequisites section
+   AGS_IAM_CLIENT_SECRET='xxxxxxxxxx'           # Client Secret from the Prerequisites section
+   AGS_NAMESPACE='xxxxxxxxxx'                   # Namespace ID from the Prerequisites section
+   DATABASE_URL='postgres://playtesthub:playtesthub@postgres:5432/playtesthub?sslmode=disable'
+   DISCORD_BOT_TOKEN='xxxxxxxxxx'               # Discord bot token for handle lookup (https://discord.com/developers/applications)
+   PLUGIN_GRPC_SERVER_AUTH_ENABLED=true         # Enable or disable access token and permission validation
+   BASE_PATH='/playtesthub'                     # The base path used for the app
    ```
 
    > :exclamation: **In this app, PLUGIN_GRPC_SERVER_AUTH_ENABLED is `true` by default**: If it is set to `false`, the endpoint `permission.action` and `permission.resource`  validation will be disabled and the endpoint can be accessed without a valid access token. This option is provided for development purpose only.
@@ -214,9 +216,9 @@ This app can be tested locally through the Swagger UI.
    Import the Postman collection to your Postman workspace and create a 
    Postman environment containing the following variables.
 
-   - `AB_BASE_URL` For example, https://test.accelbyte.io
-   - `AB_CLIENT_ID` A confidential IAM OAuth client ID
-   - `AB_CLIENT_SECRET` The corresponding confidential IAM OAuth client secret
+   - `AGS_BASE_URL` For example, https://test.accelbyte.io
+   - `AGS_IAM_CLIENT_ID` A confidential IAM OAuth client ID
+   - `AGS_IAM_CLIENT_SECRET` The corresponding confidential IAM OAuth client secret
    - `AB_USERNAME` The username or e-mail of the user (for user token)
    - `AB_PASSWORD` The corresponding user password (for user token)
 
@@ -294,10 +296,16 @@ After completing testing, the next step is to deploy your app to `AccelByte Gami
    - `Namespace`
    - `App Name`
 
-   Under the **Environment Configuration** section, set the required secrets and/or variables.
+   Under the **Environment Configuration** section, set the required secrets and/or variables per PRD §5.9.
    - Secrets
-      - `AB_CLIENT_ID`
-      - `AB_CLIENT_SECRET`
+      - `AGS_IAM_CLIENT_SECRET`
+      - `DATABASE_URL`
+      - `DISCORD_BOT_TOKEN`
+   - Variables
+      - `AGS_IAM_CLIENT_ID`
+      - `AGS_BASE_URL`
+      - `AGS_NAMESPACE`
+      - `BASE_PATH` (`/playtesthub`)
 
 2. **Build and Push the Container Image**
 

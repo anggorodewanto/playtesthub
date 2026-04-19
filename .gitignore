@@ -237,3 +237,12 @@ github.com/anggorodewanto/playtesthub
 
 .env*
 !.env.template
+!.env.local.example
+
+# Node / admin UI
+node_modules/
+admin/dist/
+admin/swaggers/
+admin/src/playtesthubapi/
+admin/.vite/
+admin/coverage/
