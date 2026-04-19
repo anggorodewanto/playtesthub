@@ -121,10 +121,23 @@ title=$(jq -r '.info.title' <<<"$spec")
 [[ "$title" == "playtesthub API" ]] \
     || fail "unexpected OpenAPI title: $title"
 
-log "unauth RPC reaches handler (expect Unimplemented until M1 phase 6)"
+log "unauth GetPublicPlaytest reaches handler and returns NotFound for missing slug"
+# M1 phase 6 wired GetPublicPlaytest to the repo-backed handler. A slug
+# that does not exist now yields a 404 (NotFound) — the grpc-gateway
+# status mapping. Prior to phase 6 the same call returned 501.
 code=$(curl -s -o /dev/null -w '%{http_code}' \
     "http://localhost:$APP_PORT_HTTP$BASE_PATH/v1/public/playtests/smoke-test")
-[[ "$code" == "501" ]] \
-    || fail "expected 501 Unimplemented from GetPublicPlaytest, got $code"
+[[ "$code" == "404" ]] \
+    || { tail -30 /tmp/playtesthub-smoke.log >&2; fail "expected 404 NotFound from GetPublicPlaytest, got $code"; }
+
+log "admin RPCs still require auth (expect Unauthenticated with auth disabled)"
+# With PLUGIN_GRPC_SERVER_AUTH_ENABLED=false the interceptor does not
+# attach an actor — admin handlers short-circuit with codes.Unauthenticated
+# (HTTP 401). Confirms the handler wiring reaches requireActor before
+# any DB work happens.
+code=$(curl -s -o /dev/null -w '%{http_code}' \
+    "http://localhost:$APP_PORT_HTTP$BASE_PATH/v1/admin/namespaces/smoke/playtests")
+[[ "$code" == "401" ]] \
+    || { tail -30 /tmp/playtesthub-smoke.log >&2; fail "expected 401 Unauthenticated from ListPlaytests, got $code"; }
 
 log "PASS"

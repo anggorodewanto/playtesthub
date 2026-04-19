@@ -23,10 +23,12 @@ import (
 	"github.com/anggorodewanto/playtesthub/pkg/service"
 
 	"github.com/go-openapi/loads"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/anggorodewanto/playtesthub/pkg/common"
 	"github.com/anggorodewanto/playtesthub/pkg/config"
 	"github.com/anggorodewanto/playtesthub/pkg/migrate"
+	"github.com/anggorodewanto/playtesthub/pkg/repo"
 
 	"github.com/AccelByte/accelbyte-go-sdk/services-api/pkg/repository"
 
@@ -190,9 +192,19 @@ func main() {
 		}
 	}
 
-	// Register the playtesthub.v1 service. Every RPC currently returns
-	// codes.Unimplemented — concrete handlers land in M1 phases 6–7.
-	pb.RegisterPlaytesthubServiceServer(s, service.NewPlaytesthubServiceServer())
+	// Open the Postgres pool used by every handler and register the
+	// playtesthub.v1 service. Signup / GetApplicantStatus still route
+	// to UnimplementedPlaytesthubServiceServer until M1 phase 7.
+	dbPool, err := pgxpool.New(ctx, cfg.DatabaseURL)
+	if err != nil {
+		logger.Error("failed to open database pool", "error", err)
+		os.Exit(1)
+	}
+	defer dbPool.Close()
+
+	playtestStore := repo.NewPgPlaytestStore(dbPool)
+	applicantStore := repo.NewPgApplicantStore(dbPool)
+	pb.RegisterPlaytesthubServiceServer(s, service.NewPlaytesthubServiceServer(playtestStore, applicantStore, cfg.AGSNamespace))
 
 	// Enable gRPC Reflection
 	reflection.Register(s)
