@@ -23,7 +23,7 @@ func NewTracerProvider(serviceName string) (*sdkTrace.TracerProvider, error) {
 
 	res := resource.NewWithAttributes(
 		semanticConventions.SchemaURL,
-		semanticConventions.ServiceNameKey.String(serviceName),		
+		semanticConventions.ServiceNameKey.String(serviceName),
 	)
 
 	return sdkTrace.NewTracerProvider(

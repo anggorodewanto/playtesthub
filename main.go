@@ -8,7 +8,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"github.com/anggorodewanto/playtesthub/pkg/service"
 	"fmt"
 	"log"
 	"log/slog"
@@ -20,6 +19,8 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/anggorodewanto/playtesthub/pkg/service"
 
 	"github.com/go-openapi/loads"
 

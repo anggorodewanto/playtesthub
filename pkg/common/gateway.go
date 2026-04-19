@@ -17,7 +17,7 @@ import (
 )
 
 type Gateway struct {
-	mux *runtime.ServeMux
+	mux      *runtime.ServeMux
 	basePath string
 }
 
@@ -30,7 +30,7 @@ func NewGateway(ctx context.Context, grpcServerEndpoint string, basePath string)
 	}
 
 	return &Gateway{
-		mux: mux,
+		mux:      mux,
 		basePath: basePath,
 	}, nil
 }
