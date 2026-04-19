@@ -69,9 +69,20 @@ docker exec "$CONTAINER_NAME" pg_isready -U playtesthub -d playtesthub >/dev/nul
     || fail "postgres did not become ready in 30s"
 
 # 2. App --------------------------------------------------------------------
+# pkg/config (M1 phase 5) treats every PRD §5.9 required var as a hard
+# boot prereq — missing one exits before anything else runs. Even with
+# auth disabled, the values are still read at startup, so we seed
+# placeholders here. Real values are irrelevant because AGS is not
+# reached: PLUGIN_GRPC_SERVER_AUTH_ENABLED=false short-circuits
+# Validator.Initialize + oauthService.LoginClient.
 log "booting app (auth disabled) — logs to /tmp/playtesthub-smoke.log"
 BASE_PATH="$BASE_PATH" \
 DATABASE_URL="postgres://playtesthub:playtesthub@localhost:$PG_PORT/playtesthub?sslmode=disable" \
+DISCORD_BOT_TOKEN="smoke-discord-token" \
+AGS_IAM_CLIENT_ID="smoke-client-id" \
+AGS_IAM_CLIENT_SECRET="smoke-client-secret" \
+AGS_BASE_URL="https://ags.smoke.invalid" \
+AGS_NAMESPACE="smoke" \
 PLUGIN_GRPC_SERVER_AUTH_ENABLED=false \
     go run . >/tmp/playtesthub-smoke.log 2>&1 &
 APP_PID=$!

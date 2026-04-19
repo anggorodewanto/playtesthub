@@ -28,6 +28,8 @@ import (
 	"github.com/AccelByte/accelbyte-go-sdk/services-api/pkg/utils/auth/validator"
 
 	pb "github.com/anggorodewanto/playtesthub/pkg/pb/playtesthub/v1"
+
+	iampkg "github.com/anggorodewanto/playtesthub/pkg/iam"
 )
 
 var (
@@ -158,86 +160,89 @@ func getNamespace() string {
 	return GetEnv("AB_NAMESPACE", "accelbyte")
 }
 
-func checkAuthorizationMetadata(ctx context.Context, permission *iam.Permission) error {
+// checkAuthorizationMetadata validates the incoming bearer token against
+// the AGS SDK and, on success, returns a child context enriched with the
+// AGS subject as actorUserId. Audit writers + handlers downstream rely
+// on iam.ActorUserIDFromContext to attribute the request.
+func checkAuthorizationMetadata(ctx context.Context, permission *iam.Permission) (context.Context, error) {
 	if Validator == nil {
-		return status.Error(codes.Internal, "authorization token validator is not set")
+		return ctx, status.Error(codes.Internal, "authorization token validator is not set")
 	}
 
 	meta, found := metadata.FromIncomingContext(ctx)
-
 	if !found {
-		return status.Error(codes.Unauthenticated, "metadata is missing")
+		return ctx, status.Error(codes.Unauthenticated, "metadata is missing")
 	}
 
-	if _, ok := meta["authorization"]; !ok {
-		return status.Error(codes.Unauthenticated, "authorization metadata is missing")
+	authHeaders, ok := meta["authorization"]
+	if !ok || len(authHeaders) == 0 {
+		return ctx, status.Error(codes.Unauthenticated, "authorization metadata is missing")
 	}
 
-	if len(meta["authorization"]) == 0 {
-		return status.Error(codes.Unauthenticated, "authorization metadata length is 0")
-	}
-
-	authorization := meta["authorization"][0]
-	token := strings.TrimPrefix(authorization, "Bearer ")
+	token := strings.TrimPrefix(authHeaders[0], "Bearer ")
 	namespace := getNamespace()
 
-	err := Validator.Validate(token, permission, &namespace, nil)
-
-	if err != nil {
-		return status.Error(codes.PermissionDenied, err.Error())
+	if err := Validator.Validate(token, permission, &namespace, nil); err != nil {
+		return ctx, status.Error(codes.PermissionDenied, err.Error())
 	}
 
-	return nil
+	// Decode the subject *after* the SDK validates the signature, so we
+	// trust the payload bytes. A missing sub is surfaced as Unauthenticated
+	// rather than Internal — it means the token shape is wrong, which is
+	// a client problem.
+	sub, err := iampkg.DecodeSubject(token)
+	if err != nil {
+		return ctx, status.Error(codes.Unauthenticated, fmt.Sprintf("invalid token subject: %v", err))
+	}
+	return iampkg.WithActorUserID(ctx, sub), nil
 }
 
 func NewUnaryAuthServerIntercept() func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) { // nolint
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
-		// Extract auth requirement from the proto file
 		requirement, err := extractAuthRequirement(info, nil)
 		if err != nil {
 			return nil, err
 		}
-
-		// If no auth requirement, skip all auth checks (public access)
 		if requirement == nil {
 			return handler(ctx, req)
 		}
-
-		// Enforce auth whenever the proto declares Bearer security or explicit permissions
-		// (treat permissions as authoritative even if the security block was omitted by mistake)
 		if requirement.RequireToken || requirement.Permission != nil {
-			err = checkAuthorizationMetadata(ctx, requirement.Permission)
+			ctx, err = checkAuthorizationMetadata(ctx, requirement.Permission)
 			if err != nil {
 				return nil, err
 			}
 		}
-
 		return handler(ctx, req)
 	}
 }
 
+// wrappedServerStream lets us hand the authorized context to stream
+// handlers. grpc.ServerStream's Context() is the only way a streaming
+// handler sees the request context, so we have to override it.
+type wrappedServerStream struct {
+	grpc.ServerStream
+
+	ctx context.Context
+}
+
+func (w *wrappedServerStream) Context() context.Context { return w.ctx }
+
 func NewStreamAuthServerIntercept() func(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 	return func(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
-		// Extract auth requirement from the proto file
 		requirement, err := extractAuthRequirement(nil, info)
 		if err != nil {
 			return err
 		}
-
-		// If no auth requirement, skip all auth checks (public access)
 		if requirement == nil {
 			return handler(srv, ss)
 		}
-
-		// Enforce auth whenever the proto declares Bearer security or explicit permissions
-		// (treat permissions as authoritative even if the security block was omitted by mistake)
 		if requirement.RequireToken || requirement.Permission != nil {
-			err = checkAuthorizationMetadata(ss.Context(), requirement.Permission)
+			newCtx, err := checkAuthorizationMetadata(ss.Context(), requirement.Permission)
 			if err != nil {
 				return err
 			}
+			ss = &wrappedServerStream{ServerStream: ss, ctx: newCtx}
 		}
-
 		return handler(srv, ss)
 	}
 }

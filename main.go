@@ -25,6 +25,7 @@ import (
 	"github.com/go-openapi/loads"
 
 	"github.com/anggorodewanto/playtesthub/pkg/common"
+	"github.com/anggorodewanto/playtesthub/pkg/config"
 	"github.com/anggorodewanto/playtesthub/pkg/migrate"
 
 	"github.com/AccelByte/accelbyte-go-sdk/services-api/pkg/repository"
@@ -58,11 +59,7 @@ const (
 	grpcGatewayHTTPPort = 8000
 )
 
-var (
-	serviceName = "extend-app-service-extension"
-	logLevelStr = common.GetEnv("LOG_LEVEL", "info")
-	basePath    = common.GetBasePath()
-)
+var serviceName = "extend-app-service-extension"
 
 func parseSlogLevel(levelStr string) slog.Level {
 	switch strings.ToLower(levelStr) {
@@ -79,28 +76,42 @@ func parseSlogLevel(levelStr string) slog.Level {
 	}
 }
 
+// agsConfigRepo is the AGS SDK's ConfigRepository view of our pkg/config
+// values. The SDK's default implementation reads AB_* env vars at
+// construction time; our PRD uses AGS_*, so we wire the SDK through this
+// thin adapter instead.
+type agsConfigRepo struct {
+	clientID     string
+	clientSecret string
+	baseURL      string
+}
+
+func (c agsConfigRepo) GetClientId() string       { return c.clientID }
+func (c agsConfigRepo) GetClientSecret() string   { return c.clientSecret }
+func (c agsConfigRepo) GetJusticeBaseUrl() string { return c.baseURL }
+
 func main() {
-	slogLevel := parseSlogLevel(logLevelStr)
-	opts := &slog.HandlerOptions{
-		Level: slogLevel,
+	bootLogger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
+
+	cfg, err := config.Load()
+	if err != nil {
+		bootLogger.Error("failed to load configuration", "error", err)
+		os.Exit(1)
 	}
-	handler := slog.NewJSONHandler(os.Stdout, opts)
+
+	slogLevel := parseSlogLevel(cfg.LogLevel)
+	handler := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slogLevel})
 	logger := slog.New(handler)
 	slog.SetDefault(logger)
+
+	basePath := cfg.BasePath
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	// Apply DB migrations before anything else boots. A schema-out-of-date
-	// process is never safe to serve traffic. pkg/config (M1 phase 5) will
-	// take ownership of the env lookup; wiring inline here is intentional
-	// and temporary.
-	databaseURL := common.GetEnv("DATABASE_URL", "")
-	if databaseURL == "" {
-		logger.Error("DATABASE_URL is required")
-		os.Exit(1)
-	}
-	if err := migrate.Up(databaseURL, "migrations"); err != nil {
+	// process is never safe to serve traffic.
+	if err := migrate.Up(cfg.DatabaseURL, "migrations"); err != nil {
 		logger.Error("failed to apply migrations", "error", err)
 		os.Exit(1)
 	}
@@ -128,9 +139,15 @@ func main() {
 		logging.StreamServerInterceptor(common.InterceptorLogger(logger), loggingOptions...),
 	}
 
-	// Preparing the IAM authorization
+	// Preparing the IAM authorization. configRepo bridges pkg/config to the
+	// AGS SDK; the SDK's default would otherwise read AB_* env vars that
+	// PRD §5.9 does not define.
 	var tokenRepo repository.TokenRepository = sdkAuth.DefaultTokenRepositoryImpl()
-	var configRepo repository.ConfigRepository = sdkAuth.DefaultConfigRepositoryImpl()
+	var configRepo repository.ConfigRepository = agsConfigRepo{
+		clientID:     cfg.AGSIAMClientID,
+		clientSecret: cfg.AGSIAMClientSecret,
+		baseURL:      cfg.AGSBaseURL,
+	}
 	var refreshRepo repository.RefreshTokenRepository = &sdkAuth.RefreshTokenImpl{RefreshRate: 0.8, AutoRefresh: true}
 
 	oauthService := iam.OAuth20Service{
@@ -140,11 +157,9 @@ func main() {
 		ConfigRepository:       configRepo,
 	}
 
-	if strings.ToLower(common.GetEnv("PLUGIN_GRPC_SERVER_AUTH_ENABLED", "true")) == "true" {
-		refreshInterval := common.GetEnvInt("REFRESH_INTERVAL", 600)
-		common.Validator = common.NewTokenValidator(oauthService, time.Duration(refreshInterval)*time.Second, true)
-		err := common.Validator.Initialize(ctx)
-		if err != nil {
+	if cfg.AuthEnabled {
+		common.Validator = common.NewTokenValidator(oauthService, time.Duration(cfg.RefreshIntervalSeconds)*time.Second, true)
+		if err := common.Validator.Initialize(ctx); err != nil {
 			logger.Info(err.Error())
 		}
 
@@ -166,7 +181,7 @@ func main() {
 	// Configure IAM authorization. Only attempted when auth is enabled —
 	// local dev and integration smoke tests run with auth off and no AGS
 	// reachability, so an unconditional LoginClient call would wedge boot.
-	if strings.ToLower(common.GetEnv("PLUGIN_GRPC_SERVER_AUTH_ENABLED", "true")) == "true" {
+	if cfg.AuthEnabled {
 		clientId := configRepo.GetClientId()
 		clientSecret := configRepo.GetClientSecret()
 		if err := oauthService.LoginClient(&clientId, &clientSecret); err != nil {
@@ -195,7 +210,7 @@ func main() {
 	// Start the gRPC-Gateway HTTP server
 	go func() {
 		swaggerDir := "gateway/apidocs" // Path to swagger directory
-		grpcGatewayHTTPServer := newGRPCGatewayHTTPServer(fmt.Sprintf(":%d", grpcGatewayHTTPPort), grpcGateway, logger, swaggerDir)
+		grpcGatewayHTTPServer := newGRPCGatewayHTTPServer(fmt.Sprintf(":%d", grpcGatewayHTTPPort), grpcGateway, logger, swaggerDir, basePath)
 		logger.Info("starting gRPC-Gateway HTTP server", "port", grpcGatewayHTTPPort)
 		if err := grpcGatewayHTTPServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logger.Error("failed to run gRPC-Gateway HTTP server", "error", err)
@@ -223,8 +238,8 @@ func main() {
 	logger.Info("serving prometheus metrics", "port", metricsPort, "endpoint", metricsEndpoint)
 
 	// Set Tracer Provider
-	if val := common.GetEnv("OTEL_SERVICE_NAME", ""); val != "" {
-		serviceName = "extend-app-se-" + strings.ToLower(val)
+	if cfg.OtelServiceName != "" {
+		serviceName = "extend-app-se-" + strings.ToLower(cfg.OtelServiceName)
 	}
 	tracerProvider, err := common.NewTracerProvider(serviceName)
 	if err != nil {
@@ -270,7 +285,7 @@ func main() {
 }
 
 func newGRPCGatewayHTTPServer(
-	addr string, handler http.Handler, logger *slog.Logger, swaggerDir string,
+	addr string, handler http.Handler, logger *slog.Logger, swaggerDir, basePath string,
 ) *http.Server {
 	// Create a new ServeMux
 	mux := http.NewServeMux()
@@ -279,8 +294,8 @@ func newGRPCGatewayHTTPServer(
 	mux.Handle("/", handler)
 
 	// Serve Swagger UI and JSON
-	serveSwaggerUI(mux)
-	serveSwaggerJSON(mux, swaggerDir)
+	serveSwaggerUI(mux, basePath)
+	serveSwaggerJSON(mux, swaggerDir, basePath)
 
 	// Add logging middleware
 	loggedMux := loggingMiddleware(logger, mux)
@@ -306,14 +321,14 @@ func loggingMiddleware(logger *slog.Logger, next http.Handler) http.Handler {
 	})
 }
 
-func serveSwaggerUI(mux *http.ServeMux) {
+func serveSwaggerUI(mux *http.ServeMux, basePath string) {
 	swaggerUIDir := "third_party/swagger-ui"
 	fileServer := http.FileServer(http.Dir(swaggerUIDir))
 	swaggerUiPath := fmt.Sprintf("%s/apidocs/", basePath)
 	mux.Handle(swaggerUiPath, http.StripPrefix(swaggerUiPath, fileServer))
 }
 
-func serveSwaggerJSON(mux *http.ServeMux, swaggerDir string) {
+func serveSwaggerJSON(mux *http.ServeMux, swaggerDir, basePath string) {
 	fileHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		matchingFiles, err := filepath.Glob(filepath.Join(swaggerDir, "*.swagger.json"))
 		if err != nil || len(matchingFiles) == 0 {
