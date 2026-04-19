@@ -24,6 +24,7 @@ import (
 	"github.com/go-openapi/loads"
 
 	"github.com/anggorodewanto/playtesthub/pkg/common"
+	"github.com/anggorodewanto/playtesthub/pkg/migrate"
 
 	"github.com/AccelByte/accelbyte-go-sdk/services-api/pkg/repository"
 
@@ -42,7 +43,7 @@ import (
 	"google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/reflection"
 
-	pb "github.com/anggorodewanto/playtesthub/pkg/pb"
+	pb "github.com/anggorodewanto/playtesthub/pkg/pb/playtesthub/v1"
 
 	sdkAuth "github.com/AccelByte/accelbyte-go-sdk/services-api/pkg/utils/auth"
 	prometheusGrpc "github.com/grpc-ecosystem/go-grpc-prometheus"
@@ -88,6 +89,21 @@ func main() {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	// Apply DB migrations before anything else boots. A schema-out-of-date
+	// process is never safe to serve traffic. pkg/config (M1 phase 5) will
+	// take ownership of the env lookup; wiring inline here is intentional
+	// and temporary.
+	databaseURL := common.GetEnv("DATABASE_URL", "")
+	if databaseURL == "" {
+		logger.Error("DATABASE_URL is required")
+		os.Exit(1)
+	}
+	if err := migrate.Up(databaseURL, "migrations"); err != nil {
+		logger.Error("failed to apply migrations", "error", err)
+		os.Exit(1)
+	}
+	logger.Info("migrations applied")
 
 	loggingOptions := []logging.Option{
 		logging.WithLogOnEvents(logging.StartCall, logging.FinishCall, logging.PayloadReceived, logging.PayloadSent),
@@ -146,18 +162,21 @@ func main() {
 		grpc.ChainStreamInterceptor(streamServerInterceptors...),
 	)
 
-	// Configure IAM authorization
-	clientId := configRepo.GetClientId()
-	clientSecret := configRepo.GetClientSecret()
-	err := oauthService.LoginClient(&clientId, &clientSecret)
-	if err != nil {
-		logger.Error("error unable to login using clientId and clientSecret", "error", err)
-		os.Exit(1)
+	// Configure IAM authorization. Only attempted when auth is enabled —
+	// local dev and integration smoke tests run with auth off and no AGS
+	// reachability, so an unconditional LoginClient call would wedge boot.
+	if strings.ToLower(common.GetEnv("PLUGIN_GRPC_SERVER_AUTH_ENABLED", "true")) == "true" {
+		clientId := configRepo.GetClientId()
+		clientSecret := configRepo.GetClientSecret()
+		if err := oauthService.LoginClient(&clientId, &clientSecret); err != nil {
+			logger.Error("error unable to login using clientId and clientSecret", "error", err)
+			os.Exit(1)
+		}
 	}
 
-	// Register service (placeholder — real RPCs land in M1 phase 2).
-	myServiceServer := service.NewMyServiceServer(tokenRepo, configRepo, refreshRepo)
-	pb.RegisterServiceServer(s, myServiceServer)
+	// Register the playtesthub.v1 service. Every RPC currently returns
+	// codes.Unimplemented — concrete handlers land in M1 phases 6–7.
+	pb.RegisterPlaytesthubServiceServer(s, service.NewPlaytesthubServiceServer())
 
 	// Enable gRPC Reflection
 	reflection.Register(s)

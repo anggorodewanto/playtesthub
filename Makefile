@@ -7,6 +7,7 @@ SHELL := /bin/bash
 PROJECT_NAME := $(shell basename "$$(pwd)")
 GOLANG_IMAGE := golang:1.24
 PROTOC_IMAGE := proto-builder
+BUF_IMAGE := bufbuild/buf:1.50.0
 
 IS_INSIDE_DEVCONTAINER := $(REMOTE_CONTAINERS)
 BUILD_CACHE_VOLUME := $(shell echo '$(PROJECT_NAME)' | sed 's/[^a-zA-Z0-9_-]//g')-build-cache
@@ -42,6 +43,25 @@ ifneq ($(IS_INSIDE_DEVCONTAINER),true)
 else
 	./proto.sh
 endif
+
+lint-proto:
+ifneq ($(IS_INSIDE_DEVCONTAINER),true)
+	docker run --tty --rm --user $$(id -u):$$(id -g) \
+		--volume $$(pwd):/workspace \
+		--workdir /workspace \
+		$(BUF_IMAGE) lint
+else
+	buf lint
+endif
+
+test:
+	go test ./...
+
+smoke:
+	./scripts/smoke/boot.sh
+
+lint:
+	golangci-lint run
 
 prepare_build_cache:
 ifneq ($(IS_INSIDE_DEVCONTAINER),true)

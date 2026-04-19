@@ -27,7 +27,7 @@ import (
 	"github.com/AccelByte/accelbyte-go-sdk/services-api/pkg/service/iam"
 	"github.com/AccelByte/accelbyte-go-sdk/services-api/pkg/utils/auth/validator"
 
-	pb "github.com/anggorodewanto/playtesthub/pkg/pb"
+	pb "github.com/anggorodewanto/playtesthub/pkg/pb/playtesthub/v1"
 )
 
 var (

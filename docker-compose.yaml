@@ -1,6 +1,25 @@
 services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: playtesthub
+      POSTGRES_PASSWORD: playtesthub
+      POSTGRES_DB: playtesthub
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U playtesthub -d playtesthub"]
+      interval: 2s
+      timeout: 5s
+      retries: 15
+
   app:
     build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
     ports:
       - "6565:6565"
       - "8080:8080"
@@ -13,6 +32,7 @@ services:
       - PLUGIN_GRPC_SERVER_AUTH_ENABLED
       - OTEL_EXPORTER_ZIPKIN_ENDPOINT=http://host.docker.internal:9411/api/v2/spans # Zipkin
       - BASE_PATH
+      - DATABASE_URL=postgres://playtesthub:playtesthub@postgres:5432/playtesthub?sslmode=disable
       # - GRPC_GO_LOG_VERBOSITY_LEVEL="99" # enable to debug grpc
       # - GRPC_GO_LOG_SEVERITY_LEVEL=info # enable to debug grpc
     extra_hosts:
@@ -24,3 +44,6 @@ services:
     #     mode: non-blocking
     #     max-buffer-size: 4m
     #     loki-retries: "3"
+
+volumes:
+  pg-data:

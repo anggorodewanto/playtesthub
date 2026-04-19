@@ -1,0 +1,414 @@
+syntax = "proto3";
+
+package playtesthub.v1;
+
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+import "playtesthub/v1/permission.proto";
+import "protoc-gen-openapiv2/options/annotations.proto";
+
+option go_package = "github.com/anggorodewanto/playtesthub/pkg/pb/playtesthub/v1;playtesthubv1";
+
+// PlaytesthubService carries every playtesthub RPC. Auth is differentiated
+// per-method via OpenAPI Bearer security blocks and permission.action /
+// permission.resource options — inspected by the server's auth interceptor
+// (pkg/common/authServerInterceptor.go).
+//
+//   - Unauth    : no Bearer security, no permission.* options.
+//   - Player    : Bearer security only. Any authed AGS IAM user.
+//   - Admin     : Bearer security + permission.resource + permission.action.
+//                 MVP authorizes any authed admin session (PRD §9 R8); the
+//                 permission option still carries the AGS-style resource string
+//                 so future RBAC can plug in without a proto change.
+service PlaytesthubService {
+  // ---------------- M1 ----------------
+
+  rpc GetPublicPlaytest(GetPublicPlaytestRequest) returns (GetPublicPlaytestResponse) {
+    option (google.api.http) = {get: "/v1/public/playtests/{slug}"};
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Get a playtest by slug (unauthenticated)"
+      description: "Returns the public field subset for an OPEN playtest. NotFound for DRAFT, CLOSED, or soft-deleted."
+    };
+  }
+
+  rpc GetPlaytestForPlayer(GetPlaytestForPlayerRequest) returns (GetPlaytestForPlayerResponse) {
+    option (google.api.http) = {get: "/v1/player/playtests/{slug}"};
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Get a playtest by slug (authenticated player)"
+      description: "Returns the player-visible field set including NDA text and currentNdaVersionHash."
+      security: {
+        security_requirement: {
+          key: "Bearer"
+          value: {}
+        }
+      }
+    };
+  }
+
+  rpc AdminGetPlaytest(AdminGetPlaytestRequest) returns (AdminGetPlaytestResponse) {
+    option (playtesthub.v1.action) = ACTION_READ;
+    option (playtesthub.v1.resource) = "ADMIN:NAMESPACE:{namespace}:PLAYTEST";
+    option (google.api.http) = {get: "/v1/admin/namespaces/{namespace}/playtests/{playtest_id}"};
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Get a playtest by ID (admin)"
+      security: {
+        security_requirement: {
+          key: "Bearer"
+          value: {}
+        }
+      }
+    };
+  }
+
+  rpc ListPlaytests(ListPlaytestsRequest) returns (ListPlaytestsResponse) {
+    option (playtesthub.v1.action) = ACTION_READ;
+    option (playtesthub.v1.resource) = "ADMIN:NAMESPACE:{namespace}:PLAYTEST";
+    option (google.api.http) = {get: "/v1/admin/namespaces/{namespace}/playtests"};
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "List playtests in a namespace (admin, unpaginated; 100-item cap)"
+      security: {
+        security_requirement: {
+          key: "Bearer"
+          value: {}
+        }
+      }
+    };
+  }
+
+  rpc CreatePlaytest(CreatePlaytestRequest) returns (CreatePlaytestResponse) {
+    option (playtesthub.v1.action) = ACTION_CREATE;
+    option (playtesthub.v1.resource) = "ADMIN:NAMESPACE:{namespace}:PLAYTEST";
+    option (google.api.http) = {
+      post: "/v1/admin/namespaces/{namespace}/playtests"
+      body: "*"
+    };
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Create a playtest (admin)"
+      description: "STEAM_KEYS only in M1; distribution_model=AGS_CAMPAIGN returns Unimplemented until M2."
+      security: {
+        security_requirement: {
+          key: "Bearer"
+          value: {}
+        }
+      }
+    };
+  }
+
+  rpc EditPlaytest(EditPlaytestRequest) returns (EditPlaytestResponse) {
+    option (playtesthub.v1.action) = ACTION_UPDATE;
+    option (playtesthub.v1.resource) = "ADMIN:NAMESPACE:{namespace}:PLAYTEST";
+    option (google.api.http) = {
+      patch: "/v1/admin/namespaces/{namespace}/playtests/{playtest_id}"
+      body: "*"
+    };
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Edit mutable fields on a playtest (admin)"
+      description: "Editable: title, description, bannerImageUrl, platforms, startsAt, endsAt, ndaRequired, ndaText. Immutable fields → InvalidArgument."
+      security: {
+        security_requirement: {
+          key: "Bearer"
+          value: {}
+        }
+      }
+    };
+  }
+
+  rpc SoftDeletePlaytest(SoftDeletePlaytestRequest) returns (SoftDeletePlaytestResponse) {
+    option (playtesthub.v1.action) = ACTION_DELETE;
+    option (playtesthub.v1.resource) = "ADMIN:NAMESPACE:{namespace}:PLAYTEST";
+    option (google.api.http) = {delete: "/v1/admin/namespaces/{namespace}/playtests/{playtest_id}"};
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Soft-delete a playtest (admin; idempotent, irreversible)"
+      security: {
+        security_requirement: {
+          key: "Bearer"
+          value: {}
+        }
+      }
+    };
+  }
+
+  rpc TransitionPlaytestStatus(TransitionPlaytestStatusRequest) returns (TransitionPlaytestStatusResponse) {
+    option (playtesthub.v1.action) = ACTION_UPDATE;
+    option (playtesthub.v1.resource) = "ADMIN:NAMESPACE:{namespace}:PLAYTEST";
+    option (google.api.http) = {
+      post: "/v1/admin/namespaces/{namespace}/playtests/{playtest_id}:transitionStatus"
+      body: "*"
+    };
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Transition a playtest's status (admin; DRAFT→OPEN→CLOSED only)"
+      security: {
+        security_requirement: {
+          key: "Bearer"
+          value: {}
+        }
+      }
+    };
+  }
+
+  rpc Signup(SignupRequest) returns (SignupResponse) {
+    option (google.api.http) = {
+      post: "/v1/player/playtests/{slug}/signup"
+      body: "*"
+    };
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Sign up for a playtest (authenticated player; idempotent on (playtestId, userId))"
+      security: {
+        security_requirement: {
+          key: "Bearer"
+          value: {}
+        }
+      }
+    };
+  }
+
+  rpc GetApplicantStatus(GetApplicantStatusRequest) returns (GetApplicantStatusResponse) {
+    option (google.api.http) = {get: "/v1/player/playtests/{slug}/applicant"};
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Get the caller's own applicant row for a playtest"
+      security: {
+        security_requirement: {
+          key: "Bearer"
+          value: {}
+        }
+      }
+    };
+  }
+}
+
+// ---------------- enums ----------------
+
+enum Platform {
+  PLATFORM_UNSPECIFIED = 0;
+  PLATFORM_STEAM = 1;
+  PLATFORM_XBOX = 2;
+  PLATFORM_PLAYSTATION = 3;
+  PLATFORM_EPIC = 4;
+  PLATFORM_OTHER = 5;
+}
+
+enum PlaytestStatus {
+  PLAYTEST_STATUS_UNSPECIFIED = 0;
+  PLAYTEST_STATUS_DRAFT = 1;
+  PLAYTEST_STATUS_OPEN = 2;
+  PLAYTEST_STATUS_CLOSED = 3;
+}
+
+enum DistributionModel {
+  DISTRIBUTION_MODEL_UNSPECIFIED = 0;
+  DISTRIBUTION_MODEL_STEAM_KEYS = 1;
+  DISTRIBUTION_MODEL_AGS_CAMPAIGN = 2;
+}
+
+enum ApplicantStatus {
+  APPLICANT_STATUS_UNSPECIFIED = 0;
+  APPLICANT_STATUS_PENDING = 1;
+  APPLICANT_STATUS_APPROVED = 2;
+  APPLICANT_STATUS_REJECTED = 3;
+}
+
+enum DmStatus {
+  DM_STATUS_UNSPECIFIED = 0;
+  DM_STATUS_SENT = 1;
+  DM_STATUS_FAILED = 2;
+}
+
+// ---------------- entities ----------------
+
+// Playtest is the full admin-visible entity. Field semantics: PRD §5.1.
+message Playtest {
+  string id = 1;
+  string namespace = 2;
+  string slug = 3;
+  string title = 4;
+  string description = 5;
+  string banner_image_url = 6;
+  repeated Platform platforms = 7;
+  google.protobuf.Timestamp starts_at = 8;
+  google.protobuf.Timestamp ends_at = 9;
+  PlaytestStatus status = 10;
+  bool nda_required = 11;
+  string nda_text = 12;
+  string current_nda_version_hash = 13;
+  optional string survey_id = 14;
+  DistributionModel distribution_model = 15;
+  optional string ags_item_id = 16;
+  optional string ags_campaign_id = 17;
+  optional int32 initial_code_quantity = 18;
+  google.protobuf.Timestamp created_at = 19;
+  google.protobuf.Timestamp updated_at = 20;
+  google.protobuf.Timestamp deleted_at = 21;
+}
+
+// PublicPlaytest is the restricted field set exposed to unauthenticated
+// callers on GetPublicPlaytest (PRD §5.2).
+message PublicPlaytest {
+  string slug = 1;
+  string title = 2;
+  string description = 3;
+  string banner_image_url = 4;
+  repeated Platform platforms = 5;
+  google.protobuf.Timestamp starts_at = 6;
+  google.protobuf.Timestamp ends_at = 7;
+}
+
+// PlayerPlaytest is the field set returned to authenticated player callers
+// (GetPlaytestForPlayer). Superset of PublicPlaytest plus NDA + distribution
+// + status fields needed for the player flow.
+message PlayerPlaytest {
+  string slug = 1;
+  string title = 2;
+  string description = 3;
+  string banner_image_url = 4;
+  repeated Platform platforms = 5;
+  google.protobuf.Timestamp starts_at = 6;
+  google.protobuf.Timestamp ends_at = 7;
+  PlaytestStatus status = 8;
+  bool nda_required = 9;
+  string nda_text = 10;
+  string current_nda_version_hash = 11;
+  optional string survey_id = 12;
+  DistributionModel distribution_model = 13;
+}
+
+// Applicant is the full admin-visible entity (schema.md §"Applicant entity").
+// Player-visible responses carry the same message with restricted fields
+// populated — the handler layer enforces the visibility split (schema.md
+// L86–88). Player-visible: status, granted_code_id (presence), approved_at,
+// nda_version_hash.
+message Applicant {
+  string id = 1;
+  string playtest_id = 2;
+  string user_id = 3;
+  string discord_handle = 4;
+  repeated Platform platforms = 5;
+  optional string nda_version_hash = 6;
+  ApplicantStatus status = 7;
+  optional string granted_code_id = 8;
+  google.protobuf.Timestamp approved_at = 9;
+  optional string rejection_reason = 10;
+  DmStatus last_dm_status = 11;
+  google.protobuf.Timestamp last_dm_attempt_at = 12;
+  optional string last_dm_error = 13;
+  google.protobuf.Timestamp created_at = 14;
+}
+
+// ---------------- request / response messages ----------------
+
+message GetPublicPlaytestRequest {
+  string slug = 1;
+}
+message GetPublicPlaytestResponse {
+  PublicPlaytest playtest = 1;
+}
+
+message GetPlaytestForPlayerRequest {
+  string slug = 1;
+}
+message GetPlaytestForPlayerResponse {
+  PlayerPlaytest playtest = 1;
+}
+
+message AdminGetPlaytestRequest {
+  string namespace = 1;
+  string playtest_id = 2;
+}
+message AdminGetPlaytestResponse {
+  Playtest playtest = 1;
+}
+
+message ListPlaytestsRequest {
+  string namespace = 1;
+}
+message ListPlaytestsResponse {
+  repeated Playtest playtests = 1;
+}
+
+message CreatePlaytestRequest {
+  string namespace = 1;
+  string slug = 2;
+  string title = 3;
+  string description = 4;
+  string banner_image_url = 5;
+  repeated Platform platforms = 6;
+  google.protobuf.Timestamp starts_at = 7;
+  google.protobuf.Timestamp ends_at = 8;
+  bool nda_required = 9;
+  string nda_text = 10;
+  DistributionModel distribution_model = 11;
+  optional int32 initial_code_quantity = 12;
+}
+message CreatePlaytestResponse {
+  Playtest playtest = 1;
+}
+
+// EditPlaytestRequest mutable-field whitelist tracks PRD §5.1 L146.
+// Immutable fields (slug, namespace path params excluded, status,
+// distribution_model, initial_code_quantity, ags_*, timestamps) are
+// deliberately absent — clients that send them on the JSON body still have
+// them rejected at the handler layer.
+message EditPlaytestRequest {
+  string namespace = 1;
+  string playtest_id = 2;
+  string title = 3;
+  string description = 4;
+  string banner_image_url = 5;
+  repeated Platform platforms = 6;
+  google.protobuf.Timestamp starts_at = 7;
+  google.protobuf.Timestamp ends_at = 8;
+  bool nda_required = 9;
+  string nda_text = 10;
+}
+message EditPlaytestResponse {
+  Playtest playtest = 1;
+}
+
+message SoftDeletePlaytestRequest {
+  string namespace = 1;
+  string playtest_id = 2;
+}
+message SoftDeletePlaytestResponse {}
+
+message TransitionPlaytestStatusRequest {
+  string namespace = 1;
+  string playtest_id = 2;
+  PlaytestStatus target_status = 3;
+}
+message TransitionPlaytestStatusResponse {
+  Playtest playtest = 1;
+}
+
+message SignupRequest {
+  string slug = 1;
+  repeated Platform platforms = 2;
+}
+message SignupResponse {
+  Applicant applicant = 1;
+}
+
+message GetApplicantStatusRequest {
+  string slug = 1;
+}
+message GetApplicantStatusResponse {
+  Applicant applicant = 1;
+}
+
+// ---------------- swagger root ----------------
+
+option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_swagger) = {
+  info: {
+    title: "playtesthub API"
+    version: "v1"
+  }
+  base_path: "/playtesthub"
+  security_definitions: {
+    security: {
+      key: "Bearer"
+      value: {
+        type: TYPE_API_KEY
+        in: IN_HEADER
+        name: "Authorization"
+      }
+    }
+  }
+};

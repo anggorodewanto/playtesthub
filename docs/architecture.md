@@ -36,6 +36,25 @@ The backend integrates with AGS services and one third-party identity provider. 
 - **IAM** — Discord OAuth federation and AGS access-token issuance.
 - **Platform / Campaign API** — required for the `AGS_CAMPAIGN` distribution model: Item (ENTITLEMENT type) creation, Campaign creation, code generation/retrieval. Not invoked at approve time for either distribution model.
 
+#### AGS IAM client permissions (service client)
+
+The playtesthub backend authenticates to AGS using its own IAM **client credentials** (`AGS_IAM_CLIENT_ID` / `AGS_IAM_CLIENT_SECRET` — PRD §5.9). That client needs specific permissions granted on the AGS side; studios configure this once during onboarding (PRD §4.2 step 3–4). Broken down by milestone so the operator knows exactly which rows to add when.
+
+| Resource | Action | Why | Milestone |
+| -------- | :----: | --- | :-------: |
+| (client credentials grant — no AGS permission required) | — | `OAuth20Service.LoginClient` at service boot | M1 |
+| `ADMIN:ROLE` | READ | `iam.TokenValidator.Initialize` pre-fetches the namespace role list for local permission validation against admin JWTs | M1 |
+| `ADMIN:NAMESPACE:{namespace}:USER` | READ | `iam.TokenValidator` revocation-list fetch | M1 |
+| `NAMESPACE:{namespace}:IAM:USER` | READ | Discord handle lookup at signup (PRD §10 M1) — resolves the player's Discord ID from their AGS user record before calling the Discord Bot API | M1 |
+| `ADMIN:NAMESPACE:{namespace}:ITEM` | CREATE, READ, UPDATE | AGS Campaign API: Item (ENTITLEMENT type) creation + lookup (PRD §4.6) | M2 |
+| `ADMIN:NAMESPACE:{namespace}:CAMPAIGN` | CREATE, READ, UPDATE | AGS Campaign API: Campaign creation + update + code generation / fetch (PRD §4.6) | M2 |
+| (no new permissions) | — | Survey + notifications are internal / Discord-only | M3 |
+
+Caveats:
+- The M1 token-validator permission rows reflect the minimum set the AccelByte Go SDK's `iam.TokenValidator.Initialize` is observed to make. Exact resource strings can drift across SDK versions — this table is re-verified at M1 phase 5 (IAM wiring) against a real AGS namespace. If `TokenValidator.Initialize` returns 403 on a specific endpoint, update the table with the exact resource returned in the error.
+- The Discord handle lookup (PRD §10 M1) first resolves the player's Discord user ID from their AGS `sub` (requires `NAMESPACE:{namespace}:IAM:USER [READ]`) and then calls Discord's Bot API using `DISCORD_BOT_TOKEN` — the Discord call is authenticated independently of AGS IAM.
+- The `AGS_CAMPAIGN` permission set (M2) elaborates on PRD §4.2 step 7's one-line callout. PRD is authoritative for behavior; this table is authoritative for the concrete permission resource strings.
+
 ### Extend features
 - **Required**: Service Extension (gRPC), Extend-managed Postgres, **Extend App UI** (experimental capability; admin UI delivery).
 - **Not used in MVP**: Event Handler, Scheduled Action, Override pattern, legacy `justice-adminportal-extension-website` extension-site path.

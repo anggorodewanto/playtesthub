@@ -67,13 +67,16 @@ What the admin template does **not** give us (we add):
 
 Target layout after M1 scaffolding lands. Flat at the top (matches the template; no `cmd/`):
 
+Tooling note: Go stub + OpenAPI codegen runs via `proto.sh` (protoc) — inherited from the template and retained. `buf.yaml` drives `buf lint` only; there is no `buf.gen.yaml`.
+
 ```
 playtesthub/
 ├── main.go                          # entrypoint (template convention)
 ├── Dockerfile
 ├── docker-compose.yaml              # local dev: postgres + backend
 ├── Makefile
-├── buf.yaml / buf.gen.yaml
+├── buf.yaml                         # lint config only — codegen is protoc via proto.sh
+├── proto.sh                         # protoc codegen driver (Go stubs + OpenAPI)
 ├── .golangci.yml
 ├── go.mod / go.sum
 ├── migrations/                      # golang-migrate SQL files; append-only
@@ -214,8 +217,8 @@ Every PR must pass, in a single GitHub Actions workflow:
 | --- | --- | --- |
 | Go lint | `golangci-lint run` | config in `.golangci.yml`; includes `errcheck`, `govet`, `staticcheck`, `gofmt`. |
 | Go unit + integration | `go test ./...` | testcontainers-postgres spins up in CI; Docker-in-Docker required. |
-| Proto lint | `buf lint` | |
-| Proto stubs fresh | `buf generate` + `git diff --exit-code` | forces checked-in stubs to match `.proto`. |
+| Proto lint | `buf lint` | lint-only; `buf.yaml` at repo root, no `buf.gen.yaml`. |
+| Proto stubs fresh | `./proto.sh` + `git diff --exit-code` | protoc codegen driver; forces checked-in stubs under `pkg/pb/` and `gateway/apidocs/` to match `.proto`. |
 | Svelte build | `npm run build` in `player/` | |
 | Svelte a11y | `@axe-core/playwright`, pinned | five player pages; zero critical violations; scoped to `wcag2a, wcag2aa, wcag21a, wcag21aa`. |
 | Admin codegen fresh | `npm run codegen` + `git diff --exit-code` in `admin/` | catches a backend proto/HTTP-annotation change that the admin UI hasn't regenerated against. |
@@ -242,7 +245,8 @@ If a test needs a time source, inject a `clock.Clock` (use `benbjohnson/clock` o
 
 ### Backend
 - `docker-compose up` → Postgres on `:5432`. Backend is run locally with `go run .` so breakpoints work.
-- `make proto` → regenerate gRPC + grpc-gateway stubs and the OpenAPI spec under `gateway/apidocs/`.
+- `make proto` → regenerate gRPC + grpc-gateway stubs and the OpenAPI spec under `gateway/apidocs/` (runs `proto.sh` — protoc).
+- `make lint-proto` → `buf lint` against the `proto/` tree.
 - `make test` → unit + integration; assumes Docker is running.
 - `make lint` → `golangci-lint run`.
 

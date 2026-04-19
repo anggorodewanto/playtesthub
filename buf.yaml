@@ -1,0 +1,14 @@
+version: v2
+# buf here is lint-only. Go stub + OpenAPI codegen stays on protoc via
+# proto.sh — see docs/engineering.md §5 CI gates.
+modules:
+  - path: proto
+lint:
+  use:
+    - STANDARD
+    - PACKAGE_VERSION_SUFFIX
+  # Vendored upstream imports under proto/ ship their own packages we
+  # don't own; skip them from lint.
+  ignore:
+    - proto/google
+    - proto/protoc-gen-openapiv2

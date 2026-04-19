@@ -10,7 +10,7 @@ import (
 
 	"google.golang.org/grpc/credentials/insecure"
 
-	pb "github.com/anggorodewanto/playtesthub/pkg/pb"
+	pb "github.com/anggorodewanto/playtesthub/pkg/pb/playtesthub/v1"
 
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"google.golang.org/grpc"
@@ -24,7 +24,7 @@ type Gateway struct {
 func NewGateway(ctx context.Context, grpcServerEndpoint string, basePath string) (*Gateway, error) {
 	mux := runtime.NewServeMux()
 	opts := []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())}
-	err := pb.RegisterServiceHandlerFromEndpoint(ctx, mux, grpcServerEndpoint, opts)
+	err := pb.RegisterPlaytesthubServiceHandlerFromEndpoint(ctx, mux, grpcServerEndpoint, opts)
 	if err != nil {
 		return nil, err
 	}

@@ -68,7 +68,7 @@ WORKDIR /build
 
 # Copy proto sources and generator script
 COPY proto.sh .
-COPY pkg/proto/ pkg/proto/
+COPY proto/ proto/
 
 # Generate protobuf files.
 RUN chmod +x proto.sh && \
@@ -119,6 +119,7 @@ RUN mkdir -p gateway/apidocs
 COPY --from=proto-builder /build/gateway/apidocs gateway/apidocs
 COPY --from=builder /output/$TARGETOS/$TARGETARCH/service service
 COPY third_party third_party
+COPY migrations migrations
 
 # Plugin Arch gRPC Server Port
 EXPOSE 6565

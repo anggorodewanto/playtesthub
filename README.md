@@ -31,7 +31,7 @@ endpoints.
 
 ## Project Structure
 
-Customizing your Extend Service Extension app involves modifying the `service.proto` and `myService.go` files. The app initializes key components, such as the gRPC server, in `main.go`. When a request is made to the RESTful endpoint, the gRPC gateway handles it and forwards it to the corresponding gRPC method. Before `myService.go` executes any custom logic based on the request, the `authServerInterceptor.go` first verifies that the request has the necessary access token and authorization. No other files need to be modified unless you require further customization.
+The `playtesthub.v1` gRPC surface is defined in `proto/playtesthub/v1/playtesthub.proto`; handlers live in `pkg/service/`. The app initializes key components — gRPC server, grpc-gateway HTTP proxy, DB migrations — in `main.go`. When a request reaches the RESTful endpoint, the gRPC gateway forwards it to the matching gRPC method. Before handlers execute, `authServerInterceptor.go` validates the AGS IAM token and enforces the method-level `permission.action` / `permission.resource` options declared in the proto.
 
 ```shell
 .
@@ -40,14 +40,11 @@ Customizing your Extend Service Extension app involves modifying the `service.pr
 │   ├── common
 │   │   ├── authServerInterceptor.go    # gRPC server interceptor for access token authentication and authorization
 │   │   ├── ...
-│   ├── pb    # gRPC stubs generated from gRPC server protobuf
-│   │   └── ...
-│   ├── proto
-│   │   ├── service.proto     # gRPC server protobuf with additional options for exposing as RESTful web service
-│   │   └── ...
-│   ├── service
-│   │   ├── myService.go      # gRPC server implementation containing the custom logic
-│   │   └── ...
+│   ├── pb    # gRPC stubs generated from gRPC server protobuf (pkg/pb/playtesthub/v1)
+│   │   └── ...
+│   ├── service
+│   │   ├── playtest.go       # gRPC handler implementations (one file per domain)
+│   │   └── ...
 │   └── ...
 └── ...
 ```

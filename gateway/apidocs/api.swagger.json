@@ -1,0 +1,908 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "playtesthub API",
+    "version": "v1"
+  },
+  "tags": [
+    {
+      "name": "PlaytesthubService"
+    }
+  ],
+  "basePath": "/playtesthub",
+  "consumes": [
+    "application/json"
+  ],
+  "produces": [
+    "application/json"
+  ],
+  "paths": {
+    "/v1/admin/namespaces/{namespace}/playtests": {
+      "get": {
+        "summary": "List playtests in a namespace (admin, unpaginated; 100-item cap)",
+        "operationId": "PlaytesthubService_ListPlaytests",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListPlaytestsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "PlaytesthubService"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "post": {
+        "summary": "Create a playtest (admin)",
+        "description": "STEAM_KEYS only in M1; distribution_model=AGS_CAMPAIGN returns Unimplemented until M2.",
+        "operationId": "PlaytesthubService_CreatePlaytest",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1CreatePlaytestResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/PlaytesthubServiceCreatePlaytestBody"
+            }
+          }
+        ],
+        "tags": [
+          "PlaytesthubService"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v1/admin/namespaces/{namespace}/playtests/{playtestId}": {
+      "get": {
+        "summary": "Get a playtest by ID (admin)",
+        "operationId": "PlaytesthubService_AdminGetPlaytest",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1AdminGetPlaytestResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "playtestId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "PlaytesthubService"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "delete": {
+        "summary": "Soft-delete a playtest (admin; idempotent, irreversible)",
+        "operationId": "PlaytesthubService_SoftDeletePlaytest",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1SoftDeletePlaytestResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "playtestId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "PlaytesthubService"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "patch": {
+        "summary": "Edit mutable fields on a playtest (admin)",
+        "description": "Editable: title, description, bannerImageUrl, platforms, startsAt, endsAt, ndaRequired, ndaText. Immutable fields → InvalidArgument.",
+        "operationId": "PlaytesthubService_EditPlaytest",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1EditPlaytestResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "playtestId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/PlaytesthubServiceEditPlaytestBody"
+            }
+          }
+        ],
+        "tags": [
+          "PlaytesthubService"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v1/admin/namespaces/{namespace}/playtests/{playtestId}:transitionStatus": {
+      "post": {
+        "summary": "Transition a playtest's status (admin; DRAFT→OPEN→CLOSED only)",
+        "operationId": "PlaytesthubService_TransitionPlaytestStatus",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1TransitionPlaytestStatusResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "playtestId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/PlaytesthubServiceTransitionPlaytestStatusBody"
+            }
+          }
+        ],
+        "tags": [
+          "PlaytesthubService"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v1/player/playtests/{slug}": {
+      "get": {
+        "summary": "Get a playtest by slug (authenticated player)",
+        "description": "Returns the player-visible field set including NDA text and currentNdaVersionHash.",
+        "operationId": "PlaytesthubService_GetPlaytestForPlayer",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetPlaytestForPlayerResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "PlaytesthubService"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v1/player/playtests/{slug}/applicant": {
+      "get": {
+        "summary": "Get the caller's own applicant row for a playtest",
+        "operationId": "PlaytesthubService_GetApplicantStatus",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetApplicantStatusResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "PlaytesthubService"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v1/player/playtests/{slug}/signup": {
+      "post": {
+        "summary": "Sign up for a playtest (authenticated player; idempotent on (playtestId, userId))",
+        "operationId": "PlaytesthubService_Signup",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1SignupResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/PlaytesthubServiceSignupBody"
+            }
+          }
+        ],
+        "tags": [
+          "PlaytesthubService"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v1/public/playtests/{slug}": {
+      "get": {
+        "summary": "Get a playtest by slug (unauthenticated)",
+        "description": "Returns the public field subset for an OPEN playtest. NotFound for DRAFT, CLOSED, or soft-deleted.",
+        "operationId": "PlaytesthubService_GetPublicPlaytest",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetPublicPlaytestResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "PlaytesthubService"
+        ]
+      }
+    }
+  },
+  "definitions": {
+    "PlaytesthubServiceCreatePlaytestBody": {
+      "type": "object",
+      "properties": {
+        "slug": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "bannerImageUrl": {
+          "type": "string"
+        },
+        "platforms": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/v1Platform"
+          }
+        },
+        "startsAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "endsAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "ndaRequired": {
+          "type": "boolean"
+        },
+        "ndaText": {
+          "type": "string"
+        },
+        "distributionModel": {
+          "$ref": "#/definitions/v1DistributionModel"
+        },
+        "initialCodeQuantity": {
+          "type": "integer",
+          "format": "int32"
+        }
+      }
+    },
+    "PlaytesthubServiceEditPlaytestBody": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "bannerImageUrl": {
+          "type": "string"
+        },
+        "platforms": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/v1Platform"
+          }
+        },
+        "startsAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "endsAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "ndaRequired": {
+          "type": "boolean"
+        },
+        "ndaText": {
+          "type": "string"
+        }
+      },
+      "description": "EditPlaytestRequest mutable-field whitelist tracks PRD §5.1 L146.\nImmutable fields (slug, namespace path params excluded, status,\ndistribution_model, initial_code_quantity, ags_*, timestamps) are\ndeliberately absent — clients that send them on the JSON body still have\nthem rejected at the handler layer."
+    },
+    "PlaytesthubServiceSignupBody": {
+      "type": "object",
+      "properties": {
+        "platforms": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/v1Platform"
+          }
+        }
+      }
+    },
+    "PlaytesthubServiceTransitionPlaytestStatusBody": {
+      "type": "object",
+      "properties": {
+        "targetStatus": {
+          "$ref": "#/definitions/v1PlaytestStatus"
+        }
+      }
+    },
+    "protobufAny": {
+      "type": "object",
+      "properties": {
+        "@type": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": {}
+    },
+    "rpcStatus": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "message": {
+          "type": "string"
+        },
+        "details": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/protobufAny"
+          }
+        }
+      }
+    },
+    "v1AdminGetPlaytestResponse": {
+      "type": "object",
+      "properties": {
+        "playtest": {
+          "$ref": "#/definitions/v1Playtest"
+        }
+      }
+    },
+    "v1Applicant": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "playtestId": {
+          "type": "string"
+        },
+        "userId": {
+          "type": "string"
+        },
+        "discordHandle": {
+          "type": "string"
+        },
+        "platforms": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/v1Platform"
+          }
+        },
+        "ndaVersionHash": {
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/definitions/v1ApplicantStatus"
+        },
+        "grantedCodeId": {
+          "type": "string"
+        },
+        "approvedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "rejectionReason": {
+          "type": "string"
+        },
+        "lastDmStatus": {
+          "$ref": "#/definitions/v1DmStatus"
+        },
+        "lastDmAttemptAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "lastDmError": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "description": "Applicant is the full admin-visible entity (schema.md §\"Applicant entity\").\nPlayer-visible responses carry the same message with restricted fields\npopulated — the handler layer enforces the visibility split (schema.md\nL86–88). Player-visible: status, granted_code_id (presence), approved_at,\nnda_version_hash."
+    },
+    "v1ApplicantStatus": {
+      "type": "string",
+      "enum": [
+        "APPLICANT_STATUS_UNSPECIFIED",
+        "APPLICANT_STATUS_PENDING",
+        "APPLICANT_STATUS_APPROVED",
+        "APPLICANT_STATUS_REJECTED"
+      ],
+      "default": "APPLICANT_STATUS_UNSPECIFIED"
+    },
+    "v1CreatePlaytestResponse": {
+      "type": "object",
+      "properties": {
+        "playtest": {
+          "$ref": "#/definitions/v1Playtest"
+        }
+      }
+    },
+    "v1DistributionModel": {
+      "type": "string",
+      "enum": [
+        "DISTRIBUTION_MODEL_UNSPECIFIED",
+        "DISTRIBUTION_MODEL_STEAM_KEYS",
+        "DISTRIBUTION_MODEL_AGS_CAMPAIGN"
+      ],
+      "default": "DISTRIBUTION_MODEL_UNSPECIFIED"
+    },
+    "v1DmStatus": {
+      "type": "string",
+      "enum": [
+        "DM_STATUS_UNSPECIFIED",
+        "DM_STATUS_SENT",
+        "DM_STATUS_FAILED"
+      ],
+      "default": "DM_STATUS_UNSPECIFIED"
+    },
+    "v1EditPlaytestResponse": {
+      "type": "object",
+      "properties": {
+        "playtest": {
+          "$ref": "#/definitions/v1Playtest"
+        }
+      }
+    },
+    "v1GetApplicantStatusResponse": {
+      "type": "object",
+      "properties": {
+        "applicant": {
+          "$ref": "#/definitions/v1Applicant"
+        }
+      }
+    },
+    "v1GetPlaytestForPlayerResponse": {
+      "type": "object",
+      "properties": {
+        "playtest": {
+          "$ref": "#/definitions/v1PlayerPlaytest"
+        }
+      }
+    },
+    "v1GetPublicPlaytestResponse": {
+      "type": "object",
+      "properties": {
+        "playtest": {
+          "$ref": "#/definitions/v1PublicPlaytest"
+        }
+      }
+    },
+    "v1ListPlaytestsResponse": {
+      "type": "object",
+      "properties": {
+        "playtests": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1Playtest"
+          }
+        }
+      }
+    },
+    "v1Platform": {
+      "type": "string",
+      "enum": [
+        "PLATFORM_UNSPECIFIED",
+        "PLATFORM_STEAM",
+        "PLATFORM_XBOX",
+        "PLATFORM_PLAYSTATION",
+        "PLATFORM_EPIC",
+        "PLATFORM_OTHER"
+      ],
+      "default": "PLATFORM_UNSPECIFIED"
+    },
+    "v1PlayerPlaytest": {
+      "type": "object",
+      "properties": {
+        "slug": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "bannerImageUrl": {
+          "type": "string"
+        },
+        "platforms": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/v1Platform"
+          }
+        },
+        "startsAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "endsAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "status": {
+          "$ref": "#/definitions/v1PlaytestStatus"
+        },
+        "ndaRequired": {
+          "type": "boolean"
+        },
+        "ndaText": {
+          "type": "string"
+        },
+        "currentNdaVersionHash": {
+          "type": "string"
+        },
+        "surveyId": {
+          "type": "string"
+        },
+        "distributionModel": {
+          "$ref": "#/definitions/v1DistributionModel"
+        }
+      },
+      "description": "PlayerPlaytest is the field set returned to authenticated player callers\n(GetPlaytestForPlayer). Superset of PublicPlaytest plus NDA + distribution\n+ status fields needed for the player flow."
+    },
+    "v1Playtest": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "namespace": {
+          "type": "string"
+        },
+        "slug": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "bannerImageUrl": {
+          "type": "string"
+        },
+        "platforms": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/v1Platform"
+          }
+        },
+        "startsAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "endsAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "status": {
+          "$ref": "#/definitions/v1PlaytestStatus"
+        },
+        "ndaRequired": {
+          "type": "boolean"
+        },
+        "ndaText": {
+          "type": "string"
+        },
+        "currentNdaVersionHash": {
+          "type": "string"
+        },
+        "surveyId": {
+          "type": "string"
+        },
+        "distributionModel": {
+          "$ref": "#/definitions/v1DistributionModel"
+        },
+        "agsItemId": {
+          "type": "string"
+        },
+        "agsCampaignId": {
+          "type": "string"
+        },
+        "initialCodeQuantity": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "deletedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "description": "Playtest is the full admin-visible entity. Field semantics: PRD §5.1."
+    },
+    "v1PlaytestStatus": {
+      "type": "string",
+      "enum": [
+        "PLAYTEST_STATUS_UNSPECIFIED",
+        "PLAYTEST_STATUS_DRAFT",
+        "PLAYTEST_STATUS_OPEN",
+        "PLAYTEST_STATUS_CLOSED"
+      ],
+      "default": "PLAYTEST_STATUS_UNSPECIFIED"
+    },
+    "v1PublicPlaytest": {
+      "type": "object",
+      "properties": {
+        "slug": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "bannerImageUrl": {
+          "type": "string"
+        },
+        "platforms": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/v1Platform"
+          }
+        },
+        "startsAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "endsAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "description": "PublicPlaytest is the restricted field set exposed to unauthenticated\ncallers on GetPublicPlaytest (PRD §5.2)."
+    },
+    "v1SignupResponse": {
+      "type": "object",
+      "properties": {
+        "applicant": {
+          "$ref": "#/definitions/v1Applicant"
+        }
+      }
+    },
+    "v1SoftDeletePlaytestResponse": {
+      "type": "object"
+    },
+    "v1TransitionPlaytestStatusResponse": {
+      "type": "object",
+      "properties": {
+        "playtest": {
+          "$ref": "#/definitions/v1Playtest"
+        }
+      }
+    }
+  },
+  "securityDefinitions": {
+    "Bearer": {
+      "type": "apiKey",
+      "name": "Authorization",
+      "in": "header"
+    }
+  }
+}
