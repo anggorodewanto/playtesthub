@@ -53,3 +53,17 @@ func TestExtractBearerToken_EmptyBearerFallsThroughToCookie(t *testing.T) {
 		t.Fatalf("want cookie.jwt, got %q", got)
 	}
 }
+
+func TestExtractBearerToken_QuotedCookieValue(t *testing.T) {
+	// RFC 6265 permits a DQUOTE-wrapped cookie value. The prior
+	// hand-rolled split returned `"jwt.value"` (literal quotes) — a JWT
+	// with surrounding quotes fails signature validation downstream.
+	// net/http's parser strips the quotes.
+	meta := metadata.New(map[string]string{
+		"cookie": `access_token="jwt.value"`,
+	})
+	got := extractBearerToken(meta)
+	if got != "jwt.value" {
+		t.Fatalf("want jwt.value, got %q", got)
+	}
+}

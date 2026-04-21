@@ -9,6 +9,7 @@ import (
 	"crypto/rsa"
 	"encoding/base64"
 	"fmt"
+	"net/http"
 	"regexp"
 	"strings"
 	"time"
@@ -186,24 +187,16 @@ func extractBearerToken(meta metadata.MD) string {
 }
 
 // cookieValue pulls a single cookie value out of a raw `Cookie:` header
-// string. Uses net/http's parser indirectly via a minimal split to avoid
-// dragging a full http.Request into the auth path. Returns "" when the
-// named cookie is absent.
+// string. Delegates to net/http so RFC 6265 edge cases (quoted values,
+// odd whitespace) round-trip correctly — a hand-rolled split on `;`
+// misses those. Returns "" when the named cookie is absent.
 func cookieValue(header, name string) string {
-	for _, part := range strings.Split(header, ";") {
-		part = strings.TrimSpace(part)
-		if part == "" {
-			continue
-		}
-		eq := strings.IndexByte(part, '=')
-		if eq <= 0 {
-			continue
-		}
-		if part[:eq] == name {
-			return part[eq+1:]
-		}
+	req := &http.Request{Header: http.Header{"Cookie": []string{header}}}
+	c, err := req.Cookie(name)
+	if err != nil {
+		return ""
 	}
-	return ""
+	return c.Value
 }
 
 // checkAuthorizationMetadata validates the incoming bearer token against

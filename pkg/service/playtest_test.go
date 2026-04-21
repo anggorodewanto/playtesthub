@@ -324,6 +324,31 @@ func TestCreatePlaytest_NamespaceSoftCap_ResourceExhausted(t *testing.T) {
 	requireMsgContains(t, err, "100-playtest")
 }
 
+func TestCreatePlaytest_SoftCapCountsSoftDeleted(t *testing.T) {
+	// PRD §5.1: slugs stay reserved across soft-deletes, so the cap must
+	// include soft-deleted rows. Without this the create-then-soft-delete
+	// churn pattern silently bypasses the 100-playtest cap.
+	svr, store, _ := newTestServer()
+	now := time.Now()
+	half := maxNamespacePlayt / 2
+	for range half {
+		store.rows = append(store.rows, &repo.Playtest{
+			ID: uuid.New(), Namespace: testNamespace, Slug: "live-" + uuidShort(),
+			Title: "t", DistributionModel: "STEAM_KEYS", Status: "DRAFT",
+		})
+	}
+	for range half {
+		deletedAt := now
+		store.rows = append(store.rows, &repo.Playtest{
+			ID: uuid.New(), Namespace: testNamespace, Slug: "dead-" + uuidShort(),
+			Title: "t", DistributionModel: "STEAM_KEYS", Status: "DRAFT", DeletedAt: &deletedAt,
+		})
+	}
+	_, err := svr.CreatePlaytest(authCtx(uuid.New()), validCreateRequest("one-over-cap"))
+	requireStatus(t, err, codes.ResourceExhausted)
+	requireMsgContains(t, err, "100-playtest")
+}
+
 func TestCreatePlaytest_BadSlug_InvalidArgument(t *testing.T) {
 	svr, _, _ := newTestServer()
 	cases := []string{"BAD", "a", "ab", "-bad", "has space", "TOO" + strings.Repeat("x", 100)}
@@ -412,6 +437,78 @@ func TestEditPlaytest_HappyPath(t *testing.T) {
 	if resp.GetPlaytest().GetTitle() != "new title" {
 		t.Errorf("title = %q, want new title", resp.GetPlaytest().GetTitle())
 	}
+}
+
+func TestCreatePlaytest_NDARequiredEmptyText_InvalidArgument(t *testing.T) {
+	svr, _, _ := newTestServer()
+	req := validCreateRequest("empty-nda")
+	req.NdaRequired = true
+	req.NdaText = ""
+	_, err := svr.CreatePlaytest(authCtx(uuid.New()), req)
+	requireStatus(t, err, codes.InvalidArgument)
+	requireMsgContains(t, err, "nda_text")
+}
+
+func TestCreatePlaytest_InitialCodeQuantityOnSteam_InvalidArgument(t *testing.T) {
+	svr, _, _ := newTestServer()
+	req := validCreateRequest("steam-qty")
+	qty := int32(100)
+	req.InitialCodeQuantity = &qty
+	_, err := svr.CreatePlaytest(authCtx(uuid.New()), req)
+	requireStatus(t, err, codes.InvalidArgument)
+	requireMsgContains(t, err, "initial_code_quantity")
+}
+
+func TestEditPlaytest_NDAHashStableWhenTextUnchanged(t *testing.T) {
+	// PRD §5.3: NDA hash change forces every approved applicant to
+	// re-accept. A cosmetic edit that re-sends the same nda_text must
+	// not churn the hash.
+	svr, store, _ := newTestServer()
+	id := uuid.New()
+	ndaText := "secret\n"
+	origHash := hashNDA(ndaText)
+	store.rows = append(store.rows, &repo.Playtest{
+		ID:                    id,
+		Namespace:             testNamespace,
+		Slug:                  "stable-nda",
+		Title:                 "t",
+		DistributionModel:     "STEAM_KEYS",
+		Status:                "OPEN",
+		NDARequired:           true,
+		NDAText:               ndaText,
+		CurrentNDAVersionHash: origHash,
+	})
+	resp, err := svr.EditPlaytest(authCtx(uuid.New()), &pb.EditPlaytestRequest{
+		Namespace:   testNamespace,
+		PlaytestId:  id.String(),
+		Title:       "edited title", // cosmetic change
+		NdaRequired: true,
+		NdaText:     ndaText,
+	})
+	if err != nil {
+		t.Fatalf("unexpected: %v", err)
+	}
+	if got := resp.GetPlaytest().GetCurrentNdaVersionHash(); got != origHash {
+		t.Fatalf("hash = %q, want %q (no text change → no re-hash)", got, origHash)
+	}
+}
+
+func TestEditPlaytest_NDARequiredEmptyText_InvalidArgument(t *testing.T) {
+	svr, store, _ := newTestServer()
+	id := uuid.New()
+	store.rows = append(store.rows, &repo.Playtest{
+		ID: id, Namespace: testNamespace, Slug: "e", Title: "t",
+		DistributionModel: "STEAM_KEYS", Status: "DRAFT",
+	})
+	_, err := svr.EditPlaytest(authCtx(uuid.New()), &pb.EditPlaytestRequest{
+		Namespace:   testNamespace,
+		PlaytestId:  id.String(),
+		Title:       "t",
+		NdaRequired: true,
+		NdaText:     "",
+	})
+	requireStatus(t, err, codes.InvalidArgument)
+	requireMsgContains(t, err, "nda_text")
 }
 
 func TestEditPlaytest_RecomputesNDAHashWhenTextChanges(t *testing.T) {
@@ -559,6 +656,62 @@ func TestTransitionPlaytestStatus_OpenToClosed(t *testing.T) {
 	if resp.GetPlaytest().GetStatus() != pb.PlaytestStatus_PLAYTEST_STATUS_CLOSED {
 		t.Fatal("status did not advance to CLOSED")
 	}
+}
+
+// TestEditPlaytestRequest_MutableFieldWhitelist pins the EditPlaytest
+// wire contract down so a future proto change that accidentally adds an
+// immutable field (e.g. `optional string slug`) fails here instead of
+// silently dropping the caller's change. PRD §5.1 L146 lists the
+// editable set; namespace + playtest_id are path-param routing fields,
+// not payload fields, but both travel on the message.
+func TestEditPlaytestRequest_MutableFieldWhitelist(t *testing.T) {
+	wantMutable := map[string]struct{}{
+		"namespace":        {}, // path param
+		"playtest_id":      {}, // path param
+		"title":            {},
+		"description":      {},
+		"banner_image_url": {},
+		"platforms":        {},
+		"starts_at":        {},
+		"ends_at":          {},
+		"nda_required":     {},
+		"nda_text":         {},
+	}
+	desc := (&pb.EditPlaytestRequest{}).ProtoReflect().Descriptor()
+	got := map[string]struct{}{}
+	for i := 0; i < desc.Fields().Len(); i++ {
+		got[string(desc.Fields().Get(i).Name())] = struct{}{}
+	}
+	for k := range wantMutable {
+		if _, ok := got[k]; !ok {
+			t.Errorf("EditPlaytestRequest missing expected field %q", k)
+		}
+	}
+	for k := range got {
+		if _, ok := wantMutable[k]; !ok {
+			t.Errorf("EditPlaytestRequest has unexpected field %q — either add to the mutable whitelist or drop it from the proto (PRD §5.1 L146)", k)
+		}
+	}
+}
+
+func TestTransitionPlaytestStatus_RejectionNamesBothStates(t *testing.T) {
+	svr, store, _ := newTestServer()
+	id := uuid.New()
+	store.rows = append(store.rows, &repo.Playtest{
+		ID: id, Namespace: testNamespace, Slug: "t", Title: "t",
+		DistributionModel: "STEAM_KEYS", Status: "DRAFT",
+	})
+	_, err := svr.TransitionPlaytestStatus(authCtx(uuid.New()), &pb.TransitionPlaytestStatusRequest{
+		Namespace:    testNamespace,
+		PlaytestId:   id.String(),
+		TargetStatus: pb.PlaytestStatus_PLAYTEST_STATUS_CLOSED,
+	})
+	requireStatus(t, err, codes.FailedPrecondition)
+	// Operators must see both the current and requested state in the
+	// rejection — otherwise debugging a stuck playtest means guessing
+	// which transition was attempted.
+	requireMsgContains(t, err, "DRAFT")
+	requireMsgContains(t, err, "CLOSED")
 }
 
 func TestTransitionPlaytestStatus_InvalidTransitions(t *testing.T) {

@@ -48,4 +48,39 @@ code=$(curl -s -o /dev/null -w '%{http_code}' \
 [[ "$code" == "401" ]] \
     || fail "expected 401 from ListPlaytests, got $code"
 
+# Phase 7 signup path: grpc-gateway + auth interceptor reach the Signup
+# handler. An unauth call gets 401 from the interceptor before any DB
+# work. Validates the deployed route + body binding didn't regress.
+log "player Signup requires auth (expect 401)"
+code=$(curl -s -o /dev/null -w '%{http_code}' \
+    -H 'Content-Type: application/json' \
+    -d '{"platforms":["PLATFORM_STEAM"]}' \
+    "${BASE}/v1/player/playtests/cloud-smoke-nonexistent/signup")
+[[ "$code" == "401" ]] \
+    || fail "expected 401 from Signup, got $code"
+
+log "player GetApplicantStatus requires auth (expect 401)"
+code=$(curl -s -o /dev/null -w '%{http_code}' \
+    "${BASE}/v1/player/playtests/cloud-smoke-nonexistent/applicant")
+[[ "$code" == "401" ]] \
+    || fail "expected 401 from GetApplicantStatus, got $code"
+
+# Optional: exercise the cookie-forwarded Admin Portal auth path. Set
+# ADMIN_PORTAL_COOKIE to the full Cookie header value copied from a
+# logged-in Admin Portal browser session. This is the path that
+# boot.sh cannot reach — it only exists on the deployed surface where
+# grpc-gateway's incoming-header matcher forwards `Cookie:` as gRPC
+# metadata (pkg/common/gateway.go) and the auth interceptor pulls the
+# `access_token` cookie out of it.
+if [[ -n "${ADMIN_PORTAL_COOKIE:-}" ]]; then
+    log "cookie-authed ListPlaytests (expect 200)"
+    code=$(curl -s -o /dev/null -w '%{http_code}' \
+        -H "Cookie: ${ADMIN_PORTAL_COOKIE}" \
+        "${BASE}/v1/admin/namespaces/${AGS_NAMESPACE}/playtests")
+    [[ "$code" == "200" ]] \
+        || fail "expected 200 from cookie-authed ListPlaytests, got $code"
+else
+    log "skipping cookie-authed check (set ADMIN_PORTAL_COOKIE to enable)"
+fi
+
 log "PASS"

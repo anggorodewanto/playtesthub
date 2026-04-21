@@ -68,6 +68,18 @@ done
 docker exec "$CONTAINER_NAME" pg_isready -U playtesthub -d playtesthub >/dev/null \
     || fail "postgres did not become ready in 30s"
 
+# pg_isready flips on while postgres is still finishing its init script —
+# the very first connection sometimes gets a reset-by-peer. Round-trip a
+# real psql query so we don't race the migration runner into that window.
+for _ in {1..10}; do
+    if docker exec "$CONTAINER_NAME" psql -U playtesthub -d playtesthub -c 'SELECT 1' >/dev/null 2>&1; then
+        break
+    fi
+    sleep 1
+done
+docker exec "$CONTAINER_NAME" psql -U playtesthub -d playtesthub -c 'SELECT 1' >/dev/null 2>&1 \
+    || fail "postgres did not accept a psql query in 10s"
+
 # 2. App --------------------------------------------------------------------
 # pkg/config (M1 phase 5) treats every PRD §5.9 required var as a hard
 # boot prereq — missing one exits before anything else runs. Even with
@@ -157,5 +169,20 @@ code=$(curl -s -o /dev/null -w '%{http_code}' \
     "http://localhost:$APP_PORT_HTTP$BASE_PATH/v1/player/playtests/smoke-test/applicant")
 [[ "$code" == "401" ]] \
     || { tail -30 /tmp/playtesthub-smoke.log >&2; fail "expected 401 Unauthenticated from GetApplicantStatus, got $code"; }
+
+# PRD §6 forbids NDA text in logs. CreatePlaytest is rejected upstream (no
+# auth), but the logging interceptor runs before the auth check — so a
+# regression that re-enables PayloadReceived/PayloadSent would dump the
+# request body verbatim. We seed a distinctive marker in nda_text and
+# assert it does not appear in the log file.
+log "NDA text never reaches logs (PRD §6 observability constraint)"
+NDA_MARKER="SMOKE_NDA_MARKER_DO_NOT_LOG_$(date +%s%N)"
+curl -s -o /dev/null \
+    -H 'Content-Type: application/json' \
+    -d "{\"slug\":\"smoke-nda\",\"title\":\"t\",\"nda_required\":true,\"nda_text\":\"${NDA_MARKER}\",\"distribution_model\":\"DISTRIBUTION_MODEL_STEAM_KEYS\"}" \
+    "http://localhost:$APP_PORT_HTTP$BASE_PATH/v1/admin/namespaces/smoke/playtests" || true
+if grep -q "$NDA_MARKER" /tmp/playtesthub-smoke.log; then
+    fail "NDA text marker leaked into logs — PRD §6 violation"
+fi
 
 log "PASS"

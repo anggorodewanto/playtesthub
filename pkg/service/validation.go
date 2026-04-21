@@ -70,6 +70,16 @@ func validateBannerURL(s string) error {
 	return nil
 }
 
+// validateNDA rejects the nonsensical "required with no text" shape.
+// hashNDA("") returns "" which the player app renders as an empty modal
+// + infinite re-accept loop — the request must carry text when required.
+func validateNDA(required bool, text string) error {
+	if required && text == "" {
+		return status.Error(codes.InvalidArgument, "nda_text is required when nda_required is true")
+	}
+	return nil
+}
+
 // platformsToStrings renders the proto enum as the TEXT[] values the DB
 // stores (see migration 0001). Unspecified is rejected — it means the
 // client omitted a platform.

@@ -121,7 +121,12 @@ func main() {
 	logger.Info("migrations applied")
 
 	loggingOptions := []logging.Option{
-		logging.WithLogOnEvents(logging.StartCall, logging.FinishCall, logging.PayloadReceived, logging.PayloadSent),
+		// PRD §6 Observability: NDA text, survey free-text answers, and
+		// Code values MUST NOT appear in logs. PayloadReceived /
+		// PayloadSent would dump request/response bodies verbatim —
+		// including nda_text on CreatePlaytest / EditPlaytest and
+		// Code.value once M2 lands — so we log only the call boundaries.
+		logging.WithLogOnEvents(logging.StartCall, logging.FinishCall),
 		logging.WithFieldsFromContext(func(ctx context.Context) logging.Fields {
 			if span := trace.SpanContextFromContext(ctx); span.IsSampled() {
 				return logging.Fields{"traceID", span.TraceID().String()}

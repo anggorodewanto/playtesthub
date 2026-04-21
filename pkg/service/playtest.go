@@ -93,6 +93,12 @@ func (s *PlaytesthubServiceServer) CreatePlaytest(ctx context.Context, req *pb.C
 	if req.GetDistributionModel() != pb.DistributionModel_DISTRIBUTION_MODEL_STEAM_KEYS {
 		return nil, status.Error(codes.InvalidArgument, "distribution_model is required")
 	}
+	// STEAM_KEYS sources codes from admin CSV upload (M2), not AGS Campaign
+	// generation — initialCodeQuantity has no meaning here and silently
+	// dropping it hides client bugs. PRD §5.1 / §4.6.
+	if req.InitialCodeQuantity != nil {
+		return nil, status.Error(codes.InvalidArgument, "initial_code_quantity must not be set for STEAM_KEYS (only AGS_CAMPAIGN uses it; PRD §5.1)")
+	}
 	if err := validateSlug(req.GetSlug()); err != nil {
 		return nil, err
 	}
@@ -105,12 +111,19 @@ func (s *PlaytesthubServiceServer) CreatePlaytest(ctx context.Context, req *pb.C
 	if err := validateBannerURL(req.GetBannerImageUrl()); err != nil {
 		return nil, err
 	}
+	if err := validateNDA(req.GetNdaRequired(), req.GetNdaText()); err != nil {
+		return nil, err
+	}
 	platforms, err := platformsToStrings(req.GetPlatforms())
 	if err != nil {
 		return nil, wrapPlatformsErr(err)
 	}
 
-	existing, err := s.playtest.List(ctx, s.namespace, false)
+	// PRD §5.1: slugs stay reserved across soft-deletes — the 100-playtest
+	// cap therefore counts live + soft-deleted rows. Counting only live
+	// rows would let create-then-soft-delete churn bypass the cap while
+	// still burning the slug namespace.
+	existing, err := s.playtest.List(ctx, s.namespace, true)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "listing playtests for cap check: %v", err)
 	}
@@ -148,6 +161,16 @@ func (s *PlaytesthubServiceServer) CreatePlaytest(ctx context.Context, req *pb.C
 // EditPlaytest updates the mutable field set on an existing playtest.
 // The proto request shape enforces the PRD §5.1 whitelist — immutable
 // fields are not representable on the wire.
+//
+// Semantics: full-replace of the mutable set. Clients must fetch the
+// current row (AdminGetPlaytest), mutate the fields they intend to
+// change, and send the complete message back. Omitted scalars come in
+// as their proto3 zero value and overwrite existing data — `{"title":
+// "new"}` is a destructive edit, not a PATCH. The Admin Portal UI
+// always sends the complete mutable set, so this is not a UX cliff in
+// practice. PRD §5.3 NDA hash is only recomputed when nda_text
+// actually differs from the stored value, so a no-op re-send does not
+// force every approved applicant into re-accept.
 func (s *PlaytesthubServiceServer) EditPlaytest(ctx context.Context, req *pb.EditPlaytestRequest) (*pb.EditPlaytestResponse, error) {
 	if _, err := requireActor(ctx); err != nil {
 		return nil, err
@@ -166,6 +189,9 @@ func (s *PlaytesthubServiceServer) EditPlaytest(ctx context.Context, req *pb.Edi
 		return nil, err
 	}
 	if err := validateBannerURL(req.GetBannerImageUrl()); err != nil {
+		return nil, err
+	}
+	if err := validateNDA(req.GetNdaRequired(), req.GetNdaText()); err != nil {
 		return nil, err
 	}
 	platforms, err := platformsToStrings(req.GetPlatforms())
@@ -191,8 +217,14 @@ func (s *PlaytesthubServiceServer) EditPlaytest(ctx context.Context, req *pb.Edi
 	current.StartsAt = timestampToTime(req.GetStartsAt())
 	current.EndsAt = timestampToTime(req.GetEndsAt())
 	current.NDARequired = req.GetNdaRequired()
-	current.NDAText = req.GetNdaText()
-	current.CurrentNDAVersionHash = hashNDA(req.GetNdaText())
+	// PRD §5.3: changing NDA text forces every approved applicant back
+	// to re-accept. Only recompute the version hash when the text has
+	// actually changed so clients can edit cosmetic fields without
+	// churning the acceptance workflow.
+	if req.GetNdaText() != current.NDAText {
+		current.NDAText = req.GetNdaText()
+		current.CurrentNDAVersionHash = hashNDA(req.GetNdaText())
+	}
 
 	got, err := s.playtest.Update(ctx, current)
 	if errors.Is(err, repo.ErrNotFound) {
