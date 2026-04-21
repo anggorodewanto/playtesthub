@@ -2135,37 +2135,37 @@ const file_playtesthub_v1_playtesthub_proto_rawDesc = "" +
 	"\bDmStatus\x12\x19\n" +
 	"\x15DM_STATUS_UNSPECIFIED\x10\x00\x12\x12\n" +
 	"\x0eDM_STATUS_SENT\x10\x01\x12\x14\n" +
-	"\x10DM_STATUS_FAILED\x10\x022\x9d\x17\n" +
+	"\x10DM_STATUS_FAILED\x10\x022\xb5\x17\n" +
 	"\x12PlaytesthubService\x12\xa0\x02\n" +
 	"\x11GetPublicPlaytest\x12(.playtesthub.v1.GetPublicPlaytestRequest\x1a).playtesthub.v1.GetPublicPlaytestResponse\"\xb5\x01\x92A\x8e\x01\x12(Get a playtest by slug (unauthenticated)\x1abReturns the public field subset for an OPEN playtest. NotFound for DRAFT, CLOSED, or soft-deleted.\x82\xd3\xe4\x93\x02\x1d\x12\x1b/v1/public/playtests/{slug}\x12\xac\x02\n" +
 	"\x14GetPlaytestForPlayer\x12+.playtesthub.v1.GetPlaytestForPlayerRequest\x1a,.playtesthub.v1.GetPlaytestForPlayerResponse\"\xb8\x01\x92A\x91\x01\x12-Get a playtest by slug (authenticated player)\x1aRReturns the player-visible field set including NDA text and currentNdaVersionHash.b\f\n" +
 	"\n" +
 	"\n" +
-	"\x06Bearer\x12\x00\x82\xd3\xe4\x93\x02\x1d\x12\x1b/v1/player/playtests/{slug}\x12\x83\x02\n" +
-	"\x10AdminGetPlaytest\x12'.playtesthub.v1.AdminGetPlaytestRequest\x1a(.playtesthub.v1.AdminGetPlaytestResponse\"\x9b\x01\x92A,\x12\x1cGet a playtest by ID (admin)b\f\n" +
+	"\x06Bearer\x12\x00\x82\xd3\xe4\x93\x02\x1d\x12\x1b/v1/player/playtests/{slug}\x12\x87\x02\n" +
+	"\x10AdminGetPlaytest\x12'.playtesthub.v1.AdminGetPlaytestRequest\x1a(.playtesthub.v1.AdminGetPlaytestResponse\"\x9f\x01\x92A,\x12\x1cGet a playtest by ID (admin)b\f\n" +
 	"\n" +
 	"\n" +
-	"\x06Bearer\x12\x00\x8a\xb5\x18$ADMIN:NAMESPACE:{namespace}:PLAYTEST\x90\xb5\x18\x02\x82\xd3\xe4\x93\x02:\x128/v1/admin/namespaces/{namespace}/playtests/{playtest_id}\x12\x90\x02\n" +
-	"\rListPlaytests\x12$.playtesthub.v1.ListPlaytestsRequest\x1a%.playtesthub.v1.ListPlaytestsResponse\"\xb1\x01\x92AP\x12@List playtests in a namespace (admin, unpaginated; 100-item cap)b\f\n" +
+	"\x06Bearer\x12\x00\x8a\xb5\x18(ADMIN:NAMESPACE:{namespace}:EXTEND:APPUI\x90\xb5\x18\x02\x82\xd3\xe4\x93\x02:\x128/v1/admin/namespaces/{namespace}/playtests/{playtest_id}\x12\x94\x02\n" +
+	"\rListPlaytests\x12$.playtesthub.v1.ListPlaytestsRequest\x1a%.playtesthub.v1.ListPlaytestsResponse\"\xb5\x01\x92AP\x12@List playtests in a namespace (admin, unpaginated; 100-item cap)b\f\n" +
 	"\n" +
 	"\n" +
-	"\x06Bearer\x12\x00\x8a\xb5\x18$ADMIN:NAMESPACE:{namespace}:PLAYTEST\x90\xb5\x18\x02\x82\xd3\xe4\x93\x02,\x12*/v1/admin/namespaces/{namespace}/playtests\x12\xc8\x02\n" +
-	"\x0eCreatePlaytest\x12%.playtesthub.v1.CreatePlaytestRequest\x1a&.playtesthub.v1.CreatePlaytestResponse\"\xe6\x01\x92A\x81\x01\x12\x19Create a playtest (admin)\x1aVSTEAM_KEYS only in M1; distribution_model=AGS_CAMPAIGN returns Unimplemented until M2.b\f\n" +
+	"\x06Bearer\x12\x00\x8a\xb5\x18(ADMIN:NAMESPACE:{namespace}:EXTEND:APPUI\x90\xb5\x18\x02\x82\xd3\xe4\x93\x02,\x12*/v1/admin/namespaces/{namespace}/playtests\x12\xcc\x02\n" +
+	"\x0eCreatePlaytest\x12%.playtesthub.v1.CreatePlaytestRequest\x1a&.playtesthub.v1.CreatePlaytestResponse\"\xea\x01\x92A\x81\x01\x12\x19Create a playtest (admin)\x1aVSTEAM_KEYS only in M1; distribution_model=AGS_CAMPAIGN returns Unimplemented until M2.b\f\n" +
 	"\n" +
 	"\n" +
-	"\x06Bearer\x12\x00\x8a\xb5\x18$ADMIN:NAMESPACE:{namespace}:PLAYTEST\x90\xb5\x18\x01\x82\xd3\xe4\x93\x02/:\x01*\"*/v1/admin/namespaces/{namespace}/playtests\x12\x91\x03\n" +
-	"\fEditPlaytest\x12#.playtesthub.v1.EditPlaytestRequest\x1a$.playtesthub.v1.EditPlaytestResponse\"\xb5\x02\x92A\xc2\x01\x12)Edit mutable fields on a playtest (admin)\x1a\x86\x01Editable: title, description, bannerImageUrl, platforms, startsAt, endsAt, ndaRequired, ndaText. Immutable fields → InvalidArgument.b\f\n" +
+	"\x06Bearer\x12\x00\x8a\xb5\x18(ADMIN:NAMESPACE:{namespace}:EXTEND:APPUI\x90\xb5\x18\x01\x82\xd3\xe4\x93\x02/:\x01*\"*/v1/admin/namespaces/{namespace}/playtests\x12\x95\x03\n" +
+	"\fEditPlaytest\x12#.playtesthub.v1.EditPlaytestRequest\x1a$.playtesthub.v1.EditPlaytestResponse\"\xb9\x02\x92A\xc2\x01\x12)Edit mutable fields on a playtest (admin)\x1a\x86\x01Editable: title, description, bannerImageUrl, platforms, startsAt, endsAt, ndaRequired, ndaText. Immutable fields → InvalidArgument.b\f\n" +
 	"\n" +
 	"\n" +
-	"\x06Bearer\x12\x00\x8a\xb5\x18$ADMIN:NAMESPACE:{namespace}:PLAYTEST\x90\xb5\x18\x04\x82\xd3\xe4\x93\x02=:\x01*28/v1/admin/namespaces/{namespace}/playtests/{playtest_id}\x12\xa5\x02\n" +
-	"\x12SoftDeletePlaytest\x12).playtesthub.v1.SoftDeletePlaytestRequest\x1a*.playtesthub.v1.SoftDeletePlaytestResponse\"\xb7\x01\x92AH\x128Soft-delete a playtest (admin; idempotent, irreversible)b\f\n" +
+	"\x06Bearer\x12\x00\x8a\xb5\x18(ADMIN:NAMESPACE:{namespace}:EXTEND:APPUI\x90\xb5\x18\x04\x82\xd3\xe4\x93\x02=:\x01*28/v1/admin/namespaces/{namespace}/playtests/{playtest_id}\x12\xa9\x02\n" +
+	"\x12SoftDeletePlaytest\x12).playtesthub.v1.SoftDeletePlaytestRequest\x1a*.playtesthub.v1.SoftDeletePlaytestResponse\"\xbb\x01\x92AH\x128Soft-delete a playtest (admin; idempotent, irreversible)b\f\n" +
 	"\n" +
 	"\n" +
-	"\x06Bearer\x12\x00\x8a\xb5\x18$ADMIN:NAMESPACE:{namespace}:PLAYTEST\x90\xb5\x18\b\x82\xd3\xe4\x93\x02:*8/v1/admin/namespaces/{namespace}/playtests/{playtest_id}\x12\xd5\x02\n" +
-	"\x18TransitionPlaytestStatus\x12/.playtesthub.v1.TransitionPlaytestStatusRequest\x1a0.playtesthub.v1.TransitionPlaytestStatusResponse\"\xd5\x01\x92AR\x12BTransition a playtest's status (admin; DRAFT→OPEN→CLOSED only)b\f\n" +
+	"\x06Bearer\x12\x00\x8a\xb5\x18(ADMIN:NAMESPACE:{namespace}:EXTEND:APPUI\x90\xb5\x18\b\x82\xd3\xe4\x93\x02:*8/v1/admin/namespaces/{namespace}/playtests/{playtest_id}\x12\xd9\x02\n" +
+	"\x18TransitionPlaytestStatus\x12/.playtesthub.v1.TransitionPlaytestStatusRequest\x1a0.playtesthub.v1.TransitionPlaytestStatusResponse\"\xd9\x01\x92AR\x12BTransition a playtest's status (admin; DRAFT→OPEN→CLOSED only)b\f\n" +
 	"\n" +
 	"\n" +
-	"\x06Bearer\x12\x00\x8a\xb5\x18$ADMIN:NAMESPACE:{namespace}:PLAYTEST\x90\xb5\x18\x04\x82\xd3\xe4\x93\x02N:\x01*\"I/v1/admin/namespaces/{namespace}/playtests/{playtest_id}:transitionStatus\x12\xdb\x01\n" +
+	"\x06Bearer\x12\x00\x8a\xb5\x18(ADMIN:NAMESPACE:{namespace}:EXTEND:APPUI\x90\xb5\x18\x04\x82\xd3\xe4\x93\x02N:\x01*\"I/v1/admin/namespaces/{namespace}/playtests/{playtest_id}:transitionStatus\x12\xdb\x01\n" +
 	"\x06Signup\x12\x1d.playtesthub.v1.SignupRequest\x1a\x1e.playtesthub.v1.SignupResponse\"\x91\x01\x92Aa\x12QSign up for a playtest (authenticated player; idempotent on (playtestId, userId))b\f\n" +
 	"\n" +
 	"\n" +

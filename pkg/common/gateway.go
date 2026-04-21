@@ -7,6 +7,7 @@ package common
 import (
 	"context"
 	"net/http"
+	"strings"
 
 	"google.golang.org/grpc/credentials/insecure"
 
@@ -21,8 +22,21 @@ type Gateway struct {
 	basePath string
 }
 
+// forwardCookieHeaderMatcher augments the grpc-gateway default incoming-header
+// matcher so the raw HTTP Cookie header is forwarded as gRPC metadata. The
+// auth interceptor uses it to extract the `access_token` cookie when the AGS
+// Admin Portal renders this app as an Extend App UI — the host ships the
+// token via httpOnly cookie, not an Authorization header, so the cookie path
+// is the primary auth signal for admin RPCs served to the embedded UI.
+func forwardCookieHeaderMatcher(key string) (string, bool) {
+	if strings.EqualFold(key, "cookie") {
+		return "cookie", true
+	}
+	return runtime.DefaultHeaderMatcher(key)
+}
+
 func NewGateway(ctx context.Context, grpcServerEndpoint string, basePath string) (*Gateway, error) {
-	mux := runtime.NewServeMux()
+	mux := runtime.NewServeMux(runtime.WithIncomingHeaderMatcher(forwardCookieHeaderMatcher))
 	opts := []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())}
 	err := pb.RegisterPlaytesthubServiceHandlerFromEndpoint(ctx, mux, grpcServerEndpoint, opts)
 	if err != nil {

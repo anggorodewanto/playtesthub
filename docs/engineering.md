@@ -266,6 +266,18 @@ If a test needs a time source, inject a `clock.Clock` (use `benbjohnson/clock` o
 
 ---
 
-## 8. When this document is wrong
+## 8. Temporary AGS platform workarounds
+
+Each entry here compensates for a missing or pre-release AGS Platform feature. Every entry is **expected to be reverted** once the upstream feature lands — the doc exists so we don't forget to do the reversion, and so an outside reader can tell intentional design from load-bearing duct tape.
+
+- **Database**: the service is configured against Neon Postgres in M1 deployments while we still depend on schema migrations via `golang-migrate`. The PRD targets Extend-managed Postgres (Architecture §5.2). Revert when Extend-managed Postgres exposes the migration-runner surface we need (or when we re-architect around whatever it does expose). Touches: `pkg/config`, `pkg/migrate`, cloud deploy env vars.
+
+- **Admin RPC permissions**: every admin method in `proto/playtesthub/v1/playtesthub.proto` currently declares `ADMIN:NAMESPACE:{namespace}:EXTEND:APPUI` as its required resource. That string is *not* the semantically correct permission — it's the AppUI-admin perm that game admins already hold in ISC today. The correct string is `CUSTOM:ADMIN:NAMESPACE:{namespace}:PLAYTEST` (AGS only honours app-defined perms under the `CUSTOM:` prefix). AGS Admin Portal in ISC does not yet let game admins assign `CUSTOM:*` perms to their own user roles; the user-permission-management feature is on the AGS roadmap. When it ships: swap the six `option (playtesthub.v1.resource) = "..."` declarations back to `"CUSTOM:ADMIN:NAMESPACE:{namespace}:PLAYTEST"`, regen stubs (`./proto.sh`), and update any role-grant docs in the README's deployment walkthrough.
+
+- **Dev `extend-helper-cli` binary**: `appui create` + `appui upload` flows use the dev CLI distributed via Google Drive because public `extend-helper-cli` v0.0.10 lacks the `appui` subcommand. Swap back to the public release when the `appui` commands ship there — update `.devcontainer/post-create.sh` (`EXTEND_HELPER_CLI_VERSION`) and README dev-onboarding. Tracked inline in `docs/STATUS.md` M1 phase 8 note.
+
+---
+
+## 9. When this document is wrong
 
 Update it. Engineering decisions drift; a stale `engineering.md` is worse than no `engineering.md`. If a new layer/pattern emerges (e.g. we add a background worker subsystem that needs its own test strategy), add a subsection here before the second instance lands. Three similar ad-hoc patterns is the trigger.

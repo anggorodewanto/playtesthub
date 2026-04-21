@@ -160,6 +160,52 @@ func getNamespace() string {
 	return GetEnv("AGS_NAMESPACE", "accelbyte")
 }
 
+// extractBearerToken returns the access token carried on the request,
+// checking both the standard Authorization metadata (gRPC clients + REST
+// callers that set the header explicitly) and the `access_token` cookie
+// that the AGS Admin Portal ships when this app is embedded as an Extend
+// App UI. Admin Portal stores its token in an httpOnly cookie that never
+// becomes an Authorization header, so the grpc-gateway forwards the raw
+// Cookie header via the custom incoming matcher in gateway.go and this
+// helper finishes the extraction — the cookie path is the primary auth
+// signal for admin RPCs served to the embedded UI. Returns "" when
+// neither source yields a token; callers surface that as
+// codes.Unauthenticated.
+func extractBearerToken(meta metadata.MD) string {
+	if authHeaders := meta["authorization"]; len(authHeaders) > 0 {
+		if tok := strings.TrimSpace(strings.TrimPrefix(authHeaders[0], "Bearer ")); tok != "" {
+			return tok
+		}
+	}
+	for _, cookieHeader := range meta["cookie"] {
+		if tok := cookieValue(cookieHeader, "access_token"); tok != "" {
+			return tok
+		}
+	}
+	return ""
+}
+
+// cookieValue pulls a single cookie value out of a raw `Cookie:` header
+// string. Uses net/http's parser indirectly via a minimal split to avoid
+// dragging a full http.Request into the auth path. Returns "" when the
+// named cookie is absent.
+func cookieValue(header, name string) string {
+	for _, part := range strings.Split(header, ";") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		eq := strings.IndexByte(part, '=')
+		if eq <= 0 {
+			continue
+		}
+		if part[:eq] == name {
+			return part[eq+1:]
+		}
+	}
+	return ""
+}
+
 // checkAuthorizationMetadata validates the incoming bearer token against
 // the AGS SDK and, on success, returns a child context enriched with the
 // AGS subject as actorUserId. Audit writers + handlers downstream rely
@@ -174,12 +220,10 @@ func checkAuthorizationMetadata(ctx context.Context, permission *iam.Permission)
 		return ctx, status.Error(codes.Unauthenticated, "metadata is missing")
 	}
 
-	authHeaders, ok := meta["authorization"]
-	if !ok || len(authHeaders) == 0 {
+	token := extractBearerToken(meta)
+	if token == "" {
 		return ctx, status.Error(codes.Unauthenticated, "authorization metadata is missing")
 	}
-
-	token := strings.TrimPrefix(authHeaders[0], "Bearer ")
 	namespace := getNamespace()
 
 	if err := Validator.Validate(token, permission, &namespace, nil); err != nil {

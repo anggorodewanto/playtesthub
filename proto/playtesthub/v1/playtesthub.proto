@@ -47,7 +47,7 @@ service PlaytesthubService {
 
   rpc AdminGetPlaytest(AdminGetPlaytestRequest) returns (AdminGetPlaytestResponse) {
     option (playtesthub.v1.action) = ACTION_READ;
-    option (playtesthub.v1.resource) = "ADMIN:NAMESPACE:{namespace}:PLAYTEST";
+    option (playtesthub.v1.resource) = "ADMIN:NAMESPACE:{namespace}:EXTEND:APPUI";
     option (google.api.http) = {get: "/v1/admin/namespaces/{namespace}/playtests/{playtest_id}"};
     option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
       summary: "Get a playtest by ID (admin)"
@@ -62,7 +62,7 @@ service PlaytesthubService {
 
   rpc ListPlaytests(ListPlaytestsRequest) returns (ListPlaytestsResponse) {
     option (playtesthub.v1.action) = ACTION_READ;
-    option (playtesthub.v1.resource) = "ADMIN:NAMESPACE:{namespace}:PLAYTEST";
+    option (playtesthub.v1.resource) = "ADMIN:NAMESPACE:{namespace}:EXTEND:APPUI";
     option (google.api.http) = {get: "/v1/admin/namespaces/{namespace}/playtests"};
     option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
       summary: "List playtests in a namespace (admin, unpaginated; 100-item cap)"
@@ -77,7 +77,7 @@ service PlaytesthubService {
 
   rpc CreatePlaytest(CreatePlaytestRequest) returns (CreatePlaytestResponse) {
     option (playtesthub.v1.action) = ACTION_CREATE;
-    option (playtesthub.v1.resource) = "ADMIN:NAMESPACE:{namespace}:PLAYTEST";
+    option (playtesthub.v1.resource) = "ADMIN:NAMESPACE:{namespace}:EXTEND:APPUI";
     option (google.api.http) = {
       post: "/v1/admin/namespaces/{namespace}/playtests"
       body: "*"
@@ -96,7 +96,7 @@ service PlaytesthubService {
 
   rpc EditPlaytest(EditPlaytestRequest) returns (EditPlaytestResponse) {
     option (playtesthub.v1.action) = ACTION_UPDATE;
-    option (playtesthub.v1.resource) = "ADMIN:NAMESPACE:{namespace}:PLAYTEST";
+    option (playtesthub.v1.resource) = "ADMIN:NAMESPACE:{namespace}:EXTEND:APPUI";
     option (google.api.http) = {
       patch: "/v1/admin/namespaces/{namespace}/playtests/{playtest_id}"
       body: "*"
@@ -115,7 +115,7 @@ service PlaytesthubService {
 
   rpc SoftDeletePlaytest(SoftDeletePlaytestRequest) returns (SoftDeletePlaytestResponse) {
     option (playtesthub.v1.action) = ACTION_DELETE;
-    option (playtesthub.v1.resource) = "ADMIN:NAMESPACE:{namespace}:PLAYTEST";
+    option (playtesthub.v1.resource) = "ADMIN:NAMESPACE:{namespace}:EXTEND:APPUI";
     option (google.api.http) = {delete: "/v1/admin/namespaces/{namespace}/playtests/{playtest_id}"};
     option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
       summary: "Soft-delete a playtest (admin; idempotent, irreversible)"
@@ -130,7 +130,7 @@ service PlaytesthubService {
 
   rpc TransitionPlaytestStatus(TransitionPlaytestStatusRequest) returns (TransitionPlaytestStatusResponse) {
     option (playtesthub.v1.action) = ACTION_UPDATE;
-    option (playtesthub.v1.resource) = "ADMIN:NAMESPACE:{namespace}:PLAYTEST";
+    option (playtesthub.v1.resource) = "ADMIN:NAMESPACE:{namespace}:EXTEND:APPUI";
     option (google.api.http) = {
       post: "/v1/admin/namespaces/{namespace}/playtests/{playtest_id}:transitionStatus"
       body: "*"
