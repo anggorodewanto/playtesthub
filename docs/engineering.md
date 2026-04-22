@@ -260,7 +260,64 @@ If a test needs a time source, inject a `clock.Clock` (use `benbjohnson/clock` o
 - First-time registration only: `extend-helper-cli appui create --namespace $AB_NAMESPACE --name $AB_APPUI_NAME`.
 
 ### Player (Svelte, in `player/`)
-- `npm install && npm run dev`.
+- `npm install && npm run dev` — Vite on `http://localhost:5173`.
+- **Runtime config**: Vite serves `player/public/config.json` verbatim at `/config.json`. The loader (`src/lib/config.ts`) fetches it before anything else mounts and hard-fails per PRD §5.8 on any malformed branch. `public/config.json` is gitignored — copy `public/config.json.example` and fill in values for your target deploy.
+- **Hitting a local backend (CORS-free)**: set `VITE_BACKEND_URL` in `player/.env`, point `config.json.grpcGatewayUrl` at the dev server's own origin + base path (default `http://localhost:5173/playtesthub`), and `vite.config.ts` will proxy that prefix to the backend. Default base path is `/playtesthub` (matches `BASE_PATH` on the backend); override with `VITE_BACKEND_BASE_PATH` if needed. Same-origin from the browser's perspective, no backend CORS required.
+
+#### Player end-to-end demo against a local backend
+
+The player app needs a running backend AND a seeded playtest row to render anything interesting. The Landing view is driven by the unauth `GetPublicPlaytest` RPC; an empty DB means the friendly "not available" message and nothing else. Full flow for a visual demo:
+
+```bash
+# 1. Fresh Postgres on a dedicated port (doesn't collide with smoke/boot.sh's :54399).
+docker run -d --rm --name playtesthub-demo-pg \
+  -e POSTGRES_USER=playtesthub -e POSTGRES_PASSWORD=playtesthub -e POSTGRES_DB=playtesthub \
+  -p 54400:5432 postgres:16-alpine
+
+# 2. Backend with auth disabled — skips Validator.Initialize + LoginClient,
+#    so AGS_* env vars can be placeholders. BASE_PATH must still be set
+#    because pkg/config hard-fails without it.
+BASE_PATH=/playtesthub \
+DATABASE_URL="postgres://playtesthub:playtesthub@localhost:54400/playtesthub?sslmode=disable" \
+DISCORD_BOT_TOKEN=x AGS_IAM_CLIENT_ID=x AGS_IAM_CLIENT_SECRET=x \
+AGS_BASE_URL="https://x.invalid" AGS_NAMESPACE=demo \
+PLUGIN_GRPC_SERVER_AUTH_ENABLED=false \
+  setsid go run . >/tmp/playtesthub-demo.log 2>&1 &
+
+# Wait until migrations applied + the gateway is live:
+until curl -sf http://localhost:8000/playtesthub/apidocs/api.json >/dev/null; do sleep 0.5; done
+
+# 3. Seed a playtest directly via psql (admin RPCs still require auth even
+#    with auth disabled — the handler rejects a nil actor). Use the same
+#    column names as schema.md; distribution_model = 'STEAM_KEYS', status
+#    = 'OPEN' so GetPublicPlaytest surfaces it.
+docker exec -i playtesthub-demo-pg psql -U playtesthub -d playtesthub <<'SQL'
+INSERT INTO playtest (namespace, slug, title, description, platforms, starts_at, ends_at, status, distribution_model)
+VALUES ('demo', 'space-rogue-beta', 'Space Rogue — Closed Beta',
+        'Welcome to the closed beta! Short description here.',
+        ARRAY['STEAM','XBOX'], now(), now() + interval '14 days', 'OPEN', 'STEAM_KEYS');
+SQL
+
+# 4. Player app — dev server with proxy.
+cat > player/public/config.json <<'JSON'
+{
+  "grpcGatewayUrl": "http://localhost:5173/playtesthub",
+  "iamBaseUrl": "https://iam.demo.local.invalid",
+  "discordClientId": "demo-client-id-not-for-real-login"
+}
+JSON
+cat > player/.env <<'ENV'
+VITE_BACKEND_URL=http://localhost:8000
+VITE_BACKEND_BASE_PATH=/playtesthub
+ENV
+
+cd player && npm run dev
+# Open http://localhost:5173/#/playtest/space-rogue-beta
+```
+
+The Sign-up button redirects to the placeholder `iamBaseUrl` and won't complete a real Discord login — that's the scope of STATUS.md phase 9.1. The Landing, the 404 route (any unknown slug), and the BootError screen (mangle `config.json` to see it) are all fully exercisable in this setup.
+
+**Teardown**: `docker rm -f playtesthub-demo-pg`, `pkill -f 'go run \.'` (or kill the `setsid` process group), and Ctrl-C the Vite dev server.
 
 `.env.example` files live alongside each deployable (`./.env.example`, `admin/.env.local.example`, `player/.env.example`). Actual `.env*` files are gitignored.
 
