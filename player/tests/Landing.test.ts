@@ -55,6 +55,31 @@ describe('Landing', () => {
     expect(screen.getByRole('button', { name: /sign up/i })).toBeInTheDocument();
   });
 
+  it('refetches when slug changes (hash-only navigation)', async () => {
+    const playtestFor = (slug: string) => ({
+      slug,
+      title: `Playtest ${slug}`,
+      description: `desc ${slug}`,
+      bannerImageUrl: '',
+      platforms: ['PLATFORM_STEAM'],
+      startsAt: '2026-05-01T00:00:00Z',
+      endsAt: '2026-05-08T00:00:00Z',
+    });
+    const fetchMock = vi.fn((url: string) => {
+      const match = url.match(/\/playtests\/([^/?]+)/);
+      const slug = match ? decodeURIComponent(match[1]) : '';
+      return Promise.resolve(json(200, { playtest: playtestFor(slug) }));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { rerender } = render(Landing, { config, slug: 'first' });
+    expect(await screen.findByText('Playtest first')).toBeInTheDocument();
+
+    await rerender({ config, slug: 'second' });
+    expect(await screen.findByText('Playtest second')).toBeInTheDocument();
+    expect(screen.queryByText('Playtest first')).not.toBeInTheDocument();
+  });
+
   it('shows a friendly message on 404', async () => {
     vi.stubGlobal(
       'fetch',

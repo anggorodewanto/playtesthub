@@ -17,14 +17,22 @@
   let loadError = $state<string | null>(null);
   let redirecting = $state(false);
 
-  async function load() {
+  async function load(target: string) {
+    // Stale-response guard: if the slug changed while a fetch was in
+    // flight, discard the result so the UI doesn't flash the wrong row.
     try {
-      playtest = await fetchPublicPlaytest(config, slug);
+      const result = await fetchPublicPlaytest(config, target);
+      if (target !== slug) return;
+      playtest = result;
+      loadError = null;
     } catch (err) {
+      if (target !== slug) return;
       if (err instanceof ApiError && err.status === 404) {
+        playtest = null;
         loadError = 'This playtest is not available.';
         return;
       }
+      playtest = null;
       loadError = 'Could not load playtest — please try again later.';
     }
   }
@@ -44,7 +52,9 @@
     });
   }
 
-  load();
+  $effect(() => {
+    load(slug);
+  });
 </script>
 
 <main class="mx-auto max-w-2xl p-6 md:p-10">
