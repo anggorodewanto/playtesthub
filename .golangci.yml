@@ -98,6 +98,7 @@ linters:
       - builtin$
       - examples$
       - admin/
+      - player/
 issues:
   max-same-issues: 20
 formatters:
@@ -111,3 +112,4 @@ formatters:
       - builtin$
       - examples$
       - admin/
+      - player/

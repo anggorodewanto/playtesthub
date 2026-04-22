@@ -37,9 +37,12 @@ require jq
 APP_PID=""
 cleanup() {
     local code=$?
+    # `go run .` forks a child — the built binary — which will survive a
+    # plain `kill $APP_PID`. Kill the whole process group instead so the
+    # app binary doesn't linger bound to :8000 and corrupt the next run.
     if [[ -n "$APP_PID" ]] && kill -0 "$APP_PID" 2>/dev/null; then
         log "stopping app (pid=$APP_PID)"
-        kill "$APP_PID" 2>/dev/null || true
+        kill -TERM "-$APP_PID" 2>/dev/null || kill "$APP_PID" 2>/dev/null || true
         wait "$APP_PID" 2>/dev/null || true
     fi
     log "removing postgres container $CONTAINER_NAME"
@@ -96,7 +99,7 @@ AGS_IAM_CLIENT_SECRET="smoke-client-secret" \
 AGS_BASE_URL="https://ags.smoke.invalid" \
 AGS_NAMESPACE="smoke" \
 PLUGIN_GRPC_SERVER_AUTH_ENABLED=false \
-    go run . >/tmp/playtesthub-smoke.log 2>&1 &
+    setsid go run . >/tmp/playtesthub-smoke.log 2>&1 &
 APP_PID=$!
 
 log "waiting for gRPC on :$APP_PORT_GRPC"
