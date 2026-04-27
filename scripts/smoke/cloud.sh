@@ -77,9 +77,10 @@ if [[ -n "${PLAYER_IAM_CLIENT_ID:-}" ]]; then
         -d '{"redirect_uri":"http://localhost:5173/callback","state":"smoke-state","code_challenge":"E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM","code_challenge_method":"S256","scope":"account commerce social publishing analytics"}' \
         "${BASE}/v1/player/discord/login-url") \
         || fail "GetDiscordLoginUrl returned non-2xx"
-    login_url=$(jq -r '.login_url // empty' <<<"$body")
+    # grpc-gateway emits proto fields as camelCase — login_url → loginUrl.
+    login_url=$(jq -r '.loginUrl // empty' <<<"$body")
     [[ -n "$login_url" ]] \
-        || fail "GetDiscordLoginUrl response missing login_url: $body"
+        || fail "GetDiscordLoginUrl response missing loginUrl: $body"
     [[ "$login_url" == *"oauth/platforms/discord/authorize"* ]] \
         || fail "login_url does not target oauth/platforms/discord/authorize: $login_url"
     [[ "$login_url" == *"request_id="* ]] \

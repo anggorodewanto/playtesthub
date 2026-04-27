@@ -103,11 +103,14 @@ export async function fetchDiscordLoginUrl(
     throw new IamError(`Discord login URL fetch failed: ${res.status} ${res.statusText}`);
   }
 
-  const parsed = (await res.json()) as { login_url?: string };
-  if (!parsed.login_url) {
-    throw new IamError('Discord login URL response missing login_url');
+  // grpc-gateway emits proto fields as camelCase — `login_url` on the
+  // wire becomes `loginUrl` in JSON. Reading snake_case here would
+  // silently miss the field on every call.
+  const parsed = (await res.json()) as { loginUrl?: string };
+  if (!parsed.loginUrl) {
+    throw new IamError('Discord login URL response missing loginUrl');
   }
-  return parsed.login_url;
+  return parsed.loginUrl;
 }
 
 function joinGatewayPath(base: string, path: string): string {

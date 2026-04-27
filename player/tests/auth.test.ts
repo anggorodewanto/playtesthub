@@ -29,10 +29,10 @@ afterEach(() => {
 });
 
 describe('fetchDiscordLoginUrl', () => {
-  it('POSTs JSON to grpcGatewayUrl + /v1/player/discord/login-url and returns login_url', async () => {
+  it('POSTs JSON to grpcGatewayUrl + /v1/player/discord/login-url and returns loginUrl', async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(
-        JSON.stringify({ login_url: 'https://iam.example.com/iam/v3/oauth/platforms/discord/authorize?request_id=abc&client_id=client-xyz&redirect_uri=https%3A%2F%2Fplayer.example.com%2Fcallback' }),
+        JSON.stringify({ loginUrl: 'https://iam.example.com/iam/v3/oauth/platforms/discord/authorize?request_id=abc&client_id=client-xyz&redirect_uri=https%3A%2F%2Fplayer.example.com%2Fcallback' }),
         { status: 200, headers: { 'Content-Type': 'application/json' } },
       ),
     );
@@ -59,7 +59,7 @@ describe('fetchDiscordLoginUrl', () => {
 
   it('handles a grpcGatewayUrl with a trailing slash', async () => {
     const fetchMock = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ login_url: 'https://x' }), { status: 200 }),
+      new Response(JSON.stringify({ loginUrl: 'https://x' }), { status: 200 }),
     );
     vi.stubGlobal('fetch', fetchMock);
 
@@ -88,7 +88,7 @@ describe('fetchDiscordLoginUrl', () => {
     ).rejects.toBeInstanceOf(IamError);
   });
 
-  it('rejects when the response body is missing login_url', async () => {
+  it('rejects when the response body is missing loginUrl', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue(new Response(JSON.stringify({}), { status: 200 })),
@@ -100,7 +100,7 @@ describe('fetchDiscordLoginUrl', () => {
 
   it('forwards a custom scope when provided', async () => {
     const fetchMock = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ login_url: 'https://x' }), { status: 200 }),
+      new Response(JSON.stringify({ loginUrl: 'https://x' }), { status: 200 }),
     );
     vi.stubGlobal('fetch', fetchMock);
     await fetchDiscordLoginUrl(config, {
