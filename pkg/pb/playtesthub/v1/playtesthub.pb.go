@@ -1956,6 +1956,139 @@ func (x *GetApplicantStatusResponse) GetApplicant() *Applicant {
 	return nil
 }
 
+// GetDiscordLoginUrlRequest carries the player-side OAuth2 + PKCE values
+// the backend must forward to AGS IAM's authorize endpoint. Field names
+// mirror RFC 6749 / RFC 7636 wire names so the proxy is mechanical.
+type GetDiscordLoginUrlRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Must be one of the player IAM client's registered redirect URIs.
+	RedirectUri string `protobuf:"bytes,1,opt,name=redirect_uri,json=redirectUri,proto3" json:"redirect_uri,omitempty"`
+	// Opaque CSRF/state token; AGS returns it on the redirect_uri callback.
+	State string `protobuf:"bytes,2,opt,name=state,proto3" json:"state,omitempty"`
+	// PKCE code_challenge (RFC 7636). The verifier itself never traverses
+	// the wire — it stays in the player's sessionStorage until the token
+	// exchange step on /iam/v3/oauth/token.
+	CodeChallenge string `protobuf:"bytes,3,opt,name=code_challenge,json=codeChallenge,proto3" json:"code_challenge,omitempty"`
+	// PKCE code_challenge_method. Public clients on AGS IAM require S256.
+	CodeChallengeMethod string `protobuf:"bytes,4,opt,name=code_challenge_method,json=codeChallengeMethod,proto3" json:"code_challenge_method,omitempty"`
+	// OAuth2 scope string, space-separated.
+	Scope         string `protobuf:"bytes,5,opt,name=scope,proto3" json:"scope,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetDiscordLoginUrlRequest) Reset() {
+	*x = GetDiscordLoginUrlRequest{}
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[24]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetDiscordLoginUrlRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetDiscordLoginUrlRequest) ProtoMessage() {}
+
+func (x *GetDiscordLoginUrlRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[24]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetDiscordLoginUrlRequest.ProtoReflect.Descriptor instead.
+func (*GetDiscordLoginUrlRequest) Descriptor() ([]byte, []int) {
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{24}
+}
+
+func (x *GetDiscordLoginUrlRequest) GetRedirectUri() string {
+	if x != nil {
+		return x.RedirectUri
+	}
+	return ""
+}
+
+func (x *GetDiscordLoginUrlRequest) GetState() string {
+	if x != nil {
+		return x.State
+	}
+	return ""
+}
+
+func (x *GetDiscordLoginUrlRequest) GetCodeChallenge() string {
+	if x != nil {
+		return x.CodeChallenge
+	}
+	return ""
+}
+
+func (x *GetDiscordLoginUrlRequest) GetCodeChallengeMethod() string {
+	if x != nil {
+		return x.CodeChallengeMethod
+	}
+	return ""
+}
+
+func (x *GetDiscordLoginUrlRequest) GetScope() string {
+	if x != nil {
+		return x.Scope
+	}
+	return ""
+}
+
+type GetDiscordLoginUrlResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Fully-composed AGS IAM URL the player should navigate to. Drives
+	// /iam/v3/oauth/platforms/discord/authorize, which 302s the user to
+	// discord.com for the actual federation step.
+	LoginUrl      string `protobuf:"bytes,1,opt,name=login_url,json=loginUrl,proto3" json:"login_url,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetDiscordLoginUrlResponse) Reset() {
+	*x = GetDiscordLoginUrlResponse{}
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[25]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetDiscordLoginUrlResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetDiscordLoginUrlResponse) ProtoMessage() {}
+
+func (x *GetDiscordLoginUrlResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[25]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetDiscordLoginUrlResponse.ProtoReflect.Descriptor instead.
+func (*GetDiscordLoginUrlResponse) Descriptor() ([]byte, []int) {
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{25}
+}
+
+func (x *GetDiscordLoginUrlResponse) GetLoginUrl() string {
+	if x != nil {
+		return x.LoginUrl
+	}
+	return ""
+}
+
 var File_playtesthub_v1_playtesthub_proto protoreflect.FileDescriptor
 
 const file_playtesthub_v1_playtesthub_proto_rawDesc = "" +
@@ -2110,7 +2243,15 @@ const file_playtesthub_v1_playtesthub_proto_rawDesc = "" +
 	"\x19GetApplicantStatusRequest\x12\x12\n" +
 	"\x04slug\x18\x01 \x01(\tR\x04slug\"U\n" +
 	"\x1aGetApplicantStatusResponse\x127\n" +
-	"\tapplicant\x18\x01 \x01(\v2\x19.playtesthub.v1.ApplicantR\tapplicant*\x8c\x01\n" +
+	"\tapplicant\x18\x01 \x01(\v2\x19.playtesthub.v1.ApplicantR\tapplicant\"\xc5\x01\n" +
+	"\x19GetDiscordLoginUrlRequest\x12!\n" +
+	"\fredirect_uri\x18\x01 \x01(\tR\vredirectUri\x12\x14\n" +
+	"\x05state\x18\x02 \x01(\tR\x05state\x12%\n" +
+	"\x0ecode_challenge\x18\x03 \x01(\tR\rcodeChallenge\x122\n" +
+	"\x15code_challenge_method\x18\x04 \x01(\tR\x13codeChallengeMethod\x12\x14\n" +
+	"\x05scope\x18\x05 \x01(\tR\x05scope\"9\n" +
+	"\x1aGetDiscordLoginUrlResponse\x12\x1b\n" +
+	"\tlogin_url\x18\x01 \x01(\tR\bloginUrl*\x8c\x01\n" +
 	"\bPlatform\x12\x18\n" +
 	"\x14PLATFORM_UNSPECIFIED\x10\x00\x12\x12\n" +
 	"\x0ePLATFORM_STEAM\x10\x01\x12\x11\n" +
@@ -2135,7 +2276,7 @@ const file_playtesthub_v1_playtesthub_proto_rawDesc = "" +
 	"\bDmStatus\x12\x19\n" +
 	"\x15DM_STATUS_UNSPECIFIED\x10\x00\x12\x12\n" +
 	"\x0eDM_STATUS_SENT\x10\x01\x12\x14\n" +
-	"\x10DM_STATUS_FAILED\x10\x022\xb5\x17\n" +
+	"\x10DM_STATUS_FAILED\x10\x022\xed\x1c\n" +
 	"\x12PlaytesthubService\x12\xa0\x02\n" +
 	"\x11GetPublicPlaytest\x12(.playtesthub.v1.GetPublicPlaytestRequest\x1a).playtesthub.v1.GetPublicPlaytestResponse\"\xb5\x01\x92A\x8e\x01\x12(Get a playtest by slug (unauthenticated)\x1abReturns the public field subset for an OPEN playtest. NotFound for DRAFT, CLOSED, or soft-deleted.\x82\xd3\xe4\x93\x02\x1d\x12\x1b/v1/public/playtests/{slug}\x12\xac\x02\n" +
 	"\x14GetPlaytestForPlayer\x12+.playtesthub.v1.GetPlaytestForPlayerRequest\x1a,.playtesthub.v1.GetPlaytestForPlayerResponse\"\xb8\x01\x92A\x91\x01\x12-Get a playtest by slug (authenticated player)\x1aRReturns the player-visible field set including NDA text and currentNdaVersionHash.b\f\n" +
@@ -2165,7 +2306,8 @@ const file_playtesthub_v1_playtesthub_proto_rawDesc = "" +
 	"\x18TransitionPlaytestStatus\x12/.playtesthub.v1.TransitionPlaytestStatusRequest\x1a0.playtesthub.v1.TransitionPlaytestStatusResponse\"\xd9\x01\x92AR\x12BTransition a playtest's status (admin; DRAFT→OPEN→CLOSED only)b\f\n" +
 	"\n" +
 	"\n" +
-	"\x06Bearer\x12\x00\x8a\xb5\x18(ADMIN:NAMESPACE:{namespace}:EXTEND:APPUI\x90\xb5\x18\x04\x82\xd3\xe4\x93\x02N:\x01*\"I/v1/admin/namespaces/{namespace}/playtests/{playtest_id}:transitionStatus\x12\xdb\x01\n" +
+	"\x06Bearer\x12\x00\x8a\xb5\x18(ADMIN:NAMESPACE:{namespace}:EXTEND:APPUI\x90\xb5\x18\x04\x82\xd3\xe4\x93\x02N:\x01*\"I/v1/admin/namespaces/{namespace}/playtests/{playtest_id}:transitionStatus\x12\xb5\x05\n" +
+	"\x12GetDiscordLoginUrl\x12).playtesthub.v1.GetDiscordLoginUrlRequest\x1a*.playtesthub.v1.GetDiscordLoginUrlResponse\"\xc7\x04\x92A\x9c\x04\x126Build a Discord federation login URL (unauthenticated)\x1a\xe1\x03AGS IAM's hosted /auth/ SPA does not render the Discord button on shared cloud, so the player must drive /iam/v3/oauth/platforms/discord/authorize directly. That endpoint requires a request_id from a prior /iam/v3/oauth/authorize call, whose 302 is opaque to a browser cross-origin — this RPC performs that first hop server-side and returns the second-hop URL for the player to navigate to. PKCE verifier and state stay in the player's sessionStorage and never traverse the wire.\x82\xd3\xe4\x93\x02!:\x01*\"\x1c/v1/player/discord/login-url\x12\xdb\x01\n" +
 	"\x06Signup\x12\x1d.playtesthub.v1.SignupRequest\x1a\x1e.playtesthub.v1.SignupResponse\"\x91\x01\x92Aa\x12QSign up for a playtest (authenticated player; idempotent on (playtestId, userId))b\f\n" +
 	"\n" +
 	"\n" +
@@ -2191,7 +2333,7 @@ func file_playtesthub_v1_playtesthub_proto_rawDescGZIP() []byte {
 }
 
 var file_playtesthub_v1_playtesthub_proto_enumTypes = make([]protoimpl.EnumInfo, 5)
-var file_playtesthub_v1_playtesthub_proto_msgTypes = make([]protoimpl.MessageInfo, 24)
+var file_playtesthub_v1_playtesthub_proto_msgTypes = make([]protoimpl.MessageInfo, 26)
 var file_playtesthub_v1_playtesthub_proto_goTypes = []any{
 	(Platform)(0),                            // 0: playtesthub.v1.Platform
 	(PlaytestStatus)(0),                      // 1: playtesthub.v1.PlaytestStatus
@@ -2222,43 +2364,45 @@ var file_playtesthub_v1_playtesthub_proto_goTypes = []any{
 	(*SignupResponse)(nil),                   // 26: playtesthub.v1.SignupResponse
 	(*GetApplicantStatusRequest)(nil),        // 27: playtesthub.v1.GetApplicantStatusRequest
 	(*GetApplicantStatusResponse)(nil),       // 28: playtesthub.v1.GetApplicantStatusResponse
-	(*timestamppb.Timestamp)(nil),            // 29: google.protobuf.Timestamp
+	(*GetDiscordLoginUrlRequest)(nil),        // 29: playtesthub.v1.GetDiscordLoginUrlRequest
+	(*GetDiscordLoginUrlResponse)(nil),       // 30: playtesthub.v1.GetDiscordLoginUrlResponse
+	(*timestamppb.Timestamp)(nil),            // 31: google.protobuf.Timestamp
 }
 var file_playtesthub_v1_playtesthub_proto_depIdxs = []int32{
 	0,  // 0: playtesthub.v1.Playtest.platforms:type_name -> playtesthub.v1.Platform
-	29, // 1: playtesthub.v1.Playtest.starts_at:type_name -> google.protobuf.Timestamp
-	29, // 2: playtesthub.v1.Playtest.ends_at:type_name -> google.protobuf.Timestamp
+	31, // 1: playtesthub.v1.Playtest.starts_at:type_name -> google.protobuf.Timestamp
+	31, // 2: playtesthub.v1.Playtest.ends_at:type_name -> google.protobuf.Timestamp
 	1,  // 3: playtesthub.v1.Playtest.status:type_name -> playtesthub.v1.PlaytestStatus
 	2,  // 4: playtesthub.v1.Playtest.distribution_model:type_name -> playtesthub.v1.DistributionModel
-	29, // 5: playtesthub.v1.Playtest.created_at:type_name -> google.protobuf.Timestamp
-	29, // 6: playtesthub.v1.Playtest.updated_at:type_name -> google.protobuf.Timestamp
-	29, // 7: playtesthub.v1.Playtest.deleted_at:type_name -> google.protobuf.Timestamp
+	31, // 5: playtesthub.v1.Playtest.created_at:type_name -> google.protobuf.Timestamp
+	31, // 6: playtesthub.v1.Playtest.updated_at:type_name -> google.protobuf.Timestamp
+	31, // 7: playtesthub.v1.Playtest.deleted_at:type_name -> google.protobuf.Timestamp
 	0,  // 8: playtesthub.v1.PublicPlaytest.platforms:type_name -> playtesthub.v1.Platform
-	29, // 9: playtesthub.v1.PublicPlaytest.starts_at:type_name -> google.protobuf.Timestamp
-	29, // 10: playtesthub.v1.PublicPlaytest.ends_at:type_name -> google.protobuf.Timestamp
+	31, // 9: playtesthub.v1.PublicPlaytest.starts_at:type_name -> google.protobuf.Timestamp
+	31, // 10: playtesthub.v1.PublicPlaytest.ends_at:type_name -> google.protobuf.Timestamp
 	0,  // 11: playtesthub.v1.PlayerPlaytest.platforms:type_name -> playtesthub.v1.Platform
-	29, // 12: playtesthub.v1.PlayerPlaytest.starts_at:type_name -> google.protobuf.Timestamp
-	29, // 13: playtesthub.v1.PlayerPlaytest.ends_at:type_name -> google.protobuf.Timestamp
+	31, // 12: playtesthub.v1.PlayerPlaytest.starts_at:type_name -> google.protobuf.Timestamp
+	31, // 13: playtesthub.v1.PlayerPlaytest.ends_at:type_name -> google.protobuf.Timestamp
 	1,  // 14: playtesthub.v1.PlayerPlaytest.status:type_name -> playtesthub.v1.PlaytestStatus
 	2,  // 15: playtesthub.v1.PlayerPlaytest.distribution_model:type_name -> playtesthub.v1.DistributionModel
 	0,  // 16: playtesthub.v1.Applicant.platforms:type_name -> playtesthub.v1.Platform
 	3,  // 17: playtesthub.v1.Applicant.status:type_name -> playtesthub.v1.ApplicantStatus
-	29, // 18: playtesthub.v1.Applicant.approved_at:type_name -> google.protobuf.Timestamp
+	31, // 18: playtesthub.v1.Applicant.approved_at:type_name -> google.protobuf.Timestamp
 	4,  // 19: playtesthub.v1.Applicant.last_dm_status:type_name -> playtesthub.v1.DmStatus
-	29, // 20: playtesthub.v1.Applicant.last_dm_attempt_at:type_name -> google.protobuf.Timestamp
-	29, // 21: playtesthub.v1.Applicant.created_at:type_name -> google.protobuf.Timestamp
+	31, // 20: playtesthub.v1.Applicant.last_dm_attempt_at:type_name -> google.protobuf.Timestamp
+	31, // 21: playtesthub.v1.Applicant.created_at:type_name -> google.protobuf.Timestamp
 	6,  // 22: playtesthub.v1.GetPublicPlaytestResponse.playtest:type_name -> playtesthub.v1.PublicPlaytest
 	7,  // 23: playtesthub.v1.GetPlaytestForPlayerResponse.playtest:type_name -> playtesthub.v1.PlayerPlaytest
 	5,  // 24: playtesthub.v1.AdminGetPlaytestResponse.playtest:type_name -> playtesthub.v1.Playtest
 	5,  // 25: playtesthub.v1.ListPlaytestsResponse.playtests:type_name -> playtesthub.v1.Playtest
 	0,  // 26: playtesthub.v1.CreatePlaytestRequest.platforms:type_name -> playtesthub.v1.Platform
-	29, // 27: playtesthub.v1.CreatePlaytestRequest.starts_at:type_name -> google.protobuf.Timestamp
-	29, // 28: playtesthub.v1.CreatePlaytestRequest.ends_at:type_name -> google.protobuf.Timestamp
+	31, // 27: playtesthub.v1.CreatePlaytestRequest.starts_at:type_name -> google.protobuf.Timestamp
+	31, // 28: playtesthub.v1.CreatePlaytestRequest.ends_at:type_name -> google.protobuf.Timestamp
 	2,  // 29: playtesthub.v1.CreatePlaytestRequest.distribution_model:type_name -> playtesthub.v1.DistributionModel
 	5,  // 30: playtesthub.v1.CreatePlaytestResponse.playtest:type_name -> playtesthub.v1.Playtest
 	0,  // 31: playtesthub.v1.EditPlaytestRequest.platforms:type_name -> playtesthub.v1.Platform
-	29, // 32: playtesthub.v1.EditPlaytestRequest.starts_at:type_name -> google.protobuf.Timestamp
-	29, // 33: playtesthub.v1.EditPlaytestRequest.ends_at:type_name -> google.protobuf.Timestamp
+	31, // 32: playtesthub.v1.EditPlaytestRequest.starts_at:type_name -> google.protobuf.Timestamp
+	31, // 33: playtesthub.v1.EditPlaytestRequest.ends_at:type_name -> google.protobuf.Timestamp
 	5,  // 34: playtesthub.v1.EditPlaytestResponse.playtest:type_name -> playtesthub.v1.Playtest
 	1,  // 35: playtesthub.v1.TransitionPlaytestStatusRequest.target_status:type_name -> playtesthub.v1.PlaytestStatus
 	5,  // 36: playtesthub.v1.TransitionPlaytestStatusResponse.playtest:type_name -> playtesthub.v1.Playtest
@@ -2273,20 +2417,22 @@ var file_playtesthub_v1_playtesthub_proto_depIdxs = []int32{
 	19, // 45: playtesthub.v1.PlaytesthubService.EditPlaytest:input_type -> playtesthub.v1.EditPlaytestRequest
 	21, // 46: playtesthub.v1.PlaytesthubService.SoftDeletePlaytest:input_type -> playtesthub.v1.SoftDeletePlaytestRequest
 	23, // 47: playtesthub.v1.PlaytesthubService.TransitionPlaytestStatus:input_type -> playtesthub.v1.TransitionPlaytestStatusRequest
-	25, // 48: playtesthub.v1.PlaytesthubService.Signup:input_type -> playtesthub.v1.SignupRequest
-	27, // 49: playtesthub.v1.PlaytesthubService.GetApplicantStatus:input_type -> playtesthub.v1.GetApplicantStatusRequest
-	10, // 50: playtesthub.v1.PlaytesthubService.GetPublicPlaytest:output_type -> playtesthub.v1.GetPublicPlaytestResponse
-	12, // 51: playtesthub.v1.PlaytesthubService.GetPlaytestForPlayer:output_type -> playtesthub.v1.GetPlaytestForPlayerResponse
-	14, // 52: playtesthub.v1.PlaytesthubService.AdminGetPlaytest:output_type -> playtesthub.v1.AdminGetPlaytestResponse
-	16, // 53: playtesthub.v1.PlaytesthubService.ListPlaytests:output_type -> playtesthub.v1.ListPlaytestsResponse
-	18, // 54: playtesthub.v1.PlaytesthubService.CreatePlaytest:output_type -> playtesthub.v1.CreatePlaytestResponse
-	20, // 55: playtesthub.v1.PlaytesthubService.EditPlaytest:output_type -> playtesthub.v1.EditPlaytestResponse
-	22, // 56: playtesthub.v1.PlaytesthubService.SoftDeletePlaytest:output_type -> playtesthub.v1.SoftDeletePlaytestResponse
-	24, // 57: playtesthub.v1.PlaytesthubService.TransitionPlaytestStatus:output_type -> playtesthub.v1.TransitionPlaytestStatusResponse
-	26, // 58: playtesthub.v1.PlaytesthubService.Signup:output_type -> playtesthub.v1.SignupResponse
-	28, // 59: playtesthub.v1.PlaytesthubService.GetApplicantStatus:output_type -> playtesthub.v1.GetApplicantStatusResponse
-	50, // [50:60] is the sub-list for method output_type
-	40, // [40:50] is the sub-list for method input_type
+	29, // 48: playtesthub.v1.PlaytesthubService.GetDiscordLoginUrl:input_type -> playtesthub.v1.GetDiscordLoginUrlRequest
+	25, // 49: playtesthub.v1.PlaytesthubService.Signup:input_type -> playtesthub.v1.SignupRequest
+	27, // 50: playtesthub.v1.PlaytesthubService.GetApplicantStatus:input_type -> playtesthub.v1.GetApplicantStatusRequest
+	10, // 51: playtesthub.v1.PlaytesthubService.GetPublicPlaytest:output_type -> playtesthub.v1.GetPublicPlaytestResponse
+	12, // 52: playtesthub.v1.PlaytesthubService.GetPlaytestForPlayer:output_type -> playtesthub.v1.GetPlaytestForPlayerResponse
+	14, // 53: playtesthub.v1.PlaytesthubService.AdminGetPlaytest:output_type -> playtesthub.v1.AdminGetPlaytestResponse
+	16, // 54: playtesthub.v1.PlaytesthubService.ListPlaytests:output_type -> playtesthub.v1.ListPlaytestsResponse
+	18, // 55: playtesthub.v1.PlaytesthubService.CreatePlaytest:output_type -> playtesthub.v1.CreatePlaytestResponse
+	20, // 56: playtesthub.v1.PlaytesthubService.EditPlaytest:output_type -> playtesthub.v1.EditPlaytestResponse
+	22, // 57: playtesthub.v1.PlaytesthubService.SoftDeletePlaytest:output_type -> playtesthub.v1.SoftDeletePlaytestResponse
+	24, // 58: playtesthub.v1.PlaytesthubService.TransitionPlaytestStatus:output_type -> playtesthub.v1.TransitionPlaytestStatusResponse
+	30, // 59: playtesthub.v1.PlaytesthubService.GetDiscordLoginUrl:output_type -> playtesthub.v1.GetDiscordLoginUrlResponse
+	26, // 60: playtesthub.v1.PlaytesthubService.Signup:output_type -> playtesthub.v1.SignupResponse
+	28, // 61: playtesthub.v1.PlaytesthubService.GetApplicantStatus:output_type -> playtesthub.v1.GetApplicantStatusResponse
+	51, // [51:62] is the sub-list for method output_type
+	40, // [40:51] is the sub-list for method input_type
 	40, // [40:40] is the sub-list for extension type_name
 	40, // [40:40] is the sub-list for extension extendee
 	0,  // [0:40] is the sub-list for field type_name
@@ -2308,7 +2454,7 @@ func file_playtesthub_v1_playtesthub_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_playtesthub_v1_playtesthub_proto_rawDesc), len(file_playtesthub_v1_playtesthub_proto_rawDesc)),
 			NumEnums:      5,
-			NumMessages:   24,
+			NumMessages:   26,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

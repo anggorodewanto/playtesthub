@@ -65,6 +65,31 @@ code=$(curl -s -o /dev/null -w '%{http_code}' \
 [[ "$code" == "401" ]] \
     || fail "expected 401 from GetApplicantStatus, got $code"
 
+# Phase 9.2: GetDiscordLoginUrl is unauth and proxies one server-side
+# hop to AGS IAM. Live AGS round-trip — only runnable against a deploy
+# whose PLAYER_IAM_CLIENT_ID is registered for the redirect_uri we
+# send. Skipped when PLAYER_IAM_CLIENT_ID is unset (boot.sh has no way
+# to hit AGS, so this is the smoke that catches the proxy-RPC path).
+if [[ -n "${PLAYER_IAM_CLIENT_ID:-}" ]]; then
+    log "GetDiscordLoginUrl returns a Discord platforms URL (expect 200)"
+    body=$(curl -sf -X POST \
+        -H 'Content-Type: application/json' \
+        -d '{"redirect_uri":"http://localhost:5173/callback","state":"smoke-state","code_challenge":"E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM","code_challenge_method":"S256","scope":"account commerce social publishing analytics"}' \
+        "${BASE}/v1/player/discord/login-url") \
+        || fail "GetDiscordLoginUrl returned non-2xx"
+    login_url=$(jq -r '.login_url // empty' <<<"$body")
+    [[ -n "$login_url" ]] \
+        || fail "GetDiscordLoginUrl response missing login_url: $body"
+    [[ "$login_url" == *"oauth/platforms/discord/authorize"* ]] \
+        || fail "login_url does not target oauth/platforms/discord/authorize: $login_url"
+    [[ "$login_url" == *"request_id="* ]] \
+        || fail "login_url missing request_id: $login_url"
+    [[ "$login_url" == *"client_id=${PLAYER_IAM_CLIENT_ID}"* ]] \
+        || fail "login_url does not carry PLAYER_IAM_CLIENT_ID: $login_url"
+else
+    log "skipping GetDiscordLoginUrl check (set PLAYER_IAM_CLIENT_ID to enable)"
+fi
+
 # Optional: exercise the cookie-forwarded Admin Portal auth path. Set
 # ADMIN_PORTAL_COOKIE to the full Cookie header value copied from a
 # logged-in Admin Portal browser session. This is the path that

@@ -277,6 +277,41 @@
         ]
       }
     },
+    "/v1/player/discord/login-url": {
+      "post": {
+        "summary": "Build a Discord federation login URL (unauthenticated)",
+        "description": "AGS IAM's hosted /auth/ SPA does not render the Discord button on shared cloud, so the player must drive /iam/v3/oauth/platforms/discord/authorize directly. That endpoint requires a request_id from a prior /iam/v3/oauth/authorize call, whose 302 is opaque to a browser cross-origin — this RPC performs that first hop server-side and returns the second-hop URL for the player to navigate to. PKCE verifier and state stay in the player's sessionStorage and never traverse the wire.",
+        "operationId": "PlaytesthubService_GetDiscordLoginUrl",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetDiscordLoginUrlResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": "GetDiscordLoginUrlRequest carries the player-side OAuth2 + PKCE values\nthe backend must forward to AGS IAM's authorize endpoint. Field names\nmirror RFC 6749 / RFC 7636 wire names so the proxy is mechanical.",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1GetDiscordLoginUrlRequest"
+            }
+          }
+        ],
+        "tags": [
+          "PlaytesthubService"
+        ]
+      }
+    },
     "/v1/player/playtests/{slug}": {
       "get": {
         "summary": "Get a playtest by slug (authenticated player)",
@@ -665,6 +700,41 @@
       "properties": {
         "applicant": {
           "$ref": "#/definitions/v1Applicant"
+        }
+      }
+    },
+    "v1GetDiscordLoginUrlRequest": {
+      "type": "object",
+      "properties": {
+        "redirectUri": {
+          "type": "string",
+          "description": "Must be one of the player IAM client's registered redirect URIs."
+        },
+        "state": {
+          "type": "string",
+          "description": "Opaque CSRF/state token; AGS returns it on the redirect_uri callback."
+        },
+        "codeChallenge": {
+          "type": "string",
+          "description": "PKCE code_challenge (RFC 7636). The verifier itself never traverses\nthe wire — it stays in the player's sessionStorage until the token\nexchange step on /iam/v3/oauth/token."
+        },
+        "codeChallengeMethod": {
+          "type": "string",
+          "description": "PKCE code_challenge_method. Public clients on AGS IAM require S256."
+        },
+        "scope": {
+          "type": "string",
+          "description": "OAuth2 scope string, space-separated."
+        }
+      },
+      "description": "GetDiscordLoginUrlRequest carries the player-side OAuth2 + PKCE values\nthe backend must forward to AGS IAM's authorize endpoint. Field names\nmirror RFC 6749 / RFC 7636 wire names so the proxy is mechanical."
+    },
+    "v1GetDiscordLoginUrlResponse": {
+      "type": "object",
+      "properties": {
+        "loginUrl": {
+          "type": "string",
+          "description": "Fully-composed AGS IAM URL the player should navigate to. Drives\n/iam/v3/oauth/platforms/discord/authorize, which 302s the user to\ndiscord.com for the actual federation step."
         }
       }
     },

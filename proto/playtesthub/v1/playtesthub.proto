@@ -146,6 +146,17 @@ service PlaytesthubService {
     };
   }
 
+  rpc GetDiscordLoginUrl(GetDiscordLoginUrlRequest) returns (GetDiscordLoginUrlResponse) {
+    option (google.api.http) = {
+      post: "/v1/player/discord/login-url"
+      body: "*"
+    };
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Build a Discord federation login URL (unauthenticated)"
+      description: "AGS IAM's hosted /auth/ SPA does not render the Discord button on shared cloud, so the player must drive /iam/v3/oauth/platforms/discord/authorize directly. That endpoint requires a request_id from a prior /iam/v3/oauth/authorize call, whose 302 is opaque to a browser cross-origin — this RPC performs that first hop server-side and returns the second-hop URL for the player to navigate to. PKCE verifier and state stay in the player's sessionStorage and never traverse the wire."
+    };
+  }
+
   rpc Signup(SignupRequest) returns (SignupResponse) {
     option (google.api.http) = {
       post: "/v1/player/playtests/{slug}/signup"
@@ -391,6 +402,30 @@ message GetApplicantStatusRequest {
 }
 message GetApplicantStatusResponse {
   Applicant applicant = 1;
+}
+
+// GetDiscordLoginUrlRequest carries the player-side OAuth2 + PKCE values
+// the backend must forward to AGS IAM's authorize endpoint. Field names
+// mirror RFC 6749 / RFC 7636 wire names so the proxy is mechanical.
+message GetDiscordLoginUrlRequest {
+  // Must be one of the player IAM client's registered redirect URIs.
+  string redirect_uri = 1;
+  // Opaque CSRF/state token; AGS returns it on the redirect_uri callback.
+  string state = 2;
+  // PKCE code_challenge (RFC 7636). The verifier itself never traverses
+  // the wire — it stays in the player's sessionStorage until the token
+  // exchange step on /iam/v3/oauth/token.
+  string code_challenge = 3;
+  // PKCE code_challenge_method. Public clients on AGS IAM require S256.
+  string code_challenge_method = 4;
+  // OAuth2 scope string, space-separated.
+  string scope = 5;
+}
+message GetDiscordLoginUrlResponse {
+  // Fully-composed AGS IAM URL the player should navigate to. Drives
+  // /iam/v3/oauth/platforms/discord/authorize, which 302s the user to
+  // discord.com for the actual federation step.
+  string login_url = 1;
 }
 
 // ---------------- swagger root ----------------

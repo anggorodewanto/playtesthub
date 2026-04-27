@@ -27,6 +27,7 @@ const (
 	PlaytesthubService_EditPlaytest_FullMethodName             = "/playtesthub.v1.PlaytesthubService/EditPlaytest"
 	PlaytesthubService_SoftDeletePlaytest_FullMethodName       = "/playtesthub.v1.PlaytesthubService/SoftDeletePlaytest"
 	PlaytesthubService_TransitionPlaytestStatus_FullMethodName = "/playtesthub.v1.PlaytesthubService/TransitionPlaytestStatus"
+	PlaytesthubService_GetDiscordLoginUrl_FullMethodName       = "/playtesthub.v1.PlaytesthubService/GetDiscordLoginUrl"
 	PlaytesthubService_Signup_FullMethodName                   = "/playtesthub.v1.PlaytesthubService/Signup"
 	PlaytesthubService_GetApplicantStatus_FullMethodName       = "/playtesthub.v1.PlaytesthubService/GetApplicantStatus"
 )
@@ -55,6 +56,7 @@ type PlaytesthubServiceClient interface {
 	EditPlaytest(ctx context.Context, in *EditPlaytestRequest, opts ...grpc.CallOption) (*EditPlaytestResponse, error)
 	SoftDeletePlaytest(ctx context.Context, in *SoftDeletePlaytestRequest, opts ...grpc.CallOption) (*SoftDeletePlaytestResponse, error)
 	TransitionPlaytestStatus(ctx context.Context, in *TransitionPlaytestStatusRequest, opts ...grpc.CallOption) (*TransitionPlaytestStatusResponse, error)
+	GetDiscordLoginUrl(ctx context.Context, in *GetDiscordLoginUrlRequest, opts ...grpc.CallOption) (*GetDiscordLoginUrlResponse, error)
 	Signup(ctx context.Context, in *SignupRequest, opts ...grpc.CallOption) (*SignupResponse, error)
 	GetApplicantStatus(ctx context.Context, in *GetApplicantStatusRequest, opts ...grpc.CallOption) (*GetApplicantStatusResponse, error)
 }
@@ -147,6 +149,16 @@ func (c *playtesthubServiceClient) TransitionPlaytestStatus(ctx context.Context,
 	return out, nil
 }
 
+func (c *playtesthubServiceClient) GetDiscordLoginUrl(ctx context.Context, in *GetDiscordLoginUrlRequest, opts ...grpc.CallOption) (*GetDiscordLoginUrlResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetDiscordLoginUrlResponse)
+	err := c.cc.Invoke(ctx, PlaytesthubService_GetDiscordLoginUrl_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *playtesthubServiceClient) Signup(ctx context.Context, in *SignupRequest, opts ...grpc.CallOption) (*SignupResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(SignupResponse)
@@ -191,6 +203,7 @@ type PlaytesthubServiceServer interface {
 	EditPlaytest(context.Context, *EditPlaytestRequest) (*EditPlaytestResponse, error)
 	SoftDeletePlaytest(context.Context, *SoftDeletePlaytestRequest) (*SoftDeletePlaytestResponse, error)
 	TransitionPlaytestStatus(context.Context, *TransitionPlaytestStatusRequest) (*TransitionPlaytestStatusResponse, error)
+	GetDiscordLoginUrl(context.Context, *GetDiscordLoginUrlRequest) (*GetDiscordLoginUrlResponse, error)
 	Signup(context.Context, *SignupRequest) (*SignupResponse, error)
 	GetApplicantStatus(context.Context, *GetApplicantStatusRequest) (*GetApplicantStatusResponse, error)
 }
@@ -225,6 +238,9 @@ func (UnimplementedPlaytesthubServiceServer) SoftDeletePlaytest(context.Context,
 }
 func (UnimplementedPlaytesthubServiceServer) TransitionPlaytestStatus(context.Context, *TransitionPlaytestStatusRequest) (*TransitionPlaytestStatusResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method TransitionPlaytestStatus not implemented")
+}
+func (UnimplementedPlaytesthubServiceServer) GetDiscordLoginUrl(context.Context, *GetDiscordLoginUrlRequest) (*GetDiscordLoginUrlResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetDiscordLoginUrl not implemented")
 }
 func (UnimplementedPlaytesthubServiceServer) Signup(context.Context, *SignupRequest) (*SignupResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Signup not implemented")
@@ -396,6 +412,24 @@ func _PlaytesthubService_TransitionPlaytestStatus_Handler(srv interface{}, ctx c
 	return interceptor(ctx, in, info, handler)
 }
 
+func _PlaytesthubService_GetDiscordLoginUrl_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetDiscordLoginUrlRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PlaytesthubServiceServer).GetDiscordLoginUrl(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PlaytesthubService_GetDiscordLoginUrl_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PlaytesthubServiceServer).GetDiscordLoginUrl(ctx, req.(*GetDiscordLoginUrlRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _PlaytesthubService_Signup_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(SignupRequest)
 	if err := dec(in); err != nil {
@@ -470,6 +504,10 @@ var PlaytesthubService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "TransitionPlaytestStatus",
 			Handler:    _PlaytesthubService_TransitionPlaytestStatus_Handler,
+		},
+		{
+			MethodName: "GetDiscordLoginUrl",
+			Handler:    _PlaytesthubService_GetDiscordLoginUrl_Handler,
 		},
 		{
 			MethodName: "Signup",

@@ -98,6 +98,7 @@ AGS_IAM_CLIENT_ID="smoke-client-id" \
 AGS_IAM_CLIENT_SECRET="smoke-client-secret" \
 AGS_BASE_URL="https://ags.smoke.invalid" \
 AGS_NAMESPACE="smoke" \
+PLAYER_IAM_CLIENT_ID="smoke-player-client-id" \
 PLUGIN_GRPC_SERVER_AUTH_ENABLED=false \
     setsid go run . >/tmp/playtesthub-smoke.log 2>&1 &
 APP_PID=$!
@@ -118,11 +119,11 @@ grpcurl -plaintext "localhost:$APP_PORT_GRPC" list \
     | grep -q '^playtesthub\.v1\.PlaytesthubService$' \
     || fail "service not exposed via reflection"
 
-log "all 10 M1 methods visible"
+log "all 11 M1 methods visible"
 EXPECTED_METHODS=(
     GetPublicPlaytest GetPlaytestForPlayer AdminGetPlaytest ListPlaytests
     CreatePlaytest EditPlaytest SoftDeletePlaytest TransitionPlaytestStatus
-    Signup GetApplicantStatus
+    Signup GetApplicantStatus GetDiscordLoginUrl
 )
 methods_output=$(grpcurl -plaintext "localhost:$APP_PORT_GRPC" list playtesthub.v1.PlaytesthubService)
 for m in "${EXPECTED_METHODS[@]}"; do

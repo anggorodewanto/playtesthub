@@ -59,23 +59,64 @@ export function logout(): void {
   clearPendingLogin();
 }
 
-export type BuildLoginUrlOpts = {
+export type FetchDiscordLoginUrlOpts = {
   state: string;
   codeChallenge: string;
   redirectUri: string;
+  scope?: string;
 };
 
-export function buildDiscordLoginUrl(config: Config, opts: BuildLoginUrlOpts): string {
-  const url = new URL('/iam/v3/oauth/authorize', config.iamBaseUrl);
-  url.searchParams.set('client_id', config.discordClientId);
-  url.searchParams.set('response_type', 'code');
-  url.searchParams.set('redirect_uri', opts.redirectUri);
-  url.searchParams.set('code_challenge', opts.codeChallenge);
-  url.searchParams.set('code_challenge_method', 'S256');
-  url.searchParams.set('state', opts.state);
-  url.searchParams.set('idp_hint', 'discord');
-  url.searchParams.set('scope', 'commerce account social publishing analytics');
-  return url.toString();
+export const DEFAULT_DISCORD_LOGIN_SCOPE = 'commerce account social publishing analytics';
+
+// fetchDiscordLoginUrl asks the backend to build the AGS IAM Discord
+// login URL on the player's behalf. The RPC performs a server-side
+// /iam/v3/oauth/authorize hop and returns the second-hop URL the
+// player should navigate to (/iam/v3/oauth/platforms/discord/authorize).
+// See STATUS.md M1 phase 9.2 — AGS IAM's hosted /auth/ SPA does not
+// render the Discord button on shared cloud, so the player cannot
+// drive /oauth/authorize directly.
+export async function fetchDiscordLoginUrl(
+  config: Config,
+  opts: FetchDiscordLoginUrlOpts,
+): Promise<string> {
+  const url = joinGatewayPath(config.grpcGatewayUrl, '/v1/player/discord/login-url');
+  const body = {
+    redirect_uri: opts.redirectUri,
+    state: opts.state,
+    code_challenge: opts.codeChallenge,
+    code_challenge_method: 'S256',
+    scope: opts.scope ?? DEFAULT_DISCORD_LOGIN_SCOPE,
+  };
+
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  } catch (err) {
+    throw new IamError(`Discord login URL fetch network error: ${(err as Error).message}`);
+  }
+
+  if (!res.ok) {
+    throw new IamError(`Discord login URL fetch failed: ${res.status} ${res.statusText}`);
+  }
+
+  const parsed = (await res.json()) as { login_url?: string };
+  if (!parsed.login_url) {
+    throw new IamError('Discord login URL response missing login_url');
+  }
+  return parsed.login_url;
+}
+
+function joinGatewayPath(base: string, path: string): string {
+  // Trim a single trailing slash from base and a single leading slash
+  // from path; concatenating cleanly handles both `https://x/playtesthub`
+  // and `https://x/playtesthub/` config shapes.
+  const trimmedBase = base.endsWith('/') ? base.slice(0, -1) : base;
+  const trimmedPath = path.startsWith('/') ? path : `/${path}`;
+  return trimmedBase + trimmedPath;
 }
 
 export type ExchangeOpts = {

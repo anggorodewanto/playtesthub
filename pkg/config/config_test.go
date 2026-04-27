@@ -20,6 +20,7 @@ func setRequired(t *testing.T) {
 	t.Setenv("AGS_BASE_URL", "https://ags.example.com")
 	t.Setenv("AGS_NAMESPACE", "playtesthub-dev")
 	t.Setenv("BASE_PATH", "/playtesthub")
+	t.Setenv("PLAYER_IAM_CLIENT_ID", "player-public-client-id")
 }
 
 func TestLoad_RequiredVars_AllSet_ReturnsConfig(t *testing.T) {
@@ -49,6 +50,9 @@ func TestLoad_RequiredVars_AllSet_ReturnsConfig(t *testing.T) {
 	}
 	if cfg.BasePath != "/playtesthub" {
 		t.Errorf("BasePath = %q", cfg.BasePath)
+	}
+	if cfg.PlayerIAMClientID != "player-public-client-id" {
+		t.Errorf("PlayerIAMClientID = %q", cfg.PlayerIAMClientID)
 	}
 }
 
@@ -133,6 +137,7 @@ func TestLoad_MissingRequired_AggregatesAllNames(t *testing.T) {
 	t.Setenv("AGS_BASE_URL", "")
 	t.Setenv("AGS_NAMESPACE", "")
 	t.Setenv("BASE_PATH", "")
+	t.Setenv("PLAYER_IAM_CLIENT_ID", "")
 
 	_, err := config.Load()
 	if err == nil {
@@ -150,6 +155,7 @@ func TestLoad_MissingRequired_AggregatesAllNames(t *testing.T) {
 		"BASE_PATH",
 		"DATABASE_URL",
 		"DISCORD_BOT_TOKEN",
+		"PLAYER_IAM_CLIENT_ID",
 	}
 	for _, k := range want {
 		if !slices.Contains(missing.Keys, k) {

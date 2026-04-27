@@ -62,7 +62,7 @@ Phase status legend: `[ ]` not started · `[~]` in progress · `[x]` shipped.
 
     Out of scope for 9.1 (and 9.2): NDA accept UI, code retrieval UI, survey (still M2/M3).
 
-9.2. `[ ]` **Self-hosted Discord login (build-our-own login page, shared-cloud-compatible)** — replace the AGS-hosted `/auth/` redirect with a player-side flow that calls `/iam/v3/oauth/platforms/discord/authorize` directly. AGS IAM requires a `request_id` from a prior `/iam/v3/oauth/authorize` call to drive that endpoint, and the 302 from `/oauth/authorize` is an opaque redirect cross-origin (browser cannot read the `Location` header). Step 1 must therefore run server-side. Scope:
+9.2. `[~]` **Self-hosted Discord login (build-our-own login page, shared-cloud-compatible)** — replaces the AGS-hosted `/auth/` redirect with a player-side flow that calls `/iam/v3/oauth/platforms/discord/authorize` directly. AGS IAM requires a `request_id` from a prior `/iam/v3/oauth/authorize` call to drive that endpoint, and the 302 from `/oauth/authorize` is an opaque redirect cross-origin (browser cannot read the `Location` header). Step 1 runs server-side via the new `Player.GetDiscordLoginUrl` proxy RPC. **Endpoint shape verified end-to-end against `abtestdewa-pong` ISC** before any code landed: `/iam/v3/oauth/authorize` 302s with `request_id`, and `/iam/v3/oauth/platforms/discord/authorize?request_id=…` 302s straight to `discord.com/api/oauth2/authorize` — no Admin Portal feature flag in the way. Code landed; manual browser smoke pending. Scope:
     - **New backend RPC `Player.GetDiscordLoginUrl`** — public/unauth, on the `Player` proto service. Request:
         ```proto
         message GetDiscordLoginUrlRequest {

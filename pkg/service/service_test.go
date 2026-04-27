@@ -21,6 +21,7 @@ func TestServiceDescriptorMethods(t *testing.T) {
 		"TransitionPlaytestStatus": true,
 		"Signup":                   true,
 		"GetApplicantStatus":       true,
+		"GetDiscordLoginUrl":       true,
 	}
 
 	methods := pb.PlaytesthubService_ServiceDesc.Methods

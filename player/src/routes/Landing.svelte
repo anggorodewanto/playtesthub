@@ -6,7 +6,8 @@
   import { platformLabel } from '../lib/platforms';
   import {
     clearPendingLogin,
-    buildDiscordLoginUrl,
+    fetchDiscordLoginUrl,
+    IamError,
     storePendingLogin,
   } from '../lib/auth';
   import { createCodeVerifier, deriveCodeChallenge } from '../lib/pkce';
@@ -45,11 +46,17 @@
     const redirectUri = `${window.location.origin}/callback`;
     clearPendingLogin();
     storePendingLogin({ state, codeVerifier: verifier, returnTo: `#/playtest/${slug}/signup` });
-    window.location.href = buildDiscordLoginUrl(config, {
-      state,
-      codeChallenge: challenge,
-      redirectUri,
-    });
+    try {
+      const loginUrl = await fetchDiscordLoginUrl(config, {
+        state,
+        codeChallenge: challenge,
+        redirectUri,
+      });
+      window.location.href = loginUrl;
+    } catch (err) {
+      redirecting = false;
+      loadError = err instanceof IamError ? err.userMessage : 'Could not start Discord login.';
+    }
   }
 
   $effect(() => {

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Config } from '../src/lib/config';
 import {
-  buildDiscordLoginUrl,
+  fetchDiscordLoginUrl,
   exchangeCodeForToken,
   getAccessToken,
   logout,
@@ -10,6 +10,7 @@ import {
   GENERIC_LOGIN_FAILED_MESSAGE,
   IamError,
   TOKEN_STORAGE_KEY,
+  DEFAULT_DISCORD_LOGIN_SCOPE,
 } from '../src/lib/auth';
 
 const config: Config = {
@@ -27,25 +28,89 @@ afterEach(() => {
   sessionStorage.clear();
 });
 
-describe('buildDiscordLoginUrl', () => {
-  it('targets iam authorize endpoint with discord idp_hint and PKCE', () => {
-    const u = buildDiscordLoginUrl(config, {
+describe('fetchDiscordLoginUrl', () => {
+  it('POSTs JSON to grpcGatewayUrl + /v1/player/discord/login-url and returns login_url', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({ login_url: 'https://iam.example.com/iam/v3/oauth/platforms/discord/authorize?request_id=abc&client_id=client-xyz&redirect_uri=https%3A%2F%2Fplayer.example.com%2Fcallback' }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      ),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const url = await fetchDiscordLoginUrl(config, {
       state: 'state-abc',
       codeChallenge: 'challenge-xyz',
-      redirectUri: 'https://player.example.com/#/callback',
+      redirectUri: 'https://player.example.com/callback',
     });
-    const parsed = new URL(u);
-    expect(parsed.origin + parsed.pathname).toBe('https://iam.example.com/iam/v3/oauth/authorize');
-    expect(parsed.searchParams.get('client_id')).toBe('client-xyz');
-    expect(parsed.searchParams.get('response_type')).toBe('code');
-    expect(parsed.searchParams.get('code_challenge')).toBe('challenge-xyz');
-    expect(parsed.searchParams.get('code_challenge_method')).toBe('S256');
-    expect(parsed.searchParams.get('state')).toBe('state-abc');
-    expect(parsed.searchParams.get('redirect_uri')).toBe(
-      'https://player.example.com/#/callback',
+    expect(url).toBe('https://iam.example.com/iam/v3/oauth/platforms/discord/authorize?request_id=abc&client_id=client-xyz&redirect_uri=https%3A%2F%2Fplayer.example.com%2Fcallback');
+
+    const [calledUrl, init] = fetchMock.mock.calls[0];
+    expect(calledUrl).toBe('https://api.example.com/playtesthub/v1/player/discord/login-url');
+    expect(init.method).toBe('POST');
+    expect(init.headers['Content-Type']).toBe('application/json');
+    const body = JSON.parse(init.body);
+    expect(body.redirect_uri).toBe('https://player.example.com/callback');
+    expect(body.state).toBe('state-abc');
+    expect(body.code_challenge).toBe('challenge-xyz');
+    expect(body.code_challenge_method).toBe('S256');
+    expect(body.scope).toBe(DEFAULT_DISCORD_LOGIN_SCOPE);
+  });
+
+  it('handles a grpcGatewayUrl with a trailing slash', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ login_url: 'https://x' }), { status: 200 }),
     );
-    expect(parsed.searchParams.get('idp_hint')).toBe('discord');
-    expect(parsed.searchParams.get('scope')).toBe('commerce account social publishing analytics');
+    vi.stubGlobal('fetch', fetchMock);
+
+    await fetchDiscordLoginUrl(
+      { ...config, grpcGatewayUrl: 'https://api.example.com/playtesthub/' },
+      { state: 's', codeChallenge: 'c', redirectUri: 'r' },
+    );
+    const [calledUrl] = fetchMock.mock.calls[0];
+    expect(calledUrl).toBe('https://api.example.com/playtesthub/v1/player/discord/login-url');
+  });
+
+  it('maps backend 5xx to IamError with generic user message', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(new Response('boom', { status: 503, statusText: 'Service Unavailable' })),
+    );
+    await expect(
+      fetchDiscordLoginUrl(config, { state: 's', codeChallenge: 'c', redirectUri: 'r' }),
+    ).rejects.toMatchObject({ name: 'IamError', userMessage: GENERIC_LOGIN_FAILED_MESSAGE });
+  });
+
+  it('maps a network error to IamError', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('network down')));
+    await expect(
+      fetchDiscordLoginUrl(config, { state: 's', codeChallenge: 'c', redirectUri: 'r' }),
+    ).rejects.toBeInstanceOf(IamError);
+  });
+
+  it('rejects when the response body is missing login_url', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(new Response(JSON.stringify({}), { status: 200 })),
+    );
+    await expect(
+      fetchDiscordLoginUrl(config, { state: 's', codeChallenge: 'c', redirectUri: 'r' }),
+    ).rejects.toBeInstanceOf(IamError);
+  });
+
+  it('forwards a custom scope when provided', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ login_url: 'https://x' }), { status: 200 }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    await fetchDiscordLoginUrl(config, {
+      state: 's',
+      codeChallenge: 'c',
+      redirectUri: 'r',
+      scope: 'account',
+    });
+    const [, init] = fetchMock.mock.calls[0];
+    expect(JSON.parse(init.body).scope).toBe('account');
   });
 });
 

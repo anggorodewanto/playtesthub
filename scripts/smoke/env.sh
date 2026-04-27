@@ -38,7 +38,7 @@ if [[ "$exit_code" == 0 ]]; then
     fail "expected non-zero exit for missing required env, got 0"
 fi
 
-for key in DATABASE_URL DISCORD_BOT_TOKEN AGS_IAM_CLIENT_ID AGS_IAM_CLIENT_SECRET AGS_BASE_URL AGS_NAMESPACE BASE_PATH; do
+for key in DATABASE_URL DISCORD_BOT_TOKEN AGS_IAM_CLIENT_ID AGS_IAM_CLIENT_SECRET AGS_BASE_URL AGS_NAMESPACE BASE_PATH PLAYER_IAM_CLIENT_ID; do
     if ! grep -q "$key" "$LOG_FILE"; then
         cat "$LOG_FILE" >&2
         fail "missing-required error did not mention $key"
@@ -57,6 +57,7 @@ env -i PATH="$PATH" HOME="$HOME" \
     AGS_BASE_URL="https://x" \
     AGS_NAMESPACE="x" \
     BASE_PATH="no-leading-slash" \
+    PLAYER_IAM_CLIENT_ID="x" \
     go run . >"$LOG_FILE" 2>&1
 exit_code=$?
 set -e

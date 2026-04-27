@@ -323,9 +323,9 @@ With placeholder `iamBaseUrl` / `discordClientId` the Sign-up button redirects n
 
 #### Player AGS IAM client (Discord federation)
 
-The player bundle is a static, public SPA — it cannot hold a client secret. The backend-side IAM client in `.env` (`AGS_IAM_CLIENT_ID`) is **confidential** (AGS IAM's `/iam/v3/oauth/token` demands HTTP Basic auth on it: `WWW-Authenticate: Basic`). A separate **public, PKCE-only** IAM client is required for the player.
+The player bundle is a static, public SPA — it cannot hold a client secret. The backend-side IAM client in `.env` (`AGS_IAM_CLIENT_ID`) is **confidential** (AGS IAM's `/iam/v3/oauth/token` demands HTTP Basic auth on it: `WWW-Authenticate: Basic`). A separate **public, PKCE-only** IAM client is required for the player; its ID is wired through the backend env var `PLAYER_IAM_CLIENT_ID` (consumed by `GetDiscordLoginUrl` — see below).
 
-For the ISC demo namespace `abtestdewa-pong` this client is already registered: `d6bb5dd2cf6b4d23bd6d6400d7886b94`. Drop it into `player/public/config.json` as `discordClientId` alongside `iamBaseUrl: https://abtestdewa-pong.internal.gamingservices.accelbyte.io`.
+For the ISC demo namespace `abtestdewa-pong` this client is already registered: `d6bb5dd2cf6b4d23bd6d6400d7886b94`. Drop it into `player/public/config.json` as `discordClientId` alongside `iamBaseUrl: https://abtestdewa-pong.internal.gamingservices.accelbyte.io`, and into `.env` as `PLAYER_IAM_CLIENT_ID=d6bb5dd2cf6b4d23bd6d6400d7886b94`.
 
 Register equivalent on any other namespace via AGS Admin Portal → **IAM → Clients → Create client**:
 - **Client type**: public (no secret issued).
@@ -337,18 +337,31 @@ Register equivalent on any other namespace via AGS Admin Portal → **IAM → Cl
   - `<prod-origin>/callback` — once the player bundle is publicly deployed.
 
   The router is hash-based (`#/callback`, `#/signup`, `#/pending`) for static-host compatibility, but the OAuth redirect lands on the path `/callback`. `src/lib/bootstrap.ts::bridgePathCallback()` runs before the app mounts and rewrites `/callback?code=…` → `/#/callback?code=…` via `history.replaceState`, so the hash-router's existing `callback` route handles it unchanged. For deploys that serve the bundle under a subpath, adjust `bridgePathCallback` alongside the registered redirect URI.
-- **Scopes**: `commerce account social publishing analytics` (current `buildDiscordLoginUrl` default, inherited from AccelByte templates; trim to `account` once we confirm the backend IAM interceptor doesn't require the broader set).
+- **Scopes**: `commerce account social publishing analytics` — current `DEFAULT_DISCORD_LOGIN_SCOPE` in `player/src/lib/auth.ts`, inherited from AccelByte templates; trim to `account` once we confirm the backend IAM interceptor doesn't require the broader set.
 
-Verified URL shape against `abtestdewa-pong` (not the guessed `/iam/v3/authorize`):
+##### The shared-cloud problem and the proxy RPC
 
-| Endpoint | Path | Notes |
-| --- | --- | --- |
-| Authorize | `GET {iamBaseUrl}/iam/v3/oauth/authorize` | Query: `client_id`, `response_type=code`, `redirect_uri`, `state`, `code_challenge`, `code_challenge_method=S256`, `scope`, `idp_hint=discord`. |
-| Token | `POST {iamBaseUrl}/iam/v3/oauth/token` | `application/x-www-form-urlencoded`; body: `grant_type=authorization_code`, `code`, `code_verifier`, `client_id`, `redirect_uri`. No `Authorization: Basic` for public clients — a public client returns `400 invalid_grant` on a bad code, whereas a confidential client returns `401 invalid_client` (WWW-Authenticate: Basic). That 400-vs-401 flip is the quickest way to confirm a freshly-created client is registered as public. |
+On shared cloud, AGS IAM's hosted `/auth/?request_id=…` SPA does **not** render the Discord button — even though `/iam/v3/public/namespaces/{namespace}/platforms/clients/active` reports Discord as `IsActive=true`. AccelByte docs ("Set up a web login for Discord") confirm self-hosted apps must build their own login surface. We therefore drive `/iam/v3/oauth/platforms/discord/authorize` directly. That endpoint requires a `request_id` from a prior `/iam/v3/oauth/authorize` call, whose 302 is opaque cross-origin (the browser cannot read the `Location` header). The first hop must run server-side.
 
-These paths are wired in `player/src/lib/auth.ts:69` (`buildDiscordLoginUrl`) and `player/src/lib/auth.ts:101` (`exchangeCodeForToken`).
+The flow is:
 
-**Redirect URI invalid?** If the authorize call bounces to `…/auth/?error=invalid_request&error_description=redirect+URI+invalid&…`, the allowlist hasn't caught up. Add the missing entry in the Admin Portal's client edit page.
+| Step | Origin | URL | Purpose |
+| --- | --- | --- | --- |
+| 1 | Backend | `POST {grpcGatewayUrl}/v1/player/discord/login-url` | `Player.GetDiscordLoginUrl` RPC. Player sends `redirect_uri`, `state`, `code_challenge`, `code_challenge_method=S256`, `scope`. PKCE verifier never traverses the wire — it stays in `sessionStorage`. |
+| 2 | Backend → AGS | `GET {AGS_BASE_URL}/iam/v3/oauth/authorize?response_type=code&client_id={PLAYER_IAM_CLIENT_ID}&…` | Server-side, with `CheckRedirect=ErrUseLastResponse`. AGS returns 302; backend extracts `request_id` from `Location` query. |
+| 3 | Backend → Player | RPC response | `login_url = {AGS_BASE_URL}/iam/v3/oauth/platforms/discord/authorize?request_id=…&client_id={PLAYER_IAM_CLIENT_ID}&redirect_uri=…` |
+| 4 | Player → AGS | `GET login_url` | AGS 302 → `https://discord.com/api/oauth2/authorize?...&state={request_id}` |
+| 5 | Player → Discord → AGS → Player | Discord OAuth → `/iam/v3/platforms/discord/authenticate` callback (AGS-side) → player `redirect_uri` with `?code=…&state=…` | The AGS-issued code reaches the player on the registered redirect URI. |
+| 6 | Player → AGS | `POST {iamBaseUrl}/iam/v3/oauth/token` | `application/x-www-form-urlencoded`; body: `grant_type=authorization_code`, `code`, `code_verifier`, `client_id`, `redirect_uri`. No `Authorization: Basic` for public clients — a public client returns `400 invalid_grant` on a bad code, whereas a confidential client returns `401 invalid_client` (WWW-Authenticate: Basic). That 400-vs-401 flip is the quickest way to confirm a freshly-created client is registered as public. |
+
+Wired in:
+- `pkg/service/discord_login.go` — RPC handler (steps 2–3).
+- `player/src/lib/auth.ts::fetchDiscordLoginUrl` — step 1.
+- `player/src/lib/auth.ts::exchangeCodeForToken` — step 6.
+
+**Why not `idp_hint=discord` against `/oauth/authorize`?** AGS IAM silently ignores `idp_hint`; it's a Keycloak-ism. The 302 still bounces through the hosted `/auth/` SPA, which (on shared cloud) doesn't render the Discord button. Don't use it.
+
+**Redirect URI invalid?** If the proxy RPC returns `InvalidArgument` with a message containing `redirect URI invalid`, the upstream `/oauth/authorize` 302 carried `error_description=redirect+URI+invalid` — the player IAM client's allowlist hasn't caught up. Add the missing entry in the Admin Portal's client edit page.
 
 ---
 
