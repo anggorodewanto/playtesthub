@@ -25,6 +25,7 @@ import type { V1Playtest } from './playtesthubapi/generated-definitions/V1Playte
 import {
   Key_PlaytesthubServiceAdmin,
   usePlaytesthubServiceAdminApi_CreatePlaytestMutation,
+  usePlaytesthubServiceAdminApi_CreatePlaytest_ByPlaytestIdTransitionStatuMutation,
   usePlaytesthubServiceAdminApi_DeletePlaytest_ByPlaytestIdMutation,
   usePlaytesthubServiceAdminApi_GetPlaytest_ByPlaytestId,
   usePlaytesthubServiceAdminApi_GetPlaytests,
@@ -75,6 +76,13 @@ function PlaytestsListPage() {
     },
     onError: err => message.error(err.response?.data?.errorMessage ?? 'Failed to delete')
   })
+  const transitionMutation = usePlaytesthubServiceAdminApi_CreatePlaytest_ByPlaytestIdTransitionStatuMutation(sdk, {
+    onSuccess: () => {
+      message.success('Status updated')
+      queryClient.invalidateQueries({ queryKey: [Key_PlaytesthubServiceAdmin.Playtests] })
+    },
+    onError: err => message.error(err.response?.data?.errorMessage ?? 'Failed to update status')
+  })
 
   const playtests = (data?.playtests ?? []) as V1Playtest[]
 
@@ -105,23 +113,60 @@ function PlaytestsListPage() {
     {
       title: 'Actions',
       key: 'actions',
-      render: (_: unknown, row: V1Playtest) => (
-        <div style={{ display: 'flex', gap: 8 }}>
-          <Button size="small" onClick={() => navigate(`${row.id}/edit`)}>
-            Edit
-          </Button>
-          <Popconfirm
-            title="Soft-delete this playtest?"
-            description="Row will be hidden from players. Applicants + codes are preserved."
-            okText="Delete"
-            okButtonProps={{ danger: true }}
-            onConfirm={() => deleteMutation.mutate({ playtestId: row.id ?? '' })}>
-            <Button size="small" danger>
-              Delete
+      render: (_: unknown, row: V1Playtest) => {
+        const isDraft = row.status === 'PLAYTEST_STATUS_DRAFT'
+        const isOpen = row.status === 'PLAYTEST_STATUS_OPEN'
+        return (
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Button size="small" onClick={() => navigate(`${row.id}/edit`)}>
+              Edit
             </Button>
-          </Popconfirm>
-        </div>
-      )
+            {isDraft && (
+              <Popconfirm
+                title="Publish this playtest?"
+                description="Players will be able to see it and sign up."
+                okText="Publish"
+                onConfirm={() =>
+                  transitionMutation.mutate({
+                    playtestId: row.id ?? '',
+                    data: { targetStatus: 'PLAYTEST_STATUS_OPEN' }
+                  })
+                }>
+                <Button size="small" type="primary">
+                  Publish
+                </Button>
+              </Popconfirm>
+            )}
+            {isOpen && (
+              <Popconfirm
+                title="Close this playtest?"
+                description="Players can no longer sign up. Existing applicants keep their state."
+                okText="Close"
+                okButtonProps={{ danger: true }}
+                onConfirm={() =>
+                  transitionMutation.mutate({
+                    playtestId: row.id ?? '',
+                    data: { targetStatus: 'PLAYTEST_STATUS_CLOSED' }
+                  })
+                }>
+                <Button size="small" danger>
+                  Close
+                </Button>
+              </Popconfirm>
+            )}
+            <Popconfirm
+              title="Soft-delete this playtest?"
+              description="Row will be hidden from players. Applicants + codes are preserved."
+              okText="Delete"
+              okButtonProps={{ danger: true }}
+              onConfirm={() => deleteMutation.mutate({ playtestId: row.id ?? '' })}>
+              <Button size="small" danger>
+                Delete
+              </Button>
+            </Popconfirm>
+          </div>
+        )
+      }
     }
   ]
 

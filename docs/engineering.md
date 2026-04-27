@@ -315,11 +315,40 @@ cd player && npm run dev
 # Open http://localhost:5173/#/playtest/space-rogue-beta
 ```
 
-The Sign-up button redirects to the placeholder `iamBaseUrl` and won't complete a real Discord login — that's the scope of STATUS.md phase 9.1. The Landing, the 404 route (any unknown slug), and the BootError screen (mangle `config.json` to see it) are all fully exercisable in this setup.
+With placeholder `iamBaseUrl` / `discordClientId` the Sign-up button redirects nowhere real. For a full Discord round-trip, use the ISC public IAM client from the next subsection. The Landing, the 404 route (any unknown slug), and the BootError screen (mangle `config.json` to see it) are all fully exercisable in this setup without IAM.
 
 **Teardown**: `docker rm -f playtesthub-demo-pg`, `pkill -f 'go run \.'` (or kill the `setsid` process group), and Ctrl-C the Vite dev server.
 
 `.env.example` files live alongside each deployable (`./.env.example`, `admin/.env.local.example`, `player/.env.example`). Actual `.env*` files are gitignored.
+
+#### Player AGS IAM client (Discord federation)
+
+The player bundle is a static, public SPA — it cannot hold a client secret. The backend-side IAM client in `.env` (`AGS_IAM_CLIENT_ID`) is **confidential** (AGS IAM's `/iam/v3/oauth/token` demands HTTP Basic auth on it: `WWW-Authenticate: Basic`). A separate **public, PKCE-only** IAM client is required for the player.
+
+For the ISC demo namespace `abtestdewa-pong` this client is already registered: `d6bb5dd2cf6b4d23bd6d6400d7886b94`. Drop it into `player/public/config.json` as `discordClientId` alongside `iamBaseUrl: https://abtestdewa-pong.internal.gamingservices.accelbyte.io`.
+
+Register equivalent on any other namespace via AGS Admin Portal → **IAM → Clients → Create client**:
+- **Client type**: public (no secret issued).
+- **Grant types**: `authorization_code` (+ `refresh_token` if token rotation becomes needed).
+- **Code challenge method**: `S256` (PKCE required).
+- **Redirect URIs** — allowlist these exact strings. **No URL fragments** (`#…`): AGS IAM normalizes fragments during match, so `http://localhost:5173/#/callback` is silently invalid even when registered. Keep them path-based.
+  - `http://localhost:5173/callback` — Vite dev server.
+  - `http://127.0.0.1/callback` — phase 10 `pth` CLI (AGS IAM ignores the port on loopback hosts; one entry covers every ephemeral port the CLI picks).
+  - `<prod-origin>/callback` — once the player bundle is publicly deployed.
+
+  The router is hash-based (`#/callback`, `#/signup`, `#/pending`) for static-host compatibility, but the OAuth redirect lands on the path `/callback`. `src/lib/bootstrap.ts::bridgePathCallback()` runs before the app mounts and rewrites `/callback?code=…` → `/#/callback?code=…` via `history.replaceState`, so the hash-router's existing `callback` route handles it unchanged. For deploys that serve the bundle under a subpath, adjust `bridgePathCallback` alongside the registered redirect URI.
+- **Scopes**: `commerce account social publishing analytics` (current `buildDiscordLoginUrl` default, inherited from AccelByte templates; trim to `account` once we confirm the backend IAM interceptor doesn't require the broader set).
+
+Verified URL shape against `abtestdewa-pong` (not the guessed `/iam/v3/authorize`):
+
+| Endpoint | Path | Notes |
+| --- | --- | --- |
+| Authorize | `GET {iamBaseUrl}/iam/v3/oauth/authorize` | Query: `client_id`, `response_type=code`, `redirect_uri`, `state`, `code_challenge`, `code_challenge_method=S256`, `scope`, `idp_hint=discord`. |
+| Token | `POST {iamBaseUrl}/iam/v3/oauth/token` | `application/x-www-form-urlencoded`; body: `grant_type=authorization_code`, `code`, `code_verifier`, `client_id`, `redirect_uri`. No `Authorization: Basic` for public clients — a public client returns `400 invalid_grant` on a bad code, whereas a confidential client returns `401 invalid_client` (WWW-Authenticate: Basic). That 400-vs-401 flip is the quickest way to confirm a freshly-created client is registered as public. |
+
+These paths are wired in `player/src/lib/auth.ts:69` (`buildDiscordLoginUrl`) and `player/src/lib/auth.ts:101` (`exchangeCodeForToken`).
+
+**Redirect URI invalid?** If the authorize call bounces to `…/auth/?error=invalid_request&error_description=redirect+URI+invalid&…`, the allowlist hasn't caught up. Add the missing entry in the Admin Portal's client edit page.
 
 ---
 

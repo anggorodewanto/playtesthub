@@ -42,7 +42,7 @@
     const state = crypto.randomUUID();
     const verifier = createCodeVerifier();
     const challenge = await deriveCodeChallenge(verifier);
-    const redirectUri = `${window.location.origin}${window.location.pathname}#/callback`;
+    const redirectUri = `${window.location.origin}/callback`;
     clearPendingLogin();
     storePendingLogin({ state, codeVerifier: verifier, returnTo: `#/playtest/${slug}/signup` });
     window.location.href = buildDiscordLoginUrl(config, {

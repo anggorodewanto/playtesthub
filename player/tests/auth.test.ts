@@ -35,7 +35,7 @@ describe('buildDiscordLoginUrl', () => {
       redirectUri: 'https://player.example.com/#/callback',
     });
     const parsed = new URL(u);
-    expect(parsed.origin + parsed.pathname).toBe('https://iam.example.com/iam/v3/authorize');
+    expect(parsed.origin + parsed.pathname).toBe('https://iam.example.com/iam/v3/oauth/authorize');
     expect(parsed.searchParams.get('client_id')).toBe('client-xyz');
     expect(parsed.searchParams.get('response_type')).toBe('code');
     expect(parsed.searchParams.get('code_challenge')).toBe('challenge-xyz');

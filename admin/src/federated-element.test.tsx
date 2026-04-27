@@ -17,6 +17,7 @@ const mockGetPlaytest = vi.fn()
 const mockCreateMutation = vi.fn()
 const mockDeleteMutation = vi.fn()
 const mockEditMutation = vi.fn()
+const mockTransitionMutation = vi.fn()
 
 vi.mock('./playtesthubapi/generated-admin/queries/PlaytesthubServiceAdmin.query', () => ({
   Key_PlaytesthubServiceAdmin: {
@@ -29,7 +30,8 @@ vi.mock('./playtesthubapi/generated-admin/queries/PlaytesthubServiceAdmin.query'
   usePlaytesthubServiceAdminApi_GetPlaytest_ByPlaytestId: (...args: unknown[]) => mockGetPlaytest(...args),
   usePlaytesthubServiceAdminApi_CreatePlaytestMutation: (...args: unknown[]) => mockCreateMutation(...args),
   usePlaytesthubServiceAdminApi_DeletePlaytest_ByPlaytestIdMutation: (...args: unknown[]) => mockDeleteMutation(...args),
-  usePlaytesthubServiceAdminApi_PatchPlaytest_ByPlaytestIdMutation: (...args: unknown[]) => mockEditMutation(...args)
+  usePlaytesthubServiceAdminApi_PatchPlaytest_ByPlaytestIdMutation: (...args: unknown[]) => mockEditMutation(...args),
+  usePlaytesthubServiceAdminApi_CreatePlaytest_ByPlaytestIdTransitionStatuMutation: (...args: unknown[]) => mockTransitionMutation(...args)
 }))
 
 import { FederatedElement } from './federated-element'
@@ -57,6 +59,7 @@ beforeEach(() => {
   mockCreateMutation.mockReturnValue({ mutate: vi.fn(), isPending: false, isError: false, error: null })
   mockDeleteMutation.mockReturnValue({ mutate: vi.fn(), isPending: false })
   mockEditMutation.mockReturnValue({ mutate: vi.fn(), isPending: false, isError: false, error: null })
+  mockTransitionMutation.mockReturnValue({ mutate: vi.fn(), isPending: false, isError: false, error: null })
   mockGetPlaytest.mockReturnValue({ data: undefined, isLoading: false, error: null })
 })
 
@@ -91,6 +94,60 @@ describe('PlaytestsListPage', () => {
     expect(screen.getByText('Summer Alpha')).toBeInTheDocument()
     expect(screen.getByText('Open')).toBeInTheDocument()
     expect(screen.getByText('Steam keys')).toBeInTheDocument()
+  })
+
+  it('shows a Publish button on DRAFT rows that transitions to OPEN', async () => {
+    const mutate = vi.fn()
+    mockTransitionMutation.mockReturnValue({ mutate, isPending: false, isError: false, error: null })
+    mockGetPlaytests.mockReturnValue({
+      data: { playtests: [{ id: 'pt_1', slug: 'summer-alpha', title: 'Summer Alpha', status: 'PLAYTEST_STATUS_DRAFT' }] },
+      isLoading: false,
+      error: null,
+      refetch: vi.fn()
+    })
+
+    renderAt('/')
+    const user = userEvent.setup()
+    const publishBtn = screen.getByRole('button', { name: /^publish$/i })
+    await user.click(publishBtn)
+    const popup = await screen.findByRole('tooltip')
+    await user.click(within(popup).getByRole('button', { name: /^publish$/i }))
+    await waitFor(() =>
+      expect(mutate).toHaveBeenCalledWith({ playtestId: 'pt_1', data: { targetStatus: 'PLAYTEST_STATUS_OPEN' } })
+    )
+  })
+
+  it('shows a Close button on OPEN rows that transitions to CLOSED', async () => {
+    const mutate = vi.fn()
+    mockTransitionMutation.mockReturnValue({ mutate, isPending: false, isError: false, error: null })
+    mockGetPlaytests.mockReturnValue({
+      data: { playtests: [{ id: 'pt_1', slug: 'summer-alpha', title: 'Summer Alpha', status: 'PLAYTEST_STATUS_OPEN' }] },
+      isLoading: false,
+      error: null,
+      refetch: vi.fn()
+    })
+
+    renderAt('/')
+    const user = userEvent.setup()
+    const closeBtn = screen.getByRole('button', { name: /^close$/i })
+    await user.click(closeBtn)
+    const popup = await screen.findByRole('tooltip')
+    await user.click(within(popup).getByRole('button', { name: /^close$/i }))
+    await waitFor(() =>
+      expect(mutate).toHaveBeenCalledWith({ playtestId: 'pt_1', data: { targetStatus: 'PLAYTEST_STATUS_CLOSED' } })
+    )
+  })
+
+  it('does not show a transition button on CLOSED rows', () => {
+    mockGetPlaytests.mockReturnValue({
+      data: { playtests: [{ id: 'pt_1', slug: 'summer-alpha', title: 'Summer Alpha', status: 'PLAYTEST_STATUS_CLOSED' }] },
+      isLoading: false,
+      error: null,
+      refetch: vi.fn()
+    })
+    renderAt('/')
+    expect(screen.queryByRole('button', { name: /^publish$/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^close$/i })).not.toBeInTheDocument()
   })
 
   it('calls DeletePlaytest mutation when soft-delete is confirmed', async () => {

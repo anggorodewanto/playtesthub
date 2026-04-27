@@ -66,7 +66,7 @@ export type BuildLoginUrlOpts = {
 };
 
 export function buildDiscordLoginUrl(config: Config, opts: BuildLoginUrlOpts): string {
-  const url = new URL('/iam/v3/authorize', config.iamBaseUrl);
+  const url = new URL('/iam/v3/oauth/authorize', config.iamBaseUrl);
   url.searchParams.set('client_id', config.discordClientId);
   url.searchParams.set('response_type', 'code');
   url.searchParams.set('redirect_uri', opts.redirectUri);
