@@ -65,31 +65,26 @@ code=$(curl -s -o /dev/null -w '%{http_code}' \
 [[ "$code" == "401" ]] \
     || fail "expected 401 from GetApplicantStatus, got $code"
 
-# Phase 9.2: GetDiscordLoginUrl is unauth and proxies one server-side
-# hop to AGS IAM. Live AGS round-trip — only runnable against a deploy
-# whose PLAYER_IAM_CLIENT_ID is registered for the redirect_uri we
-# send. Skipped when PLAYER_IAM_CLIENT_ID is unset (boot.sh has no way
-# to hit AGS, so this is the smoke that catches the proxy-RPC path).
-if [[ -n "${PLAYER_IAM_CLIENT_ID:-}" ]]; then
-    log "GetDiscordLoginUrl returns a Discord platforms URL (expect 200)"
-    body=$(curl -sf -X POST \
-        -H 'Content-Type: application/json' \
-        -d '{"redirect_uri":"http://localhost:5173/callback","state":"smoke-state","code_challenge":"E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM","code_challenge_method":"S256","scope":"account commerce social publishing analytics"}' \
-        "${BASE}/v1/player/discord/login-url") \
-        || fail "GetDiscordLoginUrl returned non-2xx"
-    # grpc-gateway emits proto fields as camelCase — login_url → loginUrl.
-    login_url=$(jq -r '.loginUrl // empty' <<<"$body")
-    [[ -n "$login_url" ]] \
-        || fail "GetDiscordLoginUrl response missing loginUrl: $body"
-    [[ "$login_url" == *"oauth/platforms/discord/authorize"* ]] \
-        || fail "login_url does not target oauth/platforms/discord/authorize: $login_url"
-    [[ "$login_url" == *"request_id="* ]] \
-        || fail "login_url missing request_id: $login_url"
-    [[ "$login_url" == *"client_id=${PLAYER_IAM_CLIENT_ID}"* ]] \
-        || fail "login_url does not carry PLAYER_IAM_CLIENT_ID: $login_url"
-else
-    log "skipping GetDiscordLoginUrl check (set PLAYER_IAM_CLIENT_ID to enable)"
-fi
+# Phase 9.3: ExchangeDiscordCode is unauth and posts a Discord OAuth
+# code to AGS IAM's platform-token grant. Bogus probe — sends an
+# obviously-fake code, expects a 400 from AGS with error=invalid_grant.
+# Validates: (a) RPC routed, (b) backend has working AGS Basic auth,
+# (c) AGS error mapped to gRPC InvalidArgument → HTTP 400. The live
+# success path requires a real Discord OAuth flow (manual smoke per
+# STATUS.md M1 phase 9.4).
+log "ExchangeDiscordCode rejects bogus code (expect 400 invalid_grant passthrough)"
+http_response=$(curl -s -w '\n%{http_code}' -X POST \
+    -H 'Content-Type: application/json' \
+    -d "{\"code\":\"smoke-bogus-${RANDOM}\",\"redirect_uri\":\"http://localhost:5173/callback\"}" \
+    "${BASE}/v1/player/discord/exchange")
+exchange_code=$(tail -n1 <<<"$http_response")
+exchange_body=$(sed '$d' <<<"$http_response")
+[[ "$exchange_code" == "400" ]] \
+    || fail "expected 400 from ExchangeDiscordCode, got $exchange_code (body: $exchange_body)"
+# grpc-gateway maps codes.InvalidArgument → HTTP 400. Body includes the
+# AGS error_description verbatim (per errors.md row).
+grep -q -i 'invalid' <<<"$exchange_body" \
+    || fail "ExchangeDiscordCode 400 body missing 'invalid' marker: $exchange_body"
 
 # Optional: exercise the cookie-forwarded Admin Portal auth path. Set
 # ADMIN_PORTAL_COOKIE to the full Cookie header value copied from a

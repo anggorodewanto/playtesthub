@@ -25,12 +25,6 @@ type Config struct {
 	AGSBaseURL         string
 	AGSNamespace       string
 	BasePath           string
-	// PlayerIAMClientID is the public, PKCE-only AGS IAM client used by
-	// the player Svelte app. Distinct from AGSIAMClientID (the
-	// confidential server-side client): a public SPA cannot hold a
-	// secret, so AGS issues a separate client without one. See
-	// docs/engineering.md "Player AGS IAM client (Discord federation)".
-	PlayerIAMClientID string
 
 	// Optional with defaults (PRD §5.9).
 	ReservationTTLSeconds  int
@@ -76,7 +70,6 @@ func Load() (*Config, error) {
 	cfg.AGSBaseURL = os.Getenv("AGS_BASE_URL")
 	cfg.AGSNamespace = os.Getenv("AGS_NAMESPACE")
 	cfg.BasePath = os.Getenv("BASE_PATH")
-	cfg.PlayerIAMClientID = os.Getenv("PLAYER_IAM_CLIENT_ID")
 
 	missing := collectMissing(map[string]string{
 		"DATABASE_URL":          cfg.DatabaseURL,
@@ -86,7 +79,6 @@ func Load() (*Config, error) {
 		"AGS_BASE_URL":          cfg.AGSBaseURL,
 		"AGS_NAMESPACE":         cfg.AGSNamespace,
 		"BASE_PATH":             cfg.BasePath,
-		"PLAYER_IAM_CLIENT_ID":  cfg.PlayerIAMClientID,
 	})
 	if len(missing) > 0 {
 		return nil, &MissingRequiredError{Keys: missing}

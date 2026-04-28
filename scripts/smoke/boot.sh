@@ -98,7 +98,6 @@ AGS_IAM_CLIENT_ID="smoke-client-id" \
 AGS_IAM_CLIENT_SECRET="smoke-client-secret" \
 AGS_BASE_URL="https://ags.smoke.invalid" \
 AGS_NAMESPACE="smoke" \
-PLAYER_IAM_CLIENT_ID="smoke-player-client-id" \
 PLUGIN_GRPC_SERVER_AUTH_ENABLED=false \
     setsid go run . >/tmp/playtesthub-smoke.log 2>&1 &
 APP_PID=$!
@@ -123,7 +122,7 @@ log "all 11 M1 methods visible"
 EXPECTED_METHODS=(
     GetPublicPlaytest GetPlaytestForPlayer AdminGetPlaytest ListPlaytests
     CreatePlaytest EditPlaytest SoftDeletePlaytest TransitionPlaytestStatus
-    Signup GetApplicantStatus GetDiscordLoginUrl
+    Signup GetApplicantStatus ExchangeDiscordCode
 )
 methods_output=$(grpcurl -plaintext "localhost:$APP_PORT_GRPC" list playtesthub.v1.PlaytesthubService)
 for m in "${EXPECTED_METHODS[@]}"; do

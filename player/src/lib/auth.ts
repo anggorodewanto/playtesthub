@@ -5,6 +5,11 @@ const PENDING_LOGIN_KEY = 'playtesthub.pendingLogin';
 
 export const GENERIC_LOGIN_FAILED_MESSAGE = 'Login failed — please try again later';
 
+// DISCORD_LOGIN_SCOPE is what the player asks Discord for. AGS IAM uses
+// the linked Discord account's identity + email to create / look up the
+// federated user; broader Discord scopes aren't needed.
+export const DISCORD_LOGIN_SCOPE = 'identify email';
+
 export class IamError extends Error {
   userMessage: string;
 
@@ -17,7 +22,6 @@ export class IamError extends Error {
 
 export type PendingLogin = {
   state: string;
-  codeVerifier: string;
   returnTo: string;
 };
 
@@ -59,34 +63,42 @@ export function logout(): void {
   clearPendingLogin();
 }
 
-export type FetchDiscordLoginUrlOpts = {
-  state: string;
-  codeChallenge: string;
+// buildDiscordAuthorizeUrl composes the URL the player navigates to to
+// start Discord OAuth. The Discord developer portal owns the redirect
+// URI allowlist — AGS IAM is not involved until ExchangeDiscordCode.
+export type BuildDiscordAuthorizeUrlOpts = {
+  clientId: string;
   redirectUri: string;
+  state: string;
   scope?: string;
 };
 
-export const DEFAULT_DISCORD_LOGIN_SCOPE = 'commerce account social publishing analytics';
-
-// fetchDiscordLoginUrl asks the backend to build the AGS IAM Discord
-// login URL on the player's behalf. The RPC performs a server-side
-// /iam/v3/oauth/authorize hop and returns the second-hop URL the
-// player should navigate to (/iam/v3/oauth/platforms/discord/authorize).
-// See STATUS.md M1 phase 9.2 — AGS IAM's hosted /auth/ SPA does not
-// render the Discord button on shared cloud, so the player cannot
-// drive /oauth/authorize directly.
-export async function fetchDiscordLoginUrl(
-  config: Config,
-  opts: FetchDiscordLoginUrlOpts,
-): Promise<string> {
-  const url = joinGatewayPath(config.grpcGatewayUrl, '/v1/player/discord/login-url');
-  const body = {
+export function buildDiscordAuthorizeUrl(opts: BuildDiscordAuthorizeUrlOpts): string {
+  const params = new URLSearchParams({
+    response_type: 'code',
+    client_id: opts.clientId,
     redirect_uri: opts.redirectUri,
     state: opts.state,
-    code_challenge: opts.codeChallenge,
-    code_challenge_method: 'S256',
-    scope: opts.scope ?? DEFAULT_DISCORD_LOGIN_SCOPE,
-  };
+    scope: opts.scope ?? DISCORD_LOGIN_SCOPE,
+  });
+  return `https://discord.com/oauth2/authorize?${params.toString()}`;
+}
+
+export type ExchangeDiscordCodeOpts = {
+  code: string;
+  redirectUri: string;
+};
+
+// exchangeDiscordCode forwards the Discord OAuth code to the backend,
+// which calls AGS IAM's platform-token grant with confidential client
+// credentials. AGS auto-creates the Justice platform account on first
+// call. See STATUS.md M1 phase 9.3.
+export async function exchangeDiscordCode(
+  config: Config,
+  opts: ExchangeDiscordCodeOpts,
+): Promise<TokenResponse> {
+  const url = joinGatewayPath(config.grpcGatewayUrl, '/v1/player/discord/exchange');
+  const body = { code: opts.code, redirect_uri: opts.redirectUri };
 
   let res: Response;
   try {
@@ -96,21 +108,32 @@ export async function fetchDiscordLoginUrl(
       body: JSON.stringify(body),
     });
   } catch (err) {
-    throw new IamError(`Discord login URL fetch network error: ${(err as Error).message}`);
+    throw new IamError(`Discord exchange network error: ${(err as Error).message}`);
   }
 
   if (!res.ok) {
-    throw new IamError(`Discord login URL fetch failed: ${res.status} ${res.statusText}`);
+    throw new IamError(`Discord exchange failed: ${res.status} ${res.statusText}`);
   }
 
-  // grpc-gateway emits proto fields as camelCase — `login_url` on the
-  // wire becomes `loginUrl` in JSON. Reading snake_case here would
-  // silently miss the field on every call.
-  const parsed = (await res.json()) as { loginUrl?: string };
-  if (!parsed.loginUrl) {
-    throw new IamError('Discord login URL response missing loginUrl');
+  // grpc-gateway emits proto fields as camelCase. The wire field is
+  // accessToken, but downstream consumers use the snake_case form
+  // documented in TokenResponse, so we normalise here.
+  const parsed = (await res.json()) as {
+    accessToken?: string;
+    refreshToken?: string;
+    expiresIn?: number;
+    tokenType?: string;
+  };
+  if (!parsed.accessToken) {
+    throw new IamError('Discord exchange response missing accessToken');
   }
-  return parsed.loginUrl;
+  setAccessToken(parsed.accessToken);
+  return {
+    access_token: parsed.accessToken,
+    refresh_token: parsed.refreshToken,
+    expires_in: parsed.expiresIn ?? 0,
+    token_type: parsed.tokenType ?? 'Bearer',
+  };
 }
 
 function joinGatewayPath(base: string, path: string): string {
@@ -120,45 +143,4 @@ function joinGatewayPath(base: string, path: string): string {
   const trimmedBase = base.endsWith('/') ? base.slice(0, -1) : base;
   const trimmedPath = path.startsWith('/') ? path : `/${path}`;
   return trimmedBase + trimmedPath;
-}
-
-export type ExchangeOpts = {
-  code: string;
-  codeVerifier: string;
-  redirectUri: string;
-};
-
-export async function exchangeCodeForToken(
-  config: Config,
-  opts: ExchangeOpts,
-): Promise<TokenResponse> {
-  const body = new URLSearchParams({
-    grant_type: 'authorization_code',
-    code: opts.code,
-    code_verifier: opts.codeVerifier,
-    client_id: config.discordClientId,
-    redirect_uri: opts.redirectUri,
-  });
-
-  let res: Response;
-  try {
-    res = await fetch(new URL('/iam/v3/oauth/token', config.iamBaseUrl).toString(), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: body.toString(),
-    });
-  } catch (err) {
-    throw new IamError(`IAM token exchange network error: ${(err as Error).message}`);
-  }
-
-  if (!res.ok) {
-    throw new IamError(`IAM token exchange failed: ${res.status} ${res.statusText}`);
-  }
-
-  const parsed = (await res.json()) as TokenResponse;
-  if (!parsed.access_token) {
-    throw new IamError('IAM token exchange response missing access_token');
-  }
-  setAccessToken(parsed.access_token);
-  return parsed;
 }

@@ -321,47 +321,48 @@ With placeholder `iamBaseUrl` / `discordClientId` the Sign-up button redirects n
 
 `.env.example` files live alongside each deployable (`./.env.example`, `admin/.env.local.example`, `player/.env.example`). Actual `.env*` files are gitignored.
 
-#### Player AGS IAM client (Discord federation)
+#### Discord federation via platform-token grant
 
-The player bundle is a static, public SPA — it cannot hold a client secret. The backend-side IAM client in `.env` (`AGS_IAM_CLIENT_ID`) is **confidential** (AGS IAM's `/iam/v3/oauth/token` demands HTTP Basic auth on it: `WWW-Authenticate: Basic`). A separate **public, PKCE-only** IAM client is required for the player; its ID is wired through the backend env var `PLAYER_IAM_CLIENT_ID` (consumed by `GetDiscordLoginUrl` — see below).
+The player needs an AGS IAM access token. AGS supports two paths to that token from a federated Discord identity:
 
-For the ISC demo namespace `abtestdewa-pong` this client is already registered: `d6bb5dd2cf6b4d23bd6d6400d7886b94`. Drop it into `player/public/config.json` as `discordClientId` alongside `iamBaseUrl: https://abtestdewa-pong.internal.gamingservices.accelbyte.io`, and into `.env` as `PLAYER_IAM_CLIENT_ID=d6bb5dd2cf6b4d23bd6d6400d7886b94`.
+1. **PKCE auth-code flow** (`/iam/v3/oauth/authorize` → `/iam/v3/oauth/platforms/discord/authorize` → `/iam/v3/oauth/token`). **Does not work on shared cloud for game namespaces** — AGS's `LoadAuthorize` step requires a Justice platform account for the federated user, but that record is only created by the platform-token-grant handler, never by the auth-code handler. STATUS.md M1 phase 9.2 documents the failed end-to-end attempt; debug trace confirms the failure is structural, not a config bug.
+2. **Platform-token grant** (`POST /iam/v3/oauth/platforms/discord/token`). The player runs Discord OAuth directly (Discord developer portal owns the redirect-URI allowlist), then hands the resulting Discord auth code to our backend, which authenticates with confidential AGS credentials and exchanges it for AGS tokens in one round trip. AGS auto-creates the Justice platform account on first call. **This is the path we use.**
 
-Register equivalent on any other namespace via AGS Admin Portal → **IAM → Clients → Create client**:
-- **Client type**: public (no secret issued).
-- **Grant types**: `authorization_code` (+ `refresh_token` if token rotation becomes needed).
-- **Code challenge method**: `S256` (PKCE required).
-- **Redirect URIs** — allowlist these exact strings. **No URL fragments** (`#…`): AGS IAM normalizes fragments during match, so `http://localhost:5173/#/callback` is silently invalid even when registered. Keep them path-based.
-  - `http://localhost:5173/callback` — Vite dev server.
-  - `http://127.0.0.1/callback` — phase 10 `pth` CLI (AGS IAM ignores the port on loopback hosts; one entry covers every ephemeral port the CLI picks).
-  - `<prod-origin>/callback` — once the player bundle is publicly deployed.
-
-  The router is hash-based (`#/callback`, `#/signup`, `#/pending`) for static-host compatibility, but the OAuth redirect lands on the path `/callback`. `src/lib/bootstrap.ts::bridgePathCallback()` runs before the app mounts and rewrites `/callback?code=…` → `/#/callback?code=…` via `history.replaceState`, so the hash-router's existing `callback` route handles it unchanged. For deploys that serve the bundle under a subpath, adjust `bridgePathCallback` alongside the registered redirect URI.
-- **Scopes**: `commerce account social publishing analytics` — current `DEFAULT_DISCORD_LOGIN_SCOPE` in `player/src/lib/auth.ts`, inherited from AccelByte templates; trim to `account` once we confirm the backend IAM interceptor doesn't require the broader set.
-
-##### The shared-cloud problem and the proxy RPC
-
-On shared cloud, AGS IAM's hosted `/auth/?request_id=…` SPA does **not** render the Discord button — even though `/iam/v3/public/namespaces/{namespace}/platforms/clients/active` reports Discord as `IsActive=true`. AccelByte docs ("Set up a web login for Discord") confirm self-hosted apps must build their own login surface. We therefore drive `/iam/v3/oauth/platforms/discord/authorize` directly. That endpoint requires a `request_id` from a prior `/iam/v3/oauth/authorize` call, whose 302 is opaque cross-origin (the browser cannot read the `Location` header). The first hop must run server-side.
-
-The flow is:
+The flow:
 
 | Step | Origin | URL | Purpose |
 | --- | --- | --- | --- |
-| 1 | Backend | `POST {grpcGatewayUrl}/v1/player/discord/login-url` | `Player.GetDiscordLoginUrl` RPC. Player sends `redirect_uri`, `state`, `code_challenge`, `code_challenge_method=S256`, `scope`. PKCE verifier never traverses the wire — it stays in `sessionStorage`. |
-| 2 | Backend → AGS | `GET {AGS_BASE_URL}/iam/v3/oauth/authorize?response_type=code&client_id={PLAYER_IAM_CLIENT_ID}&…` | Server-side, with `CheckRedirect=ErrUseLastResponse`. AGS returns 302; backend extracts `request_id` from `Location` query. |
-| 3 | Backend → Player | RPC response | `login_url = {AGS_BASE_URL}/iam/v3/oauth/platforms/discord/authorize?request_id=…&client_id={PLAYER_IAM_CLIENT_ID}&redirect_uri=…` |
-| 4 | Player → AGS | `GET login_url` | AGS 302 → `https://discord.com/api/oauth2/authorize?...&state={request_id}` |
-| 5 | Player → Discord → AGS → Player | Discord OAuth → `/iam/v3/platforms/discord/authenticate` callback (AGS-side) → player `redirect_uri` with `?code=…&state=…` | The AGS-issued code reaches the player on the registered redirect URI. |
-| 6 | Player → AGS | `POST {iamBaseUrl}/iam/v3/oauth/token` | `application/x-www-form-urlencoded`; body: `grant_type=authorization_code`, `code`, `code_verifier`, `client_id`, `redirect_uri`. No `Authorization: Basic` for public clients — a public client returns `400 invalid_grant` on a bad code, whereas a confidential client returns `401 invalid_client` (WWW-Authenticate: Basic). That 400-vs-401 flip is the quickest way to confirm a freshly-created client is registered as public. |
+| 1 | Player → Discord | `https://discord.com/oauth2/authorize?response_type=code&client_id={DISCORD_CLIENT_ID}&redirect_uri={origin}/callback&scope=identify+email&state={state}` | Player navigates the browser. AGS IAM is **not** involved at this stage. The Discord developer portal's redirect-URI allowlist is the only allowlist that matters. |
+| 2 | Discord → Player | `GET {origin}/callback?code=…&state=…` | Discord redirects with its own auth code. `bridgePathCallback` rewrites the path to `/#/callback?…` so the hash-router's existing route picks it up. |
+| 3 | Player → Backend | `POST {grpcGatewayUrl}/v1/player/discord/exchange` body `{ "code": "...", "redirect_uri": "{origin}/callback" }` | `Player.ExchangeDiscordCode` RPC. Pre-auth (no JWT). The `redirect_uri` MUST byte-exactly match step 1; AGS forwards it to Discord, which re-validates. |
+| 4 | Backend → AGS | `POST {AGS_BASE_URL}/iam/v3/oauth/platforms/discord/token` body `platform_token={code}&redirect_uri=…`, `Authorization: Basic base64({AGS_IAM_CLIENT_ID}:{AGS_IAM_CLIENT_SECRET})` | Server-side. Confidential auth. Single round trip. AGS auto-creates the Justice platform account on first call. |
+| 5 | Backend → Player | RPC response `{ "accessToken": "…", "refreshToken": "…", "expiresIn": 3600, "tokenType": "Bearer" }` | Forwarded verbatim. Player stores `accessToken` in `sessionStorage` and Bearer-attaches it to subsequent player RPCs. |
 
 Wired in:
-- `pkg/service/discord_login.go` — RPC handler (steps 2–3).
-- `player/src/lib/auth.ts::fetchDiscordLoginUrl` — step 1.
-- `player/src/lib/auth.ts::exchangeCodeForToken` — step 6.
+- `pkg/service/discord_exchange.go` — RPC handler (step 4).
+- `player/src/lib/auth.ts::buildDiscordAuthorizeUrl` — step 1 URL composition.
+- `player/src/lib/auth.ts::exchangeDiscordCode` — step 3.
+- `player/src/lib/bootstrap.ts::bridgePathCallback` — step 2 path-to-hash bridge.
 
-**Why not `idp_hint=discord` against `/oauth/authorize`?** AGS IAM silently ignores `idp_hint`; it's a Keycloak-ism. The 302 still bounces through the hosted `/auth/` SPA, which (on shared cloud) doesn't render the Discord button. Don't use it.
+##### Setup checklist
 
-**Redirect URI invalid?** If the proxy RPC returns `InvalidArgument` with a message containing `redirect URI invalid`, the upstream `/oauth/authorize` 302 carried `error_description=redirect+URI+invalid` — the player IAM client's allowlist hasn't caught up. Add the missing entry in the Admin Portal's client edit page.
+1. **Discord developer portal** (https://discord.com/developers/applications) → create application → OAuth2 → add redirect URIs (Discord-side allowlist; byte-exact match):
+   - `http://localhost:5173/callback` — Vite dev server.
+   - `<prod-origin>/callback` — once the player bundle is publicly deployed.
+   - Capture `Client ID` (public, used in `player/public/config.json` as `discordClientId`) and `Client Secret` (confidential — pasted into AGS Admin Portal in step 2, never into playtesthub).
+2. **AGS Admin Portal → Login Methods → Platforms → Discord** for the game namespace: paste the Discord `Client ID` + `Client Secret`. Set `IsActive: true`. AGS uses these to call Discord's `/oauth2/token` on the backend's behalf.
+3. **AGS confidential IAM client** (`AGS_IAM_CLIENT_ID` in `.env`) needs permission to drive the platform-token grant. The same client used for IAM JWT validation works as long as it carries the right scopes — see STATUS.md phase 9.5 for the exact role catalogue once verified.
+4. **Player config** (`player/public/config.json`): `discordClientId` is the **Discord** OAuth client ID (e.g. `1495388556796100618`), not an AGS IAM client. The phase-9.1-era public AGS IAM client is no longer used by this flow.
+
+For ISC namespace `abtestdewa-pong`, the Discord client ID + secret are pre-configured. Local dev: `npm run dev` in `player/` plus the Vite proxy entry for `/ext-abtestdewa-pong-playtesthub`.
+
+##### Path-vs-hash callback bridge
+
+The router is hash-based (`#/callback`, `#/signup`, `#/pending`) for static-host compatibility, but Discord's OAuth redirect lands on the path `/callback` (Discord's allowlist matches byte-exactly and forbids fragments). `src/lib/bootstrap.ts::bridgePathCallback()` runs before the app mounts and rewrites `/callback?code=…` → `/#/callback?code=…` via `history.replaceState`. For deploys that serve the bundle under a subpath, adjust `bridgePathCallback` alongside the registered redirect URI.
+
+##### Why the auth-code flow doesn't work
+
+In game namespaces on shared cloud, AGS's `LoadAuthorize` (`pkg/oauth/model/jwtstore.go` in `justice-iam-service`) detects `isGameNamespace(publisher=foundations, ns={game-ns}) == true` and tries to look up the user's Justice platform account. That record is created by `handleUserPlatformTokenGrantV3` (the platform-token grant) but **never** by `platformAuthenticateV3Handler` (the auth-code grant). So PKCE auth-code completes Discord federation, AGS issues a code, and the next-step `/oauth/token` call always fails with `invalid_grant: failed to load authorize data: internal error user justice platform account not found`. The trace observed during 9.2 debugging: `7ca156dae6e6402f94599163a209273d` against `foundations-justice-internal` cluster, namespace `justice`, log_type `application`. There is no client-side workaround — moving the IAM client to the publisher namespace would skip the gate, but customers don't own `foundations` on shared cloud.
 
 ---
 

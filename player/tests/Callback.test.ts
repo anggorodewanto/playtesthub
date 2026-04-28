@@ -7,7 +7,7 @@ import type { Config } from '../src/lib/config';
 const config: Config = {
   grpcGatewayUrl: 'https://api.example.com/playtesthub',
   iamBaseUrl: 'https://iam.example.com',
-  discordClientId: 'client-xyz',
+  discordClientId: 'discord-client-xyz',
 };
 
 beforeEach(() => {
@@ -21,19 +21,19 @@ afterEach(() => {
 });
 
 describe('Callback', () => {
-  it('exchanges code → token, clears pending, and navigates back to signup', async () => {
-    storePendingLogin({ state: 'S', codeVerifier: 'V', returnTo: '#/playtest/demo/signup' });
+  it('exchanges Discord code → AGS token, clears pending, navigates back to signup', async () => {
+    storePendingLogin({ state: 'S', returnTo: '#/playtest/demo/signup' });
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue(
         new Response(
-          JSON.stringify({ access_token: 'player-tok', token_type: 'Bearer', expires_in: 3600 }),
+          JSON.stringify({ accessToken: 'player-tok', tokenType: 'Bearer', expiresIn: 3600 }),
           { status: 200, headers: { 'Content-Type': 'application/json' } },
         ),
       ),
     );
 
-    render(Callback, { config, params: { code: 'authcode', state: 'S' } });
+    render(Callback, { config, params: { code: 'discord-authcode', state: 'S' } });
     await vi.waitFor(() => {
       expect(getAccessToken()).toBe('player-tok');
     });
@@ -41,26 +41,26 @@ describe('Callback', () => {
   });
 
   it('rejects state mismatch', async () => {
-    storePendingLogin({ state: 'S', codeVerifier: 'V', returnTo: '#/playtest/demo/signup' });
+    storePendingLogin({ state: 'S', returnTo: '#/playtest/demo/signup' });
     vi.stubGlobal('fetch', vi.fn());
-    render(Callback, { config, params: { code: 'authcode', state: 'OTHER' } });
+    render(Callback, { config, params: { code: 'discord-authcode', state: 'OTHER' } });
     expect(await screen.findByTestId('callback-error')).toHaveTextContent(/login failed/i);
   });
 
-  it('shows user-facing message on IAM 5xx', async () => {
-    storePendingLogin({ state: 'S', codeVerifier: 'V', returnTo: '#/playtest/demo/signup' });
+  it('shows user-facing message on backend 5xx', async () => {
+    storePendingLogin({ state: 'S', returnTo: '#/playtest/demo/signup' });
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue(new Response('boom', { status: 503 })),
     );
-    render(Callback, { config, params: { code: 'authcode', state: 'S' } });
+    render(Callback, { config, params: { code: 'discord-authcode', state: 'S' } });
     expect(await screen.findByTestId('callback-error')).toHaveTextContent(
       /try again later/i,
     );
   });
 
   it('no pending login → error', async () => {
-    render(Callback, { config, params: { code: 'authcode', state: 'S' } });
+    render(Callback, { config, params: { code: 'discord-authcode', state: 'S' } });
     expect(await screen.findByTestId('callback-error')).toHaveTextContent(/expired/i);
   });
 });

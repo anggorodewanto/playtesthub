@@ -277,16 +277,16 @@
         ]
       }
     },
-    "/v1/player/discord/login-url": {
+    "/v1/player/discord/exchange": {
       "post": {
-        "summary": "Build a Discord federation login URL (unauthenticated)",
-        "description": "AGS IAM's hosted /auth/ SPA does not render the Discord button on shared cloud, so the player must drive /iam/v3/oauth/platforms/discord/authorize directly. That endpoint requires a request_id from a prior /iam/v3/oauth/authorize call, whose 302 is opaque to a browser cross-origin — this RPC performs that first hop server-side and returns the second-hop URL for the player to navigate to. PKCE verifier and state stay in the player's sessionStorage and never traverse the wire.",
-        "operationId": "PlaytesthubService_GetDiscordLoginUrl",
+        "summary": "Exchange a Discord OAuth authorization code for an AGS access token (unauthenticated)",
+        "description": "Player runs Discord OAuth directly (Discord developer portal owns the redirect-URI allowlist). The resulting Discord authorization code is POSTed here; the backend authenticates with confidential AGS IAM credentials and calls /iam/v3/oauth/platforms/discord/token (platform-token grant). AGS auto-creates the Justice platform account on first call and returns AGS access + refresh tokens, which we forward verbatim. Replaces the auth-code federation flow attempted in STATUS.md M1 phase 9.2 — that flow's /iam/v3/oauth/token step always failed with invalid_grant in game namespaces because the auth-code path skips Justice-platform-account creation.",
+        "operationId": "PlaytesthubService_ExchangeDiscordCode",
         "responses": {
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/v1GetDiscordLoginUrlResponse"
+              "$ref": "#/definitions/v1ExchangeDiscordCodeResponse"
             }
           },
           "default": {
@@ -299,11 +299,11 @@
         "parameters": [
           {
             "name": "body",
-            "description": "GetDiscordLoginUrlRequest carries the player-side OAuth2 + PKCE values\nthe backend must forward to AGS IAM's authorize endpoint. Field names\nmirror RFC 6749 / RFC 7636 wire names so the proxy is mechanical.",
+            "description": "ExchangeDiscordCodeRequest carries a Discord OAuth authorization code\nfor the backend to exchange against AGS IAM's platform-token grant.\nThe player obtained the code by driving discord.com/oauth2/authorize\ndirectly — AGS IAM is not involved until this RPC. The redirect_uri\nMUST byte-exactly match the value the player sent to Discord; AGS\npasses it through to Discord, which re-validates.",
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/v1GetDiscordLoginUrlRequest"
+              "$ref": "#/definitions/v1ExchangeDiscordCodeRequest"
             }
           }
         ],
@@ -695,46 +695,47 @@
         }
       }
     },
+    "v1ExchangeDiscordCodeRequest": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "description": "Discord-issued OAuth authorization code (single-use, short-lived)."
+        },
+        "redirectUri": {
+          "type": "string",
+          "description": "The same redirect_uri the player sent to discord.com/oauth2/authorize.\nDiscord rejects byte-mismatches with invalid_grant."
+        }
+      },
+      "description": "ExchangeDiscordCodeRequest carries a Discord OAuth authorization code\nfor the backend to exchange against AGS IAM's platform-token grant.\nThe player obtained the code by driving discord.com/oauth2/authorize\ndirectly — AGS IAM is not involved until this RPC. The redirect_uri\nMUST byte-exactly match the value the player sent to Discord; AGS\npasses it through to Discord, which re-validates."
+    },
+    "v1ExchangeDiscordCodeResponse": {
+      "type": "object",
+      "properties": {
+        "accessToken": {
+          "type": "string",
+          "description": "AGS IAM access token (JWT) for the federated user. Player stores in\nsessionStorage and attaches as Authorization: Bearer to player RPCs."
+        },
+        "refreshToken": {
+          "type": "string",
+          "description": "AGS IAM refresh token (opaque). Forwarded as-is for future rotation."
+        },
+        "expiresIn": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Lifetime of access_token in seconds, per AGS IAM response."
+        },
+        "tokenType": {
+          "type": "string",
+          "description": "Always \"Bearer\" today; carried verbatim for forward-compat."
+        }
+      }
+    },
     "v1GetApplicantStatusResponse": {
       "type": "object",
       "properties": {
         "applicant": {
           "$ref": "#/definitions/v1Applicant"
-        }
-      }
-    },
-    "v1GetDiscordLoginUrlRequest": {
-      "type": "object",
-      "properties": {
-        "redirectUri": {
-          "type": "string",
-          "description": "Must be one of the player IAM client's registered redirect URIs."
-        },
-        "state": {
-          "type": "string",
-          "description": "Opaque CSRF/state token; AGS returns it on the redirect_uri callback."
-        },
-        "codeChallenge": {
-          "type": "string",
-          "description": "PKCE code_challenge (RFC 7636). The verifier itself never traverses\nthe wire — it stays in the player's sessionStorage until the token\nexchange step on /iam/v3/oauth/token."
-        },
-        "codeChallengeMethod": {
-          "type": "string",
-          "description": "PKCE code_challenge_method. Public clients on AGS IAM require S256."
-        },
-        "scope": {
-          "type": "string",
-          "description": "OAuth2 scope string, space-separated."
-        }
-      },
-      "description": "GetDiscordLoginUrlRequest carries the player-side OAuth2 + PKCE values\nthe backend must forward to AGS IAM's authorize endpoint. Field names\nmirror RFC 6749 / RFC 7636 wire names so the proxy is mechanical."
-    },
-    "v1GetDiscordLoginUrlResponse": {
-      "type": "object",
-      "properties": {
-        "loginUrl": {
-          "type": "string",
-          "description": "Fully-composed AGS IAM URL the player should navigate to. Drives\n/iam/v3/oauth/platforms/discord/authorize, which 302s the user to\ndiscord.com for the actual federation step."
         }
       }
     },

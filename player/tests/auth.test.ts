@@ -1,22 +1,22 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Config } from '../src/lib/config';
 import {
-  fetchDiscordLoginUrl,
-  exchangeCodeForToken,
-  getAccessToken,
-  logout,
+  buildDiscordAuthorizeUrl,
   clearPendingLogin,
-  storePendingLogin,
+  DISCORD_LOGIN_SCOPE,
+  exchangeDiscordCode,
   GENERIC_LOGIN_FAILED_MESSAGE,
   IamError,
+  getAccessToken,
+  logout,
+  storePendingLogin,
   TOKEN_STORAGE_KEY,
-  DEFAULT_DISCORD_LOGIN_SCOPE,
 } from '../src/lib/auth';
 
 const config: Config = {
   grpcGatewayUrl: 'https://api.example.com/playtesthub',
   iamBaseUrl: 'https://iam.example.com',
-  discordClientId: 'client-xyz',
+  discordClientId: 'discord-client-xyz',
 };
 
 beforeEach(() => {
@@ -28,47 +28,96 @@ afterEach(() => {
   sessionStorage.clear();
 });
 
-describe('fetchDiscordLoginUrl', () => {
-  it('POSTs JSON to grpcGatewayUrl + /v1/player/discord/login-url and returns loginUrl', async () => {
+describe('buildDiscordAuthorizeUrl', () => {
+  it('targets discord.com/oauth2/authorize with response_type=code', () => {
+    const url = new URL(
+      buildDiscordAuthorizeUrl({
+        clientId: 'discord-client-xyz',
+        redirectUri: 'https://player.example.com/callback',
+        state: 'state-abc',
+      }),
+    );
+    expect(url.host).toBe('discord.com');
+    expect(url.pathname).toBe('/oauth2/authorize');
+    expect(url.searchParams.get('response_type')).toBe('code');
+    expect(url.searchParams.get('client_id')).toBe('discord-client-xyz');
+    expect(url.searchParams.get('redirect_uri')).toBe(
+      'https://player.example.com/callback',
+    );
+    expect(url.searchParams.get('state')).toBe('state-abc');
+    expect(url.searchParams.get('scope')).toBe(DISCORD_LOGIN_SCOPE);
+  });
+
+  it('forwards a custom scope when provided', () => {
+    const url = new URL(
+      buildDiscordAuthorizeUrl({
+        clientId: 'c',
+        redirectUri: 'https://x/cb',
+        state: 's',
+        scope: 'identify',
+      }),
+    );
+    expect(url.searchParams.get('scope')).toBe('identify');
+  });
+});
+
+describe('exchangeDiscordCode', () => {
+  it('POSTs JSON to grpcGatewayUrl + /v1/player/discord/exchange and stores access token', async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(
-        JSON.stringify({ loginUrl: 'https://iam.example.com/iam/v3/oauth/platforms/discord/authorize?request_id=abc&client_id=client-xyz&redirect_uri=https%3A%2F%2Fplayer.example.com%2Fcallback' }),
+        JSON.stringify({
+          accessToken: 'ags-tok-1',
+          refreshToken: 'ags-refresh-1',
+          expiresIn: 3600,
+          tokenType: 'Bearer',
+        }),
         { status: 200, headers: { 'Content-Type': 'application/json' } },
       ),
     );
     vi.stubGlobal('fetch', fetchMock);
 
-    const url = await fetchDiscordLoginUrl(config, {
-      state: 'state-abc',
-      codeChallenge: 'challenge-xyz',
+    const result = await exchangeDiscordCode(config, {
+      code: 'discord-code-xyz',
       redirectUri: 'https://player.example.com/callback',
     });
-    expect(url).toBe('https://iam.example.com/iam/v3/oauth/platforms/discord/authorize?request_id=abc&client_id=client-xyz&redirect_uri=https%3A%2F%2Fplayer.example.com%2Fcallback');
+    expect(result.access_token).toBe('ags-tok-1');
+    expect(result.refresh_token).toBe('ags-refresh-1');
+    expect(result.expires_in).toBe(3600);
+    expect(result.token_type).toBe('Bearer');
+    expect(getAccessToken()).toBe('ags-tok-1');
 
     const [calledUrl, init] = fetchMock.mock.calls[0];
-    expect(calledUrl).toBe('https://api.example.com/playtesthub/v1/player/discord/login-url');
+    expect(calledUrl).toBe('https://api.example.com/playtesthub/v1/player/discord/exchange');
     expect(init.method).toBe('POST');
     expect(init.headers['Content-Type']).toBe('application/json');
     const body = JSON.parse(init.body);
+    expect(body.code).toBe('discord-code-xyz');
     expect(body.redirect_uri).toBe('https://player.example.com/callback');
-    expect(body.state).toBe('state-abc');
-    expect(body.code_challenge).toBe('challenge-xyz');
-    expect(body.code_challenge_method).toBe('S256');
-    expect(body.scope).toBe(DEFAULT_DISCORD_LOGIN_SCOPE);
   });
 
   it('handles a grpcGatewayUrl with a trailing slash', async () => {
     const fetchMock = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ loginUrl: 'https://x' }), { status: 200 }),
+      new Response(JSON.stringify({ accessToken: 'x' }), { status: 200 }),
     );
     vi.stubGlobal('fetch', fetchMock);
 
-    await fetchDiscordLoginUrl(
+    await exchangeDiscordCode(
       { ...config, grpcGatewayUrl: 'https://api.example.com/playtesthub/' },
-      { state: 's', codeChallenge: 'c', redirectUri: 'r' },
+      { code: 'c', redirectUri: 'r' },
     );
     const [calledUrl] = fetchMock.mock.calls[0];
-    expect(calledUrl).toBe('https://api.example.com/playtesthub/v1/player/discord/login-url');
+    expect(calledUrl).toBe('https://api.example.com/playtesthub/v1/player/discord/exchange');
+  });
+
+  it('defaults token_type to Bearer when AGS omits it', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ accessToken: 'x', expiresIn: 60 }), { status: 200 }),
+      ),
+    );
+    const result = await exchangeDiscordCode(config, { code: 'c', redirectUri: 'r' });
+    expect(result.token_type).toBe('Bearer');
   });
 
   it('maps backend 5xx to IamError with generic user message', async () => {
@@ -77,108 +126,34 @@ describe('fetchDiscordLoginUrl', () => {
       vi.fn().mockResolvedValue(new Response('boom', { status: 503, statusText: 'Service Unavailable' })),
     );
     await expect(
-      fetchDiscordLoginUrl(config, { state: 's', codeChallenge: 'c', redirectUri: 'r' }),
+      exchangeDiscordCode(config, { code: 'c', redirectUri: 'r' }),
     ).rejects.toMatchObject({ name: 'IamError', userMessage: GENERIC_LOGIN_FAILED_MESSAGE });
   });
 
   it('maps a network error to IamError', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('network down')));
     await expect(
-      fetchDiscordLoginUrl(config, { state: 's', codeChallenge: 'c', redirectUri: 'r' }),
+      exchangeDiscordCode(config, { code: 'c', redirectUri: 'r' }),
     ).rejects.toBeInstanceOf(IamError);
   });
 
-  it('rejects when the response body is missing loginUrl', async () => {
+  it('rejects when the response body is missing accessToken', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue(new Response(JSON.stringify({}), { status: 200 })),
     );
     await expect(
-      fetchDiscordLoginUrl(config, { state: 's', codeChallenge: 'c', redirectUri: 'r' }),
+      exchangeDiscordCode(config, { code: 'c', redirectUri: 'r' }),
     ).rejects.toBeInstanceOf(IamError);
   });
 
-  it('forwards a custom scope when provided', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ loginUrl: 'https://x' }), { status: 200 }),
-    );
-    vi.stubGlobal('fetch', fetchMock);
-    await fetchDiscordLoginUrl(config, {
-      state: 's',
-      codeChallenge: 'c',
-      redirectUri: 'r',
-      scope: 'account',
-    });
-    const [, init] = fetchMock.mock.calls[0];
-    expect(JSON.parse(init.body).scope).toBe('account');
-  });
-});
-
-describe('exchangeCodeForToken', () => {
-  it('POSTs form-encoded body to /iam/v3/oauth/token and stores access_token', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
-      new Response(
-        JSON.stringify({ access_token: 'tok-1', token_type: 'Bearer', expires_in: 3600 }),
-        { status: 200, headers: { 'Content-Type': 'application/json' } },
-      ),
-    );
-    vi.stubGlobal('fetch', fetchMock);
-
-    const result = await exchangeCodeForToken(config, {
-      code: 'authcode',
-      codeVerifier: 'verifier',
-      redirectUri: 'https://player.example.com/#/callback',
-    });
-    expect(result.access_token).toBe('tok-1');
-
-    const [url, init] = fetchMock.mock.calls[0];
-    expect(url).toBe('https://iam.example.com/iam/v3/oauth/token');
-    expect(init.method).toBe('POST');
-    expect(init.headers['Content-Type']).toBe('application/x-www-form-urlencoded');
-    const body = new URLSearchParams(init.body);
-    expect(body.get('grant_type')).toBe('authorization_code');
-    expect(body.get('code')).toBe('authcode');
-    expect(body.get('code_verifier')).toBe('verifier');
-    expect(body.get('client_id')).toBe('client-xyz');
-    expect(body.get('redirect_uri')).toBe('https://player.example.com/#/callback');
-
-    expect(getAccessToken()).toBe('tok-1');
-  });
-
-  it('maps IAM 5xx to generic login-failed message (PRD §5.2)', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue(new Response('boom', { status: 503, statusText: 'Service Unavailable' })),
-    );
-    await expect(
-      exchangeCodeForToken(config, {
-        code: 'c',
-        codeVerifier: 'v',
-        redirectUri: 'r',
-      }),
-    ).rejects.toMatchObject({
-      name: 'IamError',
-      userMessage: GENERIC_LOGIN_FAILED_MESSAGE,
-    });
-  });
-
-  it('maps network error to generic login-failed message', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockRejectedValue(new TypeError('network down')),
-    );
-    await expect(
-      exchangeCodeForToken(config, { code: 'c', codeVerifier: 'v', redirectUri: 'r' }),
-    ).rejects.toBeInstanceOf(IamError);
-  });
-
-  it('maps 4xx (bad authorization_code) to generic login-failed', async () => {
+  it('maps 4xx (invalid_grant) to generic login-failed', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue(new Response('{"error":"invalid_grant"}', { status: 400 })),
     );
     await expect(
-      exchangeCodeForToken(config, { code: 'c', codeVerifier: 'v', redirectUri: 'r' }),
+      exchangeDiscordCode(config, { code: 'c', redirectUri: 'r' }),
     ).rejects.toMatchObject({ userMessage: GENERIC_LOGIN_FAILED_MESSAGE });
   });
 });
@@ -193,7 +168,7 @@ describe('token storage', () => {
 
 describe('pending login', () => {
   it('round-trips through sessionStorage and clears', () => {
-    storePendingLogin({ state: 's', codeVerifier: 'v', returnTo: '#/playtest/foo/signup' });
+    storePendingLogin({ state: 's', returnTo: '#/playtest/foo/signup' });
     clearPendingLogin();
     expect(sessionStorage.getItem('playtesthub.pendingLogin')).toBeNull();
   });

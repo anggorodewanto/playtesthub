@@ -1956,41 +1956,37 @@ func (x *GetApplicantStatusResponse) GetApplicant() *Applicant {
 	return nil
 }
 
-// GetDiscordLoginUrlRequest carries the player-side OAuth2 + PKCE values
-// the backend must forward to AGS IAM's authorize endpoint. Field names
-// mirror RFC 6749 / RFC 7636 wire names so the proxy is mechanical.
-type GetDiscordLoginUrlRequest struct {
+// ExchangeDiscordCodeRequest carries a Discord OAuth authorization code
+// for the backend to exchange against AGS IAM's platform-token grant.
+// The player obtained the code by driving discord.com/oauth2/authorize
+// directly — AGS IAM is not involved until this RPC. The redirect_uri
+// MUST byte-exactly match the value the player sent to Discord; AGS
+// passes it through to Discord, which re-validates.
+type ExchangeDiscordCodeRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Must be one of the player IAM client's registered redirect URIs.
-	RedirectUri string `protobuf:"bytes,1,opt,name=redirect_uri,json=redirectUri,proto3" json:"redirect_uri,omitempty"`
-	// Opaque CSRF/state token; AGS returns it on the redirect_uri callback.
-	State string `protobuf:"bytes,2,opt,name=state,proto3" json:"state,omitempty"`
-	// PKCE code_challenge (RFC 7636). The verifier itself never traverses
-	// the wire — it stays in the player's sessionStorage until the token
-	// exchange step on /iam/v3/oauth/token.
-	CodeChallenge string `protobuf:"bytes,3,opt,name=code_challenge,json=codeChallenge,proto3" json:"code_challenge,omitempty"`
-	// PKCE code_challenge_method. Public clients on AGS IAM require S256.
-	CodeChallengeMethod string `protobuf:"bytes,4,opt,name=code_challenge_method,json=codeChallengeMethod,proto3" json:"code_challenge_method,omitempty"`
-	// OAuth2 scope string, space-separated.
-	Scope         string `protobuf:"bytes,5,opt,name=scope,proto3" json:"scope,omitempty"`
+	// Discord-issued OAuth authorization code (single-use, short-lived).
+	Code string `protobuf:"bytes,1,opt,name=code,proto3" json:"code,omitempty"`
+	// The same redirect_uri the player sent to discord.com/oauth2/authorize.
+	// Discord rejects byte-mismatches with invalid_grant.
+	RedirectUri   string `protobuf:"bytes,2,opt,name=redirect_uri,json=redirectUri,proto3" json:"redirect_uri,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *GetDiscordLoginUrlRequest) Reset() {
-	*x = GetDiscordLoginUrlRequest{}
+func (x *ExchangeDiscordCodeRequest) Reset() {
+	*x = ExchangeDiscordCodeRequest{}
 	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *GetDiscordLoginUrlRequest) String() string {
+func (x *ExchangeDiscordCodeRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*GetDiscordLoginUrlRequest) ProtoMessage() {}
+func (*ExchangeDiscordCodeRequest) ProtoMessage() {}
 
-func (x *GetDiscordLoginUrlRequest) ProtoReflect() protoreflect.Message {
+func (x *ExchangeDiscordCodeRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -2002,70 +1998,54 @@ func (x *GetDiscordLoginUrlRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetDiscordLoginUrlRequest.ProtoReflect.Descriptor instead.
-func (*GetDiscordLoginUrlRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use ExchangeDiscordCodeRequest.ProtoReflect.Descriptor instead.
+func (*ExchangeDiscordCodeRequest) Descriptor() ([]byte, []int) {
 	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{24}
 }
 
-func (x *GetDiscordLoginUrlRequest) GetRedirectUri() string {
+func (x *ExchangeDiscordCodeRequest) GetCode() string {
+	if x != nil {
+		return x.Code
+	}
+	return ""
+}
+
+func (x *ExchangeDiscordCodeRequest) GetRedirectUri() string {
 	if x != nil {
 		return x.RedirectUri
 	}
 	return ""
 }
 
-func (x *GetDiscordLoginUrlRequest) GetState() string {
-	if x != nil {
-		return x.State
-	}
-	return ""
-}
-
-func (x *GetDiscordLoginUrlRequest) GetCodeChallenge() string {
-	if x != nil {
-		return x.CodeChallenge
-	}
-	return ""
-}
-
-func (x *GetDiscordLoginUrlRequest) GetCodeChallengeMethod() string {
-	if x != nil {
-		return x.CodeChallengeMethod
-	}
-	return ""
-}
-
-func (x *GetDiscordLoginUrlRequest) GetScope() string {
-	if x != nil {
-		return x.Scope
-	}
-	return ""
-}
-
-type GetDiscordLoginUrlResponse struct {
+type ExchangeDiscordCodeResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Fully-composed AGS IAM URL the player should navigate to. Drives
-	// /iam/v3/oauth/platforms/discord/authorize, which 302s the user to
-	// discord.com for the actual federation step.
-	LoginUrl      string `protobuf:"bytes,1,opt,name=login_url,json=loginUrl,proto3" json:"login_url,omitempty"`
+	// AGS IAM access token (JWT) for the federated user. Player stores in
+	// sessionStorage and attaches as Authorization: Bearer to player RPCs.
+	AccessToken string `protobuf:"bytes,1,opt,name=access_token,json=accessToken,proto3" json:"access_token,omitempty"`
+	// AGS IAM refresh token (opaque). Forwarded as-is for future rotation.
+	RefreshToken string `protobuf:"bytes,2,opt,name=refresh_token,json=refreshToken,proto3" json:"refresh_token,omitempty"`
+	// Lifetime of access_token in seconds, per AGS IAM response.
+	ExpiresIn int32 `protobuf:"varint,3,opt,name=expires_in,json=expiresIn,proto3" json:"expires_in,omitempty"`
+	// Always "Bearer" today; carried verbatim for forward-compat.
+	TokenType     string `protobuf:"bytes,4,opt,name=token_type,json=tokenType,proto3" json:"token_type,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *GetDiscordLoginUrlResponse) Reset() {
-	*x = GetDiscordLoginUrlResponse{}
+func (x *ExchangeDiscordCodeResponse) Reset() {
+	*x = ExchangeDiscordCodeResponse{}
 	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *GetDiscordLoginUrlResponse) String() string {
+func (x *ExchangeDiscordCodeResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*GetDiscordLoginUrlResponse) ProtoMessage() {}
+func (*ExchangeDiscordCodeResponse) ProtoMessage() {}
 
-func (x *GetDiscordLoginUrlResponse) ProtoReflect() protoreflect.Message {
+func (x *ExchangeDiscordCodeResponse) ProtoReflect() protoreflect.Message {
 	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -2077,14 +2057,35 @@ func (x *GetDiscordLoginUrlResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetDiscordLoginUrlResponse.ProtoReflect.Descriptor instead.
-func (*GetDiscordLoginUrlResponse) Descriptor() ([]byte, []int) {
+// Deprecated: Use ExchangeDiscordCodeResponse.ProtoReflect.Descriptor instead.
+func (*ExchangeDiscordCodeResponse) Descriptor() ([]byte, []int) {
 	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{25}
 }
 
-func (x *GetDiscordLoginUrlResponse) GetLoginUrl() string {
+func (x *ExchangeDiscordCodeResponse) GetAccessToken() string {
 	if x != nil {
-		return x.LoginUrl
+		return x.AccessToken
+	}
+	return ""
+}
+
+func (x *ExchangeDiscordCodeResponse) GetRefreshToken() string {
+	if x != nil {
+		return x.RefreshToken
+	}
+	return ""
+}
+
+func (x *ExchangeDiscordCodeResponse) GetExpiresIn() int32 {
+	if x != nil {
+		return x.ExpiresIn
+	}
+	return 0
+}
+
+func (x *ExchangeDiscordCodeResponse) GetTokenType() string {
+	if x != nil {
+		return x.TokenType
 	}
 	return ""
 }
@@ -2243,15 +2244,17 @@ const file_playtesthub_v1_playtesthub_proto_rawDesc = "" +
 	"\x19GetApplicantStatusRequest\x12\x12\n" +
 	"\x04slug\x18\x01 \x01(\tR\x04slug\"U\n" +
 	"\x1aGetApplicantStatusResponse\x127\n" +
-	"\tapplicant\x18\x01 \x01(\v2\x19.playtesthub.v1.ApplicantR\tapplicant\"\xc5\x01\n" +
-	"\x19GetDiscordLoginUrlRequest\x12!\n" +
-	"\fredirect_uri\x18\x01 \x01(\tR\vredirectUri\x12\x14\n" +
-	"\x05state\x18\x02 \x01(\tR\x05state\x12%\n" +
-	"\x0ecode_challenge\x18\x03 \x01(\tR\rcodeChallenge\x122\n" +
-	"\x15code_challenge_method\x18\x04 \x01(\tR\x13codeChallengeMethod\x12\x14\n" +
-	"\x05scope\x18\x05 \x01(\tR\x05scope\"9\n" +
-	"\x1aGetDiscordLoginUrlResponse\x12\x1b\n" +
-	"\tlogin_url\x18\x01 \x01(\tR\bloginUrl*\x8c\x01\n" +
+	"\tapplicant\x18\x01 \x01(\v2\x19.playtesthub.v1.ApplicantR\tapplicant\"S\n" +
+	"\x1aExchangeDiscordCodeRequest\x12\x12\n" +
+	"\x04code\x18\x01 \x01(\tR\x04code\x12!\n" +
+	"\fredirect_uri\x18\x02 \x01(\tR\vredirectUri\"\xa3\x01\n" +
+	"\x1bExchangeDiscordCodeResponse\x12!\n" +
+	"\faccess_token\x18\x01 \x01(\tR\vaccessToken\x12#\n" +
+	"\rrefresh_token\x18\x02 \x01(\tR\frefreshToken\x12\x1d\n" +
+	"\n" +
+	"expires_in\x18\x03 \x01(\x05R\texpiresIn\x12\x1d\n" +
+	"\n" +
+	"token_type\x18\x04 \x01(\tR\ttokenType*\x8c\x01\n" +
 	"\bPlatform\x12\x18\n" +
 	"\x14PLATFORM_UNSPECIFIED\x10\x00\x12\x12\n" +
 	"\x0ePLATFORM_STEAM\x10\x01\x12\x11\n" +
@@ -2276,7 +2279,7 @@ const file_playtesthub_v1_playtesthub_proto_rawDesc = "" +
 	"\bDmStatus\x12\x19\n" +
 	"\x15DM_STATUS_UNSPECIFIED\x10\x00\x12\x12\n" +
 	"\x0eDM_STATUS_SENT\x10\x01\x12\x14\n" +
-	"\x10DM_STATUS_FAILED\x10\x022\xed\x1c\n" +
+	"\x10DM_STATUS_FAILED\x10\x022\xb8\x1e\n" +
 	"\x12PlaytesthubService\x12\xa0\x02\n" +
 	"\x11GetPublicPlaytest\x12(.playtesthub.v1.GetPublicPlaytestRequest\x1a).playtesthub.v1.GetPublicPlaytestResponse\"\xb5\x01\x92A\x8e\x01\x12(Get a playtest by slug (unauthenticated)\x1abReturns the public field subset for an OPEN playtest. NotFound for DRAFT, CLOSED, or soft-deleted.\x82\xd3\xe4\x93\x02\x1d\x12\x1b/v1/public/playtests/{slug}\x12\xac\x02\n" +
 	"\x14GetPlaytestForPlayer\x12+.playtesthub.v1.GetPlaytestForPlayerRequest\x1a,.playtesthub.v1.GetPlaytestForPlayerResponse\"\xb8\x01\x92A\x91\x01\x12-Get a playtest by slug (authenticated player)\x1aRReturns the player-visible field set including NDA text and currentNdaVersionHash.b\f\n" +
@@ -2306,8 +2309,8 @@ const file_playtesthub_v1_playtesthub_proto_rawDesc = "" +
 	"\x18TransitionPlaytestStatus\x12/.playtesthub.v1.TransitionPlaytestStatusRequest\x1a0.playtesthub.v1.TransitionPlaytestStatusResponse\"\xd9\x01\x92AR\x12BTransition a playtest's status (admin; DRAFT→OPEN→CLOSED only)b\f\n" +
 	"\n" +
 	"\n" +
-	"\x06Bearer\x12\x00\x8a\xb5\x18(ADMIN:NAMESPACE:{namespace}:EXTEND:APPUI\x90\xb5\x18\x04\x82\xd3\xe4\x93\x02N:\x01*\"I/v1/admin/namespaces/{namespace}/playtests/{playtest_id}:transitionStatus\x12\xb5\x05\n" +
-	"\x12GetDiscordLoginUrl\x12).playtesthub.v1.GetDiscordLoginUrlRequest\x1a*.playtesthub.v1.GetDiscordLoginUrlResponse\"\xc7\x04\x92A\x9c\x04\x126Build a Discord federation login URL (unauthenticated)\x1a\xe1\x03AGS IAM's hosted /auth/ SPA does not render the Discord button on shared cloud, so the player must drive /iam/v3/oauth/platforms/discord/authorize directly. That endpoint requires a request_id from a prior /iam/v3/oauth/authorize call, whose 302 is opaque to a browser cross-origin — this RPC performs that first hop server-side and returns the second-hop URL for the player to navigate to. PKCE verifier and state stay in the player's sessionStorage and never traverse the wire.\x82\xd3\xe4\x93\x02!:\x01*\"\x1c/v1/player/discord/login-url\x12\xdb\x01\n" +
+	"\x06Bearer\x12\x00\x8a\xb5\x18(ADMIN:NAMESPACE:{namespace}:EXTEND:APPUI\x90\xb5\x18\x04\x82\xd3\xe4\x93\x02N:\x01*\"I/v1/admin/namespaces/{namespace}/playtests/{playtest_id}:transitionStatus\x12\x80\a\n" +
+	"\x13ExchangeDiscordCode\x12*.playtesthub.v1.ExchangeDiscordCodeRequest\x1a+.playtesthub.v1.ExchangeDiscordCodeResponse\"\x8f\x06\x92A\xe5\x05\x12UExchange a Discord OAuth authorization code for an AGS access token (unauthenticated)\x1a\x8b\x05Player runs Discord OAuth directly (Discord developer portal owns the redirect-URI allowlist). The resulting Discord authorization code is POSTed here; the backend authenticates with confidential AGS IAM credentials and calls /iam/v3/oauth/platforms/discord/token (platform-token grant). AGS auto-creates the Justice platform account on first call and returns AGS access + refresh tokens, which we forward verbatim. Replaces the auth-code federation flow attempted in STATUS.md M1 phase 9.2 — that flow's /iam/v3/oauth/token step always failed with invalid_grant in game namespaces because the auth-code path skips Justice-platform-account creation.\x82\xd3\xe4\x93\x02 :\x01*\"\x1b/v1/player/discord/exchange\x12\xdb\x01\n" +
 	"\x06Signup\x12\x1d.playtesthub.v1.SignupRequest\x1a\x1e.playtesthub.v1.SignupResponse\"\x91\x01\x92Aa\x12QSign up for a playtest (authenticated player; idempotent on (playtestId, userId))b\f\n" +
 	"\n" +
 	"\n" +
@@ -2364,8 +2367,8 @@ var file_playtesthub_v1_playtesthub_proto_goTypes = []any{
 	(*SignupResponse)(nil),                   // 26: playtesthub.v1.SignupResponse
 	(*GetApplicantStatusRequest)(nil),        // 27: playtesthub.v1.GetApplicantStatusRequest
 	(*GetApplicantStatusResponse)(nil),       // 28: playtesthub.v1.GetApplicantStatusResponse
-	(*GetDiscordLoginUrlRequest)(nil),        // 29: playtesthub.v1.GetDiscordLoginUrlRequest
-	(*GetDiscordLoginUrlResponse)(nil),       // 30: playtesthub.v1.GetDiscordLoginUrlResponse
+	(*ExchangeDiscordCodeRequest)(nil),       // 29: playtesthub.v1.ExchangeDiscordCodeRequest
+	(*ExchangeDiscordCodeResponse)(nil),      // 30: playtesthub.v1.ExchangeDiscordCodeResponse
 	(*timestamppb.Timestamp)(nil),            // 31: google.protobuf.Timestamp
 }
 var file_playtesthub_v1_playtesthub_proto_depIdxs = []int32{
@@ -2417,7 +2420,7 @@ var file_playtesthub_v1_playtesthub_proto_depIdxs = []int32{
 	19, // 45: playtesthub.v1.PlaytesthubService.EditPlaytest:input_type -> playtesthub.v1.EditPlaytestRequest
 	21, // 46: playtesthub.v1.PlaytesthubService.SoftDeletePlaytest:input_type -> playtesthub.v1.SoftDeletePlaytestRequest
 	23, // 47: playtesthub.v1.PlaytesthubService.TransitionPlaytestStatus:input_type -> playtesthub.v1.TransitionPlaytestStatusRequest
-	29, // 48: playtesthub.v1.PlaytesthubService.GetDiscordLoginUrl:input_type -> playtesthub.v1.GetDiscordLoginUrlRequest
+	29, // 48: playtesthub.v1.PlaytesthubService.ExchangeDiscordCode:input_type -> playtesthub.v1.ExchangeDiscordCodeRequest
 	25, // 49: playtesthub.v1.PlaytesthubService.Signup:input_type -> playtesthub.v1.SignupRequest
 	27, // 50: playtesthub.v1.PlaytesthubService.GetApplicantStatus:input_type -> playtesthub.v1.GetApplicantStatusRequest
 	10, // 51: playtesthub.v1.PlaytesthubService.GetPublicPlaytest:output_type -> playtesthub.v1.GetPublicPlaytestResponse
@@ -2428,7 +2431,7 @@ var file_playtesthub_v1_playtesthub_proto_depIdxs = []int32{
 	20, // 56: playtesthub.v1.PlaytesthubService.EditPlaytest:output_type -> playtesthub.v1.EditPlaytestResponse
 	22, // 57: playtesthub.v1.PlaytesthubService.SoftDeletePlaytest:output_type -> playtesthub.v1.SoftDeletePlaytestResponse
 	24, // 58: playtesthub.v1.PlaytesthubService.TransitionPlaytestStatus:output_type -> playtesthub.v1.TransitionPlaytestStatusResponse
-	30, // 59: playtesthub.v1.PlaytesthubService.GetDiscordLoginUrl:output_type -> playtesthub.v1.GetDiscordLoginUrlResponse
+	30, // 59: playtesthub.v1.PlaytesthubService.ExchangeDiscordCode:output_type -> playtesthub.v1.ExchangeDiscordCodeResponse
 	26, // 60: playtesthub.v1.PlaytesthubService.Signup:output_type -> playtesthub.v1.SignupResponse
 	28, // 61: playtesthub.v1.PlaytesthubService.GetApplicantStatus:output_type -> playtesthub.v1.GetApplicantStatusResponse
 	51, // [51:62] is the sub-list for method output_type

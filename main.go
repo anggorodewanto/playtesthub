@@ -214,18 +214,15 @@ func main() {
 	if botClient := discord.NewBotClient(cfg.DiscordBotToken); botClient != nil {
 		svcServer = svcServer.WithDiscordLookup(botClient)
 	}
-	// GetDiscordLoginUrl proxies one server-side hop to AGS IAM. The
-	// CheckRedirect override is load-bearing: the 302 from
-	// /iam/v3/oauth/authorize is the entire payload — the Location
-	// header carries the request_id we need. Following it would
-	// resolve into the AGS-hosted SPA and lose that signal.
-	svcServer = svcServer.WithDiscordLoginProxy(service.DiscordLoginProxy{
-		AGSBaseURL:     cfg.AGSBaseURL,
-		PlayerClientID: cfg.PlayerIAMClientID,
-		HTTPClient: &http.Client{
-			Timeout:       10 * time.Second,
-			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
-		},
+	// ExchangeDiscordCode posts the Discord OAuth code to AGS IAM's
+	// platform-token grant. Confidential auth (Basic) is required;
+	// the public PKCE client cannot drive this endpoint. Redirects
+	// follow normally — there's no opaque-302 signal here.
+	svcServer = svcServer.WithDiscordExchangeProxy(service.DiscordExchangeProxy{
+		AGSBaseURL:   cfg.AGSBaseURL,
+		ClientID:     cfg.AGSIAMClientID,
+		ClientSecret: cfg.AGSIAMClientSecret,
+		HTTPClient:   &http.Client{Timeout: 10 * time.Second},
 	})
 	pb.RegisterPlaytesthubServiceServer(s, svcServer)
 

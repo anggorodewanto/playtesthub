@@ -5,12 +5,10 @@
   import { formatDateRange } from '../lib/dates';
   import { platformLabel } from '../lib/platforms';
   import {
+    buildDiscordAuthorizeUrl,
     clearPendingLogin,
-    fetchDiscordLoginUrl,
-    IamError,
     storePendingLogin,
   } from '../lib/auth';
-  import { createCodeVerifier, deriveCodeChallenge } from '../lib/pkce';
 
   let { config, slug }: { config: Config; slug: string } = $props();
 
@@ -38,25 +36,17 @@
     }
   }
 
-  async function handleSignup() {
+  function handleSignup() {
     redirecting = true;
     const state = crypto.randomUUID();
-    const verifier = createCodeVerifier();
-    const challenge = await deriveCodeChallenge(verifier);
     const redirectUri = `${window.location.origin}/callback`;
     clearPendingLogin();
-    storePendingLogin({ state, codeVerifier: verifier, returnTo: `#/playtest/${slug}/signup` });
-    try {
-      const loginUrl = await fetchDiscordLoginUrl(config, {
-        state,
-        codeChallenge: challenge,
-        redirectUri,
-      });
-      window.location.href = loginUrl;
-    } catch (err) {
-      redirecting = false;
-      loadError = err instanceof IamError ? err.userMessage : 'Could not start Discord login.';
-    }
+    storePendingLogin({ state, returnTo: `#/playtest/${slug}/signup` });
+    window.location.href = buildDiscordAuthorizeUrl({
+      clientId: config.discordClientId,
+      redirectUri,
+      state,
+    });
   }
 
   $effect(() => {

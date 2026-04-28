@@ -27,7 +27,7 @@ const (
 	PlaytesthubService_EditPlaytest_FullMethodName             = "/playtesthub.v1.PlaytesthubService/EditPlaytest"
 	PlaytesthubService_SoftDeletePlaytest_FullMethodName       = "/playtesthub.v1.PlaytesthubService/SoftDeletePlaytest"
 	PlaytesthubService_TransitionPlaytestStatus_FullMethodName = "/playtesthub.v1.PlaytesthubService/TransitionPlaytestStatus"
-	PlaytesthubService_GetDiscordLoginUrl_FullMethodName       = "/playtesthub.v1.PlaytesthubService/GetDiscordLoginUrl"
+	PlaytesthubService_ExchangeDiscordCode_FullMethodName      = "/playtesthub.v1.PlaytesthubService/ExchangeDiscordCode"
 	PlaytesthubService_Signup_FullMethodName                   = "/playtesthub.v1.PlaytesthubService/Signup"
 	PlaytesthubService_GetApplicantStatus_FullMethodName       = "/playtesthub.v1.PlaytesthubService/GetApplicantStatus"
 )
@@ -56,7 +56,7 @@ type PlaytesthubServiceClient interface {
 	EditPlaytest(ctx context.Context, in *EditPlaytestRequest, opts ...grpc.CallOption) (*EditPlaytestResponse, error)
 	SoftDeletePlaytest(ctx context.Context, in *SoftDeletePlaytestRequest, opts ...grpc.CallOption) (*SoftDeletePlaytestResponse, error)
 	TransitionPlaytestStatus(ctx context.Context, in *TransitionPlaytestStatusRequest, opts ...grpc.CallOption) (*TransitionPlaytestStatusResponse, error)
-	GetDiscordLoginUrl(ctx context.Context, in *GetDiscordLoginUrlRequest, opts ...grpc.CallOption) (*GetDiscordLoginUrlResponse, error)
+	ExchangeDiscordCode(ctx context.Context, in *ExchangeDiscordCodeRequest, opts ...grpc.CallOption) (*ExchangeDiscordCodeResponse, error)
 	Signup(ctx context.Context, in *SignupRequest, opts ...grpc.CallOption) (*SignupResponse, error)
 	GetApplicantStatus(ctx context.Context, in *GetApplicantStatusRequest, opts ...grpc.CallOption) (*GetApplicantStatusResponse, error)
 }
@@ -149,10 +149,10 @@ func (c *playtesthubServiceClient) TransitionPlaytestStatus(ctx context.Context,
 	return out, nil
 }
 
-func (c *playtesthubServiceClient) GetDiscordLoginUrl(ctx context.Context, in *GetDiscordLoginUrlRequest, opts ...grpc.CallOption) (*GetDiscordLoginUrlResponse, error) {
+func (c *playtesthubServiceClient) ExchangeDiscordCode(ctx context.Context, in *ExchangeDiscordCodeRequest, opts ...grpc.CallOption) (*ExchangeDiscordCodeResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(GetDiscordLoginUrlResponse)
-	err := c.cc.Invoke(ctx, PlaytesthubService_GetDiscordLoginUrl_FullMethodName, in, out, cOpts...)
+	out := new(ExchangeDiscordCodeResponse)
+	err := c.cc.Invoke(ctx, PlaytesthubService_ExchangeDiscordCode_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -203,7 +203,7 @@ type PlaytesthubServiceServer interface {
 	EditPlaytest(context.Context, *EditPlaytestRequest) (*EditPlaytestResponse, error)
 	SoftDeletePlaytest(context.Context, *SoftDeletePlaytestRequest) (*SoftDeletePlaytestResponse, error)
 	TransitionPlaytestStatus(context.Context, *TransitionPlaytestStatusRequest) (*TransitionPlaytestStatusResponse, error)
-	GetDiscordLoginUrl(context.Context, *GetDiscordLoginUrlRequest) (*GetDiscordLoginUrlResponse, error)
+	ExchangeDiscordCode(context.Context, *ExchangeDiscordCodeRequest) (*ExchangeDiscordCodeResponse, error)
 	Signup(context.Context, *SignupRequest) (*SignupResponse, error)
 	GetApplicantStatus(context.Context, *GetApplicantStatusRequest) (*GetApplicantStatusResponse, error)
 }
@@ -239,8 +239,8 @@ func (UnimplementedPlaytesthubServiceServer) SoftDeletePlaytest(context.Context,
 func (UnimplementedPlaytesthubServiceServer) TransitionPlaytestStatus(context.Context, *TransitionPlaytestStatusRequest) (*TransitionPlaytestStatusResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method TransitionPlaytestStatus not implemented")
 }
-func (UnimplementedPlaytesthubServiceServer) GetDiscordLoginUrl(context.Context, *GetDiscordLoginUrlRequest) (*GetDiscordLoginUrlResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetDiscordLoginUrl not implemented")
+func (UnimplementedPlaytesthubServiceServer) ExchangeDiscordCode(context.Context, *ExchangeDiscordCodeRequest) (*ExchangeDiscordCodeResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ExchangeDiscordCode not implemented")
 }
 func (UnimplementedPlaytesthubServiceServer) Signup(context.Context, *SignupRequest) (*SignupResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Signup not implemented")
@@ -412,20 +412,20 @@ func _PlaytesthubService_TransitionPlaytestStatus_Handler(srv interface{}, ctx c
 	return interceptor(ctx, in, info, handler)
 }
 
-func _PlaytesthubService_GetDiscordLoginUrl_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetDiscordLoginUrlRequest)
+func _PlaytesthubService_ExchangeDiscordCode_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ExchangeDiscordCodeRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(PlaytesthubServiceServer).GetDiscordLoginUrl(ctx, in)
+		return srv.(PlaytesthubServiceServer).ExchangeDiscordCode(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: PlaytesthubService_GetDiscordLoginUrl_FullMethodName,
+		FullMethod: PlaytesthubService_ExchangeDiscordCode_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(PlaytesthubServiceServer).GetDiscordLoginUrl(ctx, req.(*GetDiscordLoginUrlRequest))
+		return srv.(PlaytesthubServiceServer).ExchangeDiscordCode(ctx, req.(*ExchangeDiscordCodeRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -506,8 +506,8 @@ var PlaytesthubService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _PlaytesthubService_TransitionPlaytestStatus_Handler,
 		},
 		{
-			MethodName: "GetDiscordLoginUrl",
-			Handler:    _PlaytesthubService_GetDiscordLoginUrl_Handler,
+			MethodName: "ExchangeDiscordCode",
+			Handler:    _PlaytesthubService_ExchangeDiscordCode_Handler,
 		},
 		{
 			MethodName: "Signup",

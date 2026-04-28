@@ -45,11 +45,11 @@ const (
 type PlaytesthubServiceServer struct {
 	pb.UnimplementedPlaytesthubServiceServer
 
-	playtest     repo.PlaytestStore
-	applicant    repo.ApplicantStore
-	discord      discord.HandleLookup
-	discordLogin DiscordLoginProxy
-	namespace    string
+	playtest        repo.PlaytestStore
+	applicant       repo.ApplicantStore
+	discord         discord.HandleLookup
+	discordExchange DiscordExchangeProxy
+	namespace       string
 }
 
 // NewPlaytesthubServiceServer wires a service with real repositories.

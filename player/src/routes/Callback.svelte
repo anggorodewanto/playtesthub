@@ -2,7 +2,7 @@
   import type { Config } from '../lib/config';
   import {
     clearPendingLogin,
-    exchangeCodeForToken,
+    exchangeDiscordCode,
     IamError,
     readPendingLogin,
   } from '../lib/auth';
@@ -33,16 +33,13 @@
       errorMessage = 'Login failed — please try again later';
       return;
     }
-    // MUST match the redirect_uri Landing.svelte sent to
-    // /iam/v3/oauth/authorize byte-exactly, or AGS rejects the token
-    // exchange with invalid_grant. AGS allowlists path-based callbacks
-    // (no fragments) since phase 9.1, so this is the path form too —
-    // not `${pathname}#/callback`.
+    // MUST byte-exactly match what Landing.svelte sent to
+    // discord.com/oauth2/authorize. Discord rejects mismatches with
+    // invalid_grant; AGS forwards that error verbatim.
     const redirectUri = `${window.location.origin}/callback`;
     try {
-      await exchangeCodeForToken(config, {
+      await exchangeDiscordCode(config, {
         code: params.code,
-        codeVerifier: pending.codeVerifier,
         redirectUri,
       });
       clearPendingLogin();
