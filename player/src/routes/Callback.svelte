@@ -33,7 +33,12 @@
       errorMessage = 'Login failed — please try again later';
       return;
     }
-    const redirectUri = `${window.location.origin}${window.location.pathname}#/callback`;
+    // MUST match the redirect_uri Landing.svelte sent to
+    // /iam/v3/oauth/authorize byte-exactly, or AGS rejects the token
+    // exchange with invalid_grant. AGS allowlists path-based callbacks
+    // (no fragments) since phase 9.1, so this is the path form too —
+    // not `${pathname}#/callback`.
+    const redirectUri = `${window.location.origin}/callback`;
     try {
       await exchangeCodeForToken(config, {
         code: params.code,

@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
@@ -60,12 +61,28 @@ func (s *PlaytesthubServiceServer) GetDiscordLoginUrl(ctx context.Context, req *
 	}
 
 	authorizeURL := buildAuthorizeURL(s.discordLogin.AGSBaseURL, s.discordLogin.PlayerClientID, req)
+	// Phase 9.2 debug: log the verbatim authorize URL we send to AGS so
+	// we can confirm code_challenge round-trips byte-exactly. Drop once
+	// the federation flow ships green end-to-end.
+	slog.InfoContext(ctx, "discord_login: forwarding to AGS authorize",
+		"authorize_url", authorizeURL,
+		"redirect_uri", req.GetRedirectUri(),
+		"code_challenge", req.GetCodeChallenge(),
+		"code_challenge_method", req.GetCodeChallengeMethod(),
+		"state", req.GetState(),
+		"scope", req.GetScope(),
+		"player_client_id", s.discordLogin.PlayerClientID,
+	)
 	requestID, err := fetchRequestID(ctx, s.discordLogin.HTTPClient, authorizeURL)
 	if err != nil {
 		return nil, err
 	}
 
 	loginURL := buildPlatformsDiscordURL(s.discordLogin.AGSBaseURL, s.discordLogin.PlayerClientID, requestID, req.GetRedirectUri())
+	slog.InfoContext(ctx, "discord_login: returning login_url",
+		"request_id", requestID,
+		"login_url", loginURL,
+	)
 	return &pb.GetDiscordLoginUrlResponse{LoginUrl: loginURL}, nil
 }
 
