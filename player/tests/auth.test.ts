@@ -168,7 +168,7 @@ describe('token storage', () => {
 
 describe('pending login', () => {
   it('round-trips through sessionStorage and clears', () => {
-    storePendingLogin({ state: 's', returnTo: '#/playtest/foo/signup' });
+    storePendingLogin({ state: 's', slug: 'foo', returnTo: '#/playtest/foo/signup' });
     clearPendingLogin();
     expect(sessionStorage.getItem('playtesthub.pendingLogin')).toBeNull();
   });

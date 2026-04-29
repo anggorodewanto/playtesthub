@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { Config } from '../lib/config';
+  import { ApiError, fetchApplicantStatus } from '../lib/api';
   import {
     clearPendingLogin,
     exchangeDiscordCode,
@@ -42,11 +43,29 @@
         code: params.code,
         redirectUri,
       });
-      clearPendingLogin();
-      navigate(pending.returnTo);
     } catch (err) {
       errorMessage =
         err instanceof IamError ? err.userMessage : 'Login failed — please try again later';
+      return;
+    }
+    clearPendingLogin();
+    navigate(await routeAfterLogin(pending.slug));
+  }
+
+  // routeAfterLogin probes GetApplicantStatus to decide where to send
+  // the freshly-authed user. A 404 means they have no application yet
+  // and need to fill out signup; anything else (existing applicant or
+  // a transient probe failure) routes to /pending, where the page will
+  // load the status itself and surface a load-error if needed.
+  async function routeAfterLogin(slug: string): Promise<string> {
+    try {
+      await fetchApplicantStatus(config, slug);
+      return `#/playtest/${slug}/pending`;
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404) {
+        return `#/playtest/${slug}/signup`;
+      }
+      return `#/playtest/${slug}/pending`;
     }
   }
 

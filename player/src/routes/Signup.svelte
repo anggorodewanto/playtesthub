@@ -37,6 +37,12 @@
       await submitSignup(config, slug, { platforms: Array.from(selected) });
       navigate(`/playtest/${slug}/pending`);
     } catch (err) {
+      if (err instanceof ApiError && err.status === 409) {
+        // AlreadyExists — user is already an applicant. Treat as a
+        // success path: their application is on file, route to pending.
+        navigate(`/playtest/${slug}/pending`);
+        return;
+      }
       if (err instanceof ApiError) {
         errorMessage =
           err.status === 401

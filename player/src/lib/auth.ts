@@ -22,6 +22,7 @@ export class IamError extends Error {
 
 export type PendingLogin = {
   state: string;
+  slug: string;
   returnTo: string;
 };
 

@@ -83,4 +83,25 @@ describe('Signup', () => {
     render(Signup, { config, slug: 'demo' });
     expect(window.location.hash).toBe('#/playtest/demo');
   });
+
+  it('routes to pending on 409 (already an applicant)', async () => {
+    setAccessToken('tok');
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response('{"message":"applicant already exists"}', {
+          status: 409,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      ),
+    );
+
+    render(Signup, { config, slug: 'demo' });
+    await userEvent.click(screen.getByLabelText('Steam'));
+    await userEvent.click(screen.getByRole('button', { name: /submit application/i }));
+
+    await vi.waitFor(() => {
+      expect(window.location.hash).toBe('#/playtest/demo/pending');
+    });
+  });
 });
