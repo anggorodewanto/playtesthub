@@ -65,14 +65,16 @@ code=$(curl -s -o /dev/null -w '%{http_code}' \
 [[ "$code" == "401" ]] \
     || fail "expected 401 from GetApplicantStatus, got $code"
 
-# Phase 9.3: ExchangeDiscordCode is unauth and posts a Discord OAuth
-# code to AGS IAM's platform-token grant. Bogus probe — sends an
-# obviously-fake code, expects a 400 from AGS with error=invalid_grant.
-# Validates: (a) RPC routed, (b) backend has working AGS Basic auth,
-# (c) AGS error mapped to gRPC InvalidArgument → HTTP 400. The live
-# success path requires a real Discord OAuth flow (manual smoke per
-# STATUS.md M1 phase 9.4).
-log "ExchangeDiscordCode rejects bogus code (expect 400 invalid_grant passthrough)"
+# Phase 9.3 / verified end-to-end in 9.4: ExchangeDiscordCode is unauth
+# and posts a Discord OAuth code to AGS IAM's platform-token grant.
+# Bogus probe — sends an obviously-fake code, expects a 400 because the
+# handler detects AGS's wrap of Discord's 400 invalid_grant inside an
+# AGS 500 server_error and surfaces it as InvalidArgument. Validates:
+# (a) RPC routed, (b) backend has working AGS Basic auth, (c) AGS error
+# mapped to gRPC InvalidArgument → HTTP 400. The live success path
+# requires a real Discord OAuth flow (manual smoke per STATUS.md M1
+# phase 9.4 / docs/runbooks/discord-login.md).
+log "ExchangeDiscordCode rejects bogus code (expect 400 with discord invalid_grant wrap)"
 http_response=$(curl -s -w '\n%{http_code}' -X POST \
     -H 'Content-Type: application/json' \
     -d "{\"code\":\"smoke-bogus-${RANDOM}\",\"redirect_uri\":\"http://localhost:5173/callback\"}" \
@@ -82,9 +84,10 @@ exchange_body=$(sed '$d' <<<"$http_response")
 [[ "$exchange_code" == "400" ]] \
     || fail "expected 400 from ExchangeDiscordCode, got $exchange_code (body: $exchange_body)"
 # grpc-gateway maps codes.InvalidArgument → HTTP 400. Body includes the
-# AGS error_description verbatim (per errors.md row).
-grep -q -i 'invalid' <<<"$exchange_body" \
-    || fail "ExchangeDiscordCode 400 body missing 'invalid' marker: $exchange_body"
+# AGS error_description verbatim (per errors.md row), which carries
+# Discord's invalid_grant marker through the AGS server_error wrap.
+grep -q -i 'invalid_grant' <<<"$exchange_body" \
+    || fail "ExchangeDiscordCode 400 body missing invalid_grant marker: $exchange_body"
 
 # Optional: exercise the cookie-forwarded Admin Portal auth path. Set
 # ADMIN_PORTAL_COOKIE to the full Cookie header value copied from a

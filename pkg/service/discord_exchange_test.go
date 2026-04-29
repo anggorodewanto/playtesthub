@@ -217,6 +217,26 @@ func TestExchangeDiscordCode_AgsServerError_Unavailable(t *testing.T) {
 	requireStatus(t, err, codes.Unavailable)
 }
 
+// AGS does not pass Discord's 4xx invalid_grant through as a 4xx — it
+// wraps it as HTTP 500 server_error with the Discord response embedded
+// as a substring of error_description. The handler must detect that
+// pattern and surface InvalidArgument so a stale-code retry by the
+// player doesn't look like an outage. Verified empirically against
+// abtestdewa-pong on 2026-04-28 during phase 9.4 e2e.
+func TestExchangeDiscordCode_AgsWrappedDiscordInvalidGrant_InvalidArgument(t *testing.T) {
+	rt := &fakeRoundTripper{
+		resp: newJSONResponse(http.StatusInternalServerError, `{
+			"error":"server_error",
+			"error_description":"platform server error: unexpected HTTP status code response -- 6s -- https://discord.com/api/oauth2/token 400 {\"error\": \"invalid_grant\", \"error_description\": \"Invalid \\\"code\\\" in request.\"}"
+		}`),
+	}
+	svr := exchangeSvr(rt)
+
+	_, err := svr.ExchangeDiscordCode(t.Context(), validExchangeReq())
+	requireStatus(t, err, codes.InvalidArgument)
+	requireMsgContains(t, err, "invalid_grant")
+}
+
 func TestExchangeDiscordCode_NetworkError_Unavailable(t *testing.T) {
 	rt := &fakeRoundTripper{err: io.ErrUnexpectedEOF}
 	svr := exchangeSvr(rt)

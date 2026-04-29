@@ -79,17 +79,13 @@ func (s *PlaytesthubServiceServer) ExchangeDiscordCode(ctx context.Context, req 
 	}
 	defer drainExchangeBody(resp.Body)
 
-	if resp.StatusCode >= 500 {
-		return nil, status.Errorf(codes.Unavailable, "AGS IAM returned %d", resp.StatusCode)
-	}
-
 	body, readErr := io.ReadAll(resp.Body)
 	if readErr != nil {
 		return nil, status.Errorf(codes.Unavailable, "reading AGS IAM response: %v", readErr)
 	}
 
 	if resp.StatusCode >= 400 {
-		return nil, mapAGSExchangeError(body)
+		return nil, mapAGSExchangeError(resp.StatusCode, body)
 	}
 
 	var token agsTokenResponse
@@ -147,24 +143,40 @@ type agsErrorBody struct {
 	ErrorMessage     string `json:"errorMessage"`
 }
 
-// mapAGSExchangeError translates a 4xx AGS IAM error into a gRPC status.
-// invalid_grant is the player-actionable case (Discord code expired,
-// already used, or rejected) — surfaced as InvalidArgument with the AGS
-// description so the client can render something useful. Everything
-// else is an upstream/config problem and gets a generic Internal so we
-// don't leak server-side detail to the player.
-func mapAGSExchangeError(body []byte) error {
+// mapAGSExchangeError translates an AGS IAM error response into a gRPC
+// status. invalid_grant is the player-actionable case (Discord code
+// expired, already used, or rejected) — surfaced as InvalidArgument
+// with the AGS description so the client can render something useful.
+// Everything else is an upstream/config problem and gets a generic
+// Internal/Unavailable so we don't leak server-side detail to the
+// player.
+//
+// AGS quirk: when Discord returns a 4xx invalid_grant, AGS does NOT
+// pass that through as a 4xx — it wraps it as HTTP 5xx with
+// `error=server_error` and the Discord error embedded as a substring of
+// `error_description` (e.g. `platform server error: unexpected HTTP
+// status code response -- 6s -- https://discord.com/api/oauth2/token
+// 400 {"error": "invalid_grant", ...}`). Treat that case as an
+// InvalidArgument too so retries don't look like an outage to the
+// player. Genuine AGS 5xx (no Discord-invalid_grant marker) stays
+// Unavailable.
+func mapAGSExchangeError(statusCode int, body []byte) error {
 	var e agsErrorBody
 	_ = json.Unmarshal(body, &e)
 
-	switch e.Error {
-	case "invalid_grant":
+	if e.Error == "invalid_grant" || isWrappedDiscordInvalidGrant(e) {
 		desc := e.ErrorDescription
 		if desc == "" {
 			desc = "Discord authorization code rejected by AGS IAM"
 		}
 		return status.Error(codes.InvalidArgument, desc)
-	case "unauthorized_client":
+	}
+
+	if statusCode >= 500 {
+		return status.Errorf(codes.Unavailable, "AGS IAM returned %d", statusCode)
+	}
+
+	if e.Error == "unauthorized_client" {
 		return status.Error(codes.Internal, "backend Discord federation misconfigured")
 	}
 
@@ -172,6 +184,14 @@ func mapAGSExchangeError(body []byte) error {
 		return status.Error(codes.Internal, fmt.Sprintf("AGS IAM error: %s", e.ErrorMessage))
 	}
 	return status.Error(codes.Internal, "AGS IAM token exchange failed")
+}
+
+func isWrappedDiscordInvalidGrant(e agsErrorBody) bool {
+	if e.Error != "server_error" {
+		return false
+	}
+	desc := e.ErrorDescription
+	return strings.Contains(desc, "discord.com") && strings.Contains(desc, "invalid_grant")
 }
 
 func drainExchangeBody(rc io.ReadCloser) {
