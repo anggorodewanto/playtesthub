@@ -150,4 +150,66 @@ dry_out=$("$PTH_BIN" --addr "doesnotresolve.invalid:9" playtest get-public --slu
 [[ "$(jq -r '.slug' <<<"$dry_out")" == "demo" ]] \
     || fail "dry-run output missing slug: $dry_out"
 
+# --- pth auth login --password (gated on PTH_E2E_* secrets) -----------
+# Phase 10.2 spec (docs/STATUS.md): probe ROPC + whoami + token + logout
+# round-trip when admin creds + IAM env are present. Skipped when any
+# variable is unset so CI without secrets still runs the smoke clean.
+#
+# Required env to enable: PTH_AGS_BASE_URL, PTH_IAM_CLIENT_ID,
+# PTH_E2E_NAMESPACE, PTH_E2E_USERNAME, PTH_E2E_PASSWORD. Optional:
+# PTH_IAM_CLIENT_SECRET (for confidential clients).
+auth_skip_reason=""
+for var in PTH_AGS_BASE_URL PTH_IAM_CLIENT_ID PTH_E2E_NAMESPACE PTH_E2E_USERNAME PTH_E2E_PASSWORD; do
+    if [[ -z "${!var:-}" ]]; then
+        auth_skip_reason="${var} unset"
+        break
+    fi
+done
+
+if [[ -n "$auth_skip_reason" ]]; then
+    log "skipping auth login probe: $auth_skip_reason"
+else
+    # Use an isolated credentials store so a smoke run never touches the
+    # operator's real ~/.config/playtesthub.
+    PTH_CREDS_DIR="$(mktemp -d -t pth-creds.XXXXXX)"
+    export PTH_CREDENTIALS_FILE="$PTH_CREDS_DIR/credentials.json"
+    cleanup_creds() { rm -rf "$PTH_CREDS_DIR"; }
+    trap 'cleanup_creds; cleanup' EXIT INT TERM
+
+    log "pth auth login --password (profile=smoke-pth)"
+    login_out=$(printf '%s' "$PTH_E2E_PASSWORD" \
+        | "$PTH_BIN" --addr "$TARGET_ADDR" --insecure \
+            --namespace "$PTH_E2E_NAMESPACE" --profile smoke-pth \
+            auth login --password --username "$PTH_E2E_USERNAME" --password-stdin)
+    login_user=$(jq -r '.userId' <<<"$login_out")
+    [[ -n "$login_user" && "$login_user" != "null" ]] \
+        || fail "auth login: missing userId in response: $login_out"
+
+    log "pth auth whoami returns the same userId"
+    whoami_out=$("$PTH_BIN" --addr "$TARGET_ADDR" --insecure \
+        --namespace "$PTH_E2E_NAMESPACE" --profile smoke-pth auth whoami)
+    whoami_user=$(jq -r '.userId' <<<"$whoami_out")
+    [[ "$whoami_user" == "$login_user" ]] \
+        || fail "whoami userId=$whoami_user, want $login_user (out: $whoami_out)"
+
+    log "pth auth token prints a non-empty bearer"
+    token_out=$("$PTH_BIN" --addr "$TARGET_ADDR" --insecure \
+        --namespace "$PTH_E2E_NAMESPACE" --profile smoke-pth auth token)
+    [[ -n "$token_out" ]] || fail "auth token returned empty"
+
+    log "pth auth logout removes the credential"
+    logout_out=$("$PTH_BIN" --addr "$TARGET_ADDR" --insecure \
+        --namespace "$PTH_E2E_NAMESPACE" --profile smoke-pth auth logout)
+    [[ "$(jq -r '.removed' <<<"$logout_out")" == "true" ]] \
+        || fail "logout did not remove profile: $logout_out"
+
+    log "post-logout: pth auth whoami exits non-zero"
+    set +e
+    "$PTH_BIN" --addr "$TARGET_ADDR" --insecure \
+        --namespace "$PTH_E2E_NAMESPACE" --profile smoke-pth auth whoami >/dev/null 2>&1
+    post_logout_exit=$?
+    set -e
+    [[ $post_logout_exit -ne 0 ]] || fail "auth whoami should exit non-zero after logout"
+fi
+
 log "PASS"

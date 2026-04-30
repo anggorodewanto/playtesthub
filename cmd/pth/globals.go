@@ -33,7 +33,18 @@ type Globals struct {
 	InsecureSet bool
 
 	Verbose bool
+
+	// tokenResolver supplies the bearer token at dial time per cli.md §4
+	// resolution order. Wired by main(); tests pass their own stub or
+	// leave nil to dial anonymously.
+	tokenResolver tokenResolver
 }
+
+// tokenResolver returns a bearer token to attach as `Authorization: Bearer <t>`
+// for the next RPC. Returns ("", nil) when no credential applies (anon
+// dial). An error here is fatal — caller surfaces it as a local /
+// transport failure rather than letting an unauth RPC race the user.
+type tokenResolver func(ctx context.Context) (string, error)
 
 // envSnapshot is the env-var lookup interface so tests can drive
 // parseGlobals without polluting the real environment.
@@ -253,10 +264,9 @@ func isLoopback(host string) bool {
 
 // dial opens a gRPC client conn against g.Addr with the resolved security
 // + auth metadata. Auth header attachment per cli.md §4 token-resolution
-// order — `--anon` short-circuits everything; otherwise `--token` /
-// PTH_TOKEN value is sent verbatim. Credential-store lookup arrives in
-// phase 10.2 — until then a missing token on an authed RPC will surface
-// as Unauthenticated from the server, which is the right error.
+// order: `--anon` short-circuits everything; otherwise `--token` /
+// PTH_TOKEN > credentials store keyed by (addr, namespace, profile).
+// A near-expiry stored token is refreshed in-line before the call.
 func (g *Globals) dial(ctx context.Context) (*grpc.ClientConn, context.Context, error) {
 	var creds credentials.TransportCredentials
 	if g.effectiveInsecure() {
@@ -268,10 +278,54 @@ func (g *Globals) dial(ctx context.Context) (*grpc.ClientConn, context.Context, 
 	if err != nil {
 		return nil, nil, fmt.Errorf("dial %s: %w", g.Addr, err)
 	}
-	if !g.Anon && g.Token != "" {
-		ctx = metadata.AppendToOutgoingContext(ctx, "authorization", "Bearer "+g.Token)
+	bearer, err := g.resolveBearer(ctx)
+	if err != nil {
+		_ = conn.Close()
+		return nil, nil, err
+	}
+	if bearer != "" {
+		ctx = metadata.AppendToOutgoingContext(ctx, "authorization", "Bearer "+bearer)
 	}
 	return conn, ctx, nil
+}
+
+// resolveBearer applies the cli.md §4 precedence: `--anon` returns "" with no
+// store consultation; an explicit `--token` / PTH_TOKEN wins next; otherwise
+// the credentials store provides one (with a refresh round-trip when the
+// stored token is within `refreshLeeway` of expiry).
+func (g *Globals) resolveBearer(ctx context.Context) (string, error) {
+	if g.Anon {
+		return "", nil
+	}
+	if g.Token != "" {
+		return g.Token, nil
+	}
+	if g.tokenResolver == nil {
+		return "", nil
+	}
+	return g.tokenResolver(ctx)
+}
+
+// defaultTokenResolver wires the production seam: a credentials-store
+// lookup with refresh-on-near-expiry. Returns an empty resolver (always
+// "") if the credentials path can't be resolved — the dial then falls
+// through to anonymous, mirroring the behaviour from before 10.2 when no
+// store existed.
+func defaultTokenResolver(g *Globals, getenv envSnapshot) tokenResolver {
+	deps, err := defaultAuthDeps(getenv)
+	if err != nil {
+		return func(context.Context) (string, error) { return "", nil }
+	}
+	return func(ctx context.Context) (string, error) {
+		p, err := resolveActiveProfile(ctx, g, deps)
+		if err != nil {
+			return "", err
+		}
+		if p == nil {
+			return "", nil
+		}
+		return p.AccessToken, nil
+	}
 }
 
 // logRPC writes a redacted request line to stderr when -v is set. Token

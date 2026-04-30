@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"testing"
 	"time"
 )
@@ -158,6 +160,72 @@ func TestParseGlobals_BadTimeoutErrors(t *testing.T) {
 	_, _, err := parseGlobals([]string{"--timeout", "not-a-duration"}, emptyEnv)
 	if err == nil {
 		t.Fatal("expected error for bad --timeout")
+	}
+}
+
+func TestResolveBearerAnonShortCircuits(t *testing.T) {
+	g := &Globals{
+		Anon:  true,
+		Token: "should-be-ignored",
+		tokenResolver: func(context.Context) (string, error) {
+			t.Fatal("resolver must not be called when --anon is set")
+			return "", nil
+		},
+	}
+	got, err := g.resolveBearer(context.Background())
+	if err != nil {
+		t.Fatalf("err=%v", err)
+	}
+	if got != "" {
+		t.Errorf("got %q, want empty", got)
+	}
+}
+
+func TestResolveBearerExplicitTokenWinsOverStore(t *testing.T) {
+	g := &Globals{
+		Token: "explicit",
+		tokenResolver: func(context.Context) (string, error) {
+			t.Fatal("resolver must not be called when --token is set")
+			return "stored", nil
+		},
+	}
+	got, err := g.resolveBearer(context.Background())
+	if err != nil {
+		t.Fatalf("err=%v", err)
+	}
+	if got != "explicit" {
+		t.Errorf("got %q, want explicit", got)
+	}
+}
+
+func TestResolveBearerFallsThroughToResolver(t *testing.T) {
+	g := &Globals{
+		tokenResolver: func(context.Context) (string, error) { return "from-store", nil },
+	}
+	got, err := g.resolveBearer(context.Background())
+	if err != nil {
+		t.Fatalf("err=%v", err)
+	}
+	if got != "from-store" {
+		t.Errorf("got %q want from-store", got)
+	}
+}
+
+func TestResolveBearerResolverErrorIsFatal(t *testing.T) {
+	g := &Globals{
+		tokenResolver: func(context.Context) (string, error) { return "", errors.New("refresh failed") },
+	}
+	_, err := g.resolveBearer(context.Background())
+	if err == nil {
+		t.Fatal("want error, got nil")
+	}
+}
+
+func TestResolveBearerNilResolverIsAnon(t *testing.T) {
+	g := &Globals{}
+	got, err := g.resolveBearer(context.Background())
+	if err != nil || got != "" {
+		t.Errorf("got=%q err=%v", got, err)
 	}
 }
 

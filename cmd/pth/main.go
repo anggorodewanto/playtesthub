@@ -34,6 +34,7 @@ func run(ctx context.Context, stdout, stderr io.Writer, args []string, getenv en
 	}
 
 	cmd, cmdArgs := rest[0], rest[1:]
+	g.tokenResolver = defaultTokenResolver(g, getenv)
 	factory := defaultPlaytestClientFactory(g)
 
 	switch cmd {
@@ -43,6 +44,8 @@ func run(ctx context.Context, stdout, stderr io.Writer, args []string, getenv en
 		return runDoctor(ctx, stdout, stderr, g, cmdArgs, factory)
 	case "playtest":
 		return runPlaytest(ctx, stdout, stderr, g, cmdArgs, factory)
+	case "auth":
+		return runAuth(ctx, stdout, stderr, g, cmdArgs, getenv)
 	case "help", "-h", "--help":
 		writeUsage(stdout)
 		return exitOK
@@ -72,11 +75,22 @@ func writeUsage(w io.Writer) {
 Usage:
   pth [global flags] <command> [command flags]
 
-Commands (M1 phase 10.1):
+Commands (M1 phase 10.1–10.2):
   version                          Print build SHA, proto schema, Go version.
   doctor                           Probe the backend. Reports gRPC code + latency.
   playtest get-public --slug <s>   Fetch the public view of a playtest (unauth).
+  auth login --password            Log in via AGS IAM ROPC grant. Stores token under --profile.
+    --username <u> [--password-stdin]
+  auth logout                      Remove the stored credential for --profile.
+  auth whoami                      Print {profile, userId, namespace, addr, expiresAt}.
+  auth token                       Print the active bearer token (for piping into curl/grpcurl).
   help                             Show this message.
+
+Auth env (cli.md §7.2 setup; not in §4 since they only feed the auth subcommand):
+  PTH_AGS_BASE_URL       AGS IAM base URL (e.g. https://internal-shared-cloud.accelbyte.io)
+  PTH_IAM_CLIENT_ID      AGS IAM client id (must allow ROPC grant)
+  PTH_IAM_CLIENT_SECRET  AGS IAM client secret (omit for public clients)
+  PTH_CREDENTIALS_FILE   Override store path (default ~/.config/playtesthub/credentials.json)
 
 Global flags (env var fallback in parens; see docs/cli.md §4):
   --addr <host:port>     gRPC endpoint              (PTH_ADDR; default localhost:6565)
