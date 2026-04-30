@@ -346,13 +346,12 @@ Wired in:
 
 ##### Setup checklist
 
-1. **Discord developer portal** (https://discord.com/developers/applications) → create application → OAuth2 → add redirect URIs (Discord-side allowlist; byte-exact match):
-   - `http://localhost:5173/callback` — Vite dev server.
-   - `<prod-origin>/callback` — once the player bundle is publicly deployed.
-   - Capture `Client ID` (public, used in `player/public/config.json` as `discordClientId`) and `Client Secret` (confidential — pasted into AGS Admin Portal in step 2, never into playtesthub).
-2. **AGS Admin Portal → Login Methods → Platforms → Discord** for the game namespace: paste the Discord `Client ID` + `Client Secret`. Set `IsActive: true`. AGS uses these to call Discord's `/oauth2/token` on the backend's behalf.
-3. **AGS confidential IAM client** (`AGS_IAM_CLIENT_ID` in `.env`) needs permission to drive the platform-token grant. The same client used for IAM JWT validation works as long as it carries the right scopes — see STATUS.md phase 9.5 for the exact role catalogue once verified.
-4. **Player config** (`player/public/config.json`): `discordClientId` is the **Discord** OAuth client ID (e.g. `1495388556796100618`), not an AGS IAM client. The phase-9.1-era public AGS IAM client is no longer used by this flow.
+The prescriptive setup walkthrough — the screens to click, the values to paste, the verification ladder — lives in [`docs/runbooks/setup-ags-discord.md`](runbooks/setup-ags-discord.md). Follow that for a fresh tenant. The summary:
+
+1. **Discord developer portal** — create app, add `${PLAYER_ORIGIN}/callback` to OAuth2 → Redirects.
+2. **AGS Admin Portal → Login Methods → Platforms → Discord** — paste Discord client ID/secret, set `RedirectUri` byte-exact to `${PLAYER_ORIGIN}/callback`, `IsActive: true`. **The AGS-docs default `https://<ags-host>/iam/v3/platforms/discord/authenticate` is wrong for this flow** — see the runbook for why.
+3. **AGS confidential IAM client** — same `AGS_IAM_CLIENT_ID` used for IAM JWT validation; needs `NAMESPACE:{namespace}:USER:LOGIN [CREATE]` (or the AGS-equivalent for Discord platform-token grant). If this is missing, AGS returns `unauthorized_client`.
+4. **Player config** (`player/public/config.json`) — `discordClientId` is the **Discord** OAuth client ID, not an AGS IAM client. The phase-9.1-era public AGS IAM client is no longer used.
 
 For ISC namespace `abtestdewa-pong`, the Discord client ID + secret are pre-configured. Local dev: `npm run dev` in `player/` plus the Vite proxy entry for `/ext-abtestdewa-pong-playtesthub`.
 

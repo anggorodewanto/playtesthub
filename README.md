@@ -158,6 +158,8 @@ The `playtesthub.v1` gRPC surface is defined in `proto/playtesthub/v1/playtesthu
          - Cloud Save -> Game Records (Create, Read, Update, Delete)
 ## Setup
 
+> :information_source: **Player Discord login setup**: see [`docs/runbooks/setup-ags-discord.md`](docs/runbooks/setup-ags-discord.md) for the AGS Admin Portal + Discord developer portal walkthrough that the player Discord login depends on. The byte-exact `redirect_uri` constraint between the three systems is the single most common setup trap.
+
 To be able to run this app, you will need to follow these setup steps.
 
 1. Create a docker compose `.env` file by copying the content of [.env.template](.env.template) file.
