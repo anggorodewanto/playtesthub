@@ -3,7 +3,7 @@
   import { ApiError, submitSignup, type Platform } from '../lib/api';
   import { PLATFORM_OPTIONS } from '../lib/platforms';
   import { getAccessToken } from '../lib/auth';
-  import { navigate } from '../lib/router';
+  import { navigate, pendingPath, playtestPath } from '../lib/router';
 
   let { config, slug }: { config: Config; slug: string } = $props();
 
@@ -15,7 +15,7 @@
   // to the landing so they can run the Discord login flow.
   const hasToken = getAccessToken() !== null;
   if (!hasToken && typeof window !== 'undefined') {
-    navigate(`/playtest/${slug}`);
+    navigate(playtestPath(slug));
   }
 
   function togglePlatform(p: Platform) {
@@ -35,12 +35,10 @@
     submitting = true;
     try {
       await submitSignup(config, slug, { platforms: Array.from(selected) });
-      navigate(`/playtest/${slug}/pending`);
+      navigate(pendingPath(slug));
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) {
-        // AlreadyExists — user is already an applicant. Treat as a
-        // success path: their application is on file, route to pending.
-        navigate(`/playtest/${slug}/pending`);
+        navigate(pendingPath(slug));
         return;
       }
       if (err instanceof ApiError) {

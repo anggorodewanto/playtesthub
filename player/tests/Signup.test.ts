@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import Signup from '../src/routes/Signup.svelte';
 import type { Config } from '../src/lib/config';
 import { setAccessToken } from '../src/lib/auth';
+import { pendingPath, playtestPath } from '../src/lib/router';
 
 const config: Config = {
   grpcGatewayUrl: 'https://api.example.com/playtesthub',
@@ -56,7 +57,7 @@ describe('Signup', () => {
     expect(body.platforms).toEqual(['PLATFORM_STEAM', 'PLATFORM_XBOX']);
 
     await vi.waitFor(() => {
-      expect(window.location.hash).toBe('#/playtest/demo/pending');
+      expect(window.location.hash).toBe(`#${pendingPath('demo')}`);
     });
   });
 
@@ -81,7 +82,7 @@ describe('Signup', () => {
 
   it('bounces to landing when no token is present', () => {
     render(Signup, { config, slug: 'demo' });
-    expect(window.location.hash).toBe('#/playtest/demo');
+    expect(window.location.hash).toBe(`#${playtestPath('demo')}`);
   });
 
   it('routes to pending on 409 (already an applicant)', async () => {
@@ -101,7 +102,7 @@ describe('Signup', () => {
     await userEvent.click(screen.getByRole('button', { name: /submit application/i }));
 
     await vi.waitFor(() => {
-      expect(window.location.hash).toBe('#/playtest/demo/pending');
+      expect(window.location.hash).toBe(`#${pendingPath('demo')}`);
     });
   });
 });

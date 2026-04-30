@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
 import Pending from '../src/routes/Pending.svelte';
 import { setAccessToken } from '../src/lib/auth';
+import { playtestPath } from '../src/lib/router';
 import type { Config } from '../src/lib/config';
 
 const config: Config = {
@@ -65,7 +66,7 @@ describe('Pending', () => {
     );
     render(Pending, { config, slug: 'demo' });
     await vi.waitFor(() => {
-      expect(window.location.hash).toBe('#/playtest/demo');
+      expect(window.location.hash).toBe(`#${playtestPath('demo')}`);
     });
   });
 });

@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { Config } from '../lib/config';
   import { ApiError, fetchApplicantStatus, type Applicant } from '../lib/api';
-  import { navigate } from '../lib/router';
+  import { navigate, playtestPath } from '../lib/router';
 
   let { config, slug }: { config: Config; slug: string } = $props();
 
@@ -13,7 +13,7 @@
       applicant = await fetchApplicantStatus(config, slug);
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
-        navigate(`/playtest/${slug}`);
+        navigate(playtestPath(slug));
         return;
       }
       if (err instanceof ApiError && err.status === 404) {

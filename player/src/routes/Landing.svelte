@@ -41,7 +41,7 @@
     const state = crypto.randomUUID();
     const redirectUri = `${window.location.origin}/callback`;
     clearPendingLogin();
-    storePendingLogin({ state, slug, returnTo: `#/playtest/${slug}/signup` });
+    storePendingLogin({ state, slug });
     window.location.href = buildDiscordAuthorizeUrl({
       clientId: config.discordClientId,
       redirectUri,

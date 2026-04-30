@@ -7,7 +7,7 @@
     IamError,
     readPendingLogin,
   } from '../lib/auth';
-  import { navigate } from '../lib/router';
+  import { navigate, pendingPath, signupPath } from '../lib/router';
 
   let {
     config,
@@ -52,20 +52,16 @@
     navigate(await routeAfterLogin(pending.slug));
   }
 
-  // routeAfterLogin probes GetApplicantStatus to decide where to send
-  // the freshly-authed user. A 404 means they have no application yet
-  // and need to fill out signup; anything else (existing applicant or
-  // a transient probe failure) routes to /pending, where the page will
-  // load the status itself and surface a load-error if needed.
   async function routeAfterLogin(slug: string): Promise<string> {
     try {
       await fetchApplicantStatus(config, slug);
-      return `#/playtest/${slug}/pending`;
+      return pendingPath(slug);
     } catch (err) {
       if (err instanceof ApiError && err.status === 404) {
-        return `#/playtest/${slug}/signup`;
+        return signupPath(slug);
       }
-      return `#/playtest/${slug}/pending`;
+      // Probe failure (5xx, network) → let Pending.svelte surface its own load error.
+      return pendingPath(slug);
     }
   }
 

@@ -46,6 +46,10 @@ export function navigate(hash: string): void {
   window.location.hash = hash.startsWith('#') ? hash : `#${hash}`;
 }
 
+export const playtestPath = (slug: string): string => `/playtest/${slug}`;
+export const signupPath = (slug: string): string => `/playtest/${slug}/signup`;
+export const pendingPath = (slug: string): string => `/playtest/${slug}/pending`;
+
 export const route: Readable<Route> = readable<Route>(
   typeof window === 'undefined' ? { name: 'not-found' } : parseRoute(window.location.hash),
   (set) => {
