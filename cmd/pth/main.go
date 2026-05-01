@@ -42,6 +42,8 @@ func run(ctx context.Context, stdout, stderr io.Writer, args []string, getenv en
 		return runVersion(stdout, stderr, cmdArgs)
 	case "doctor":
 		return runDoctor(ctx, stdout, stderr, g, cmdArgs, factory)
+	case "describe":
+		return runDescribe(stdout, stderr, cmdArgs)
 	case "playtest":
 		return runPlaytest(ctx, stdout, stderr, g, cmdArgs, factory)
 	case "auth":
@@ -50,6 +52,8 @@ func run(ctx context.Context, stdout, stderr io.Writer, args []string, getenv en
 		return runUser(ctx, stdout, stderr, g, cmdArgs, getenv)
 	case "applicant":
 		return runApplicant(ctx, stdout, stderr, g, cmdArgs, factory)
+	case "flow":
+		return runFlow(ctx, stdout, stderr, g, cmdArgs, defaultFlowProfileFactory(getenv))
 	case "help", "-h", "--help":
 		writeUsage(stdout)
 		return exitOK
@@ -79,9 +83,12 @@ func writeUsage(w io.Writer) {
 Usage:
   pth [global flags] <command> [command flags]
 
-Commands (M1 phase 10.1–10.5):
+Commands (M1 phase 10.1–10.6):
   version                          Print build SHA, proto schema, Go version.
   doctor                           Probe the backend. Reports gRPC code + latency.
+  describe                         Emit the JSON catalogue (cli-schema.v1) of every subcommand.
+  flow golden-m1 --slug <s>        Composite: create → transition OPEN → signup → assert PENDING.
+    --admin-profile <p> --player-profile <p> [--title <t>] [--platforms <csv>] [--dry-run]
   playtest get-public --slug <s>   Fetch the public view of a playtest (unauth).
   playtest get-player --slug <s>   Fetch the player view (player token required).
   playtest get --id <id>           Fetch the admin view (admin token required).

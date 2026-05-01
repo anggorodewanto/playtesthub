@@ -84,8 +84,8 @@ func TestRunDoctor_UnavailableExit2(t *testing.T) {
 	if err := json.Unmarshal(bytes.TrimSpace(stdout.Bytes()), &report); err != nil {
 		t.Fatalf("stdout not JSON: %v", err)
 	}
-	if report.Status != "FAILED" {
-		t.Errorf("status=%q, want FAILED", report.Status)
+	if report.Status != statusFailed {
+		t.Errorf("status=%q, want %s", report.Status, statusFailed)
 	}
 	if !strings.Contains(stderr.String(), "Unavailable") {
 		t.Errorf("stderr should carry gRPC Unavailable, got %q", stderr.String())

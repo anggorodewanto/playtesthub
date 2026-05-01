@@ -308,6 +308,39 @@ status_dry=$("$PTH_BIN" applicant status --slug demo-01 --dry-run)
 [[ "$(jq -r '.slug' <<<"$status_dry")" == "demo-01" ]] \
     || fail "applicant status dry-run slug mismatch: $status_dry"
 
+# --- pth describe (unconditional) -------------------------------------
+# Phase 10.6 (docs/STATUS.md): the CI diff-check on
+# cmd/pth/testdata/describe.golden.json owns the byte-exact assertion.
+# This probe just proves the binary emits the catalogue with a non-empty
+# commands list and the cli.md §5 schema marker — covers wiring only.
+log "pth describe emits cli-schema.v1 with a non-empty commands list"
+describe_out=$("$PTH_BIN" describe)
+[[ "$(jq -r '.schema' <<<"$describe_out")" == "cli-schema.v1" ]] \
+    || fail "describe schema != cli-schema.v1: $describe_out"
+describe_count=$(jq '.commands | length' <<<"$describe_out")
+[[ "$describe_count" -gt 0 ]] \
+    || fail "describe commands list empty (length=$describe_count)"
+
+# --- pth flow golden-m1 --dry-run (unconditional) ---------------------
+# Phase 10.6 (docs/STATUS.md): four NDJSON steps with status=DRY_RUN
+# and a request body. No profiles needed in dry-run mode.
+log "pth flow golden-m1 --dry-run emits 4 NDJSON steps without dialling"
+flow_dry=$("$PTH_BIN" --namespace smoke flow golden-m1 --slug demo-flow --dry-run)
+flow_dry_lines=$(printf '%s\n' "$flow_dry" | wc -l | tr -d ' ')
+[[ "$flow_dry_lines" -eq 4 ]] \
+    || { printf '%s\n' "$flow_dry" >&2; fail "flow dry-run lines=$flow_dry_lines, want 4"; }
+expected_steps=("create-playtest" "transition-open" "signup" "assert-pending")
+i=0
+while IFS= read -r line; do
+    step=$(jq -r '.step' <<<"$line")
+    status=$(jq -r '.status' <<<"$line")
+    [[ "$step" == "${expected_steps[$i]}" ]] \
+        || fail "flow dry-run line $((i+1)) step=$step, want ${expected_steps[$i]}"
+    [[ "$status" == "DRY_RUN" ]] \
+        || fail "flow dry-run line $((i+1)) status=$status, want DRY_RUN"
+    i=$((i+1))
+done <<<"$flow_dry"
+
 # --- pth auth login --password (gated on PTH_E2E_* secrets) -----------
 # Phase 10.2 spec (docs/STATUS.md): probe ROPC + whoami + token + logout
 # round-trip when admin creds + IAM env are present. Skipped when any
@@ -428,6 +461,44 @@ else
     "$PTH_BIN" --addr "$TARGET_ADDR" --insecure \
         --namespace "$PTH_E2E_NAMESPACE" --profile smoke-pth \
         playtest delete --id "$smoke_playtest_id" >/dev/null
+
+    # --- pth flow golden-m1 (live, phase 10.6) ------------------------
+    # Same admin (smoke-pth) + player (smoke-test-$id) profiles, fresh
+    # slug, exercised through the composite command. Asserts each NDJSON
+    # step is OK and the assert-pending step actually fires.
+    flow_slug="ptf-$(date +%s)-$$"
+    log "pth flow golden-m1 (slug=$flow_slug)"
+    flow_out=$("$PTH_BIN" --addr "$TARGET_ADDR" --insecure \
+        --namespace "$PTH_E2E_NAMESPACE" \
+        flow golden-m1 --slug "$flow_slug" \
+        --admin-profile smoke-pth \
+        --player-profile "smoke-test-$test_user_id")
+    flow_lines=$(printf '%s\n' "$flow_out" | wc -l | tr -d ' ')
+    [[ "$flow_lines" -eq 4 ]] \
+        || { printf '%s\n' "$flow_out" >&2; fail "flow lines=$flow_lines, want 4"; }
+    flow_steps=("create-playtest" "transition-open" "signup" "assert-pending")
+    j=0
+    while IFS= read -r line; do
+        step=$(jq -r '.step' <<<"$line")
+        status=$(jq -r '.status' <<<"$line")
+        [[ "$step" == "${flow_steps[$j]}" ]] \
+            || fail "flow line $((j+1)) step=$step, want ${flow_steps[$j]}"
+        [[ "$status" == "OK" ]] \
+            || { printf '%s\n' "$flow_out" >&2; fail "flow line $((j+1)) status=$status, want OK"; }
+        j=$((j+1))
+    done <<<"$flow_out"
+
+    # Soft-delete the playtest the flow created so the namespace stays
+    # tidy. flow golden-m1 doesn't return the playtestId in stdout (the
+    # NDJSON is for the operator) so we resolve it via list.
+    flow_pt_id=$("$PTH_BIN" --addr "$TARGET_ADDR" --insecure \
+        --namespace "$PTH_E2E_NAMESPACE" --profile smoke-pth playtest list \
+        | jq -r --arg slug "$flow_slug" '.playtests[] | select(.slug == $slug) | .id')
+    if [[ -n "$flow_pt_id" ]]; then
+        "$PTH_BIN" --addr "$TARGET_ADDR" --insecure \
+            --namespace "$PTH_E2E_NAMESPACE" --profile smoke-pth \
+            playtest delete --id "$flow_pt_id" >/dev/null
+    fi
 
     log "pth user delete cleans up the test user (--yes)"
     delete_out=$("$PTH_BIN" --addr "$TARGET_ADDR" --insecure \

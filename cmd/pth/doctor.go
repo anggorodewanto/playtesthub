@@ -81,7 +81,7 @@ func runDoctor(ctx context.Context, stdout, stderr io.Writer, g *Globals, args [
 	// chain is wired. Anything else is a connectivity / config failure.
 	switch st.Code() {
 	case codes.NotFound, codes.InvalidArgument:
-		report.Status = "OK"
+		report.Status = statusOK
 		if err := writeJSONValue(stdout, report); err != nil {
 			fmt.Fprintf(stderr, "doctor: %v\n", err)
 			return exitLocalError
@@ -90,14 +90,14 @@ func runDoctor(ctx context.Context, stdout, stderr io.Writer, g *Globals, args [
 	case codes.OK:
 		// Surprising but not strictly broken — a real playtest could
 		// happen to use the sentinel slug. Treat as OK.
-		report.Status = "OK"
+		report.Status = statusOK
 		if err := writeJSONValue(stdout, report); err != nil {
 			fmt.Fprintf(stderr, "doctor: %v\n", err)
 			return exitLocalError
 		}
 		return exitOK
 	default:
-		report.Status = "FAILED"
+		report.Status = statusFailed
 		writeGRPCError(stderr, rpcErr)
 		_ = writeJSONValue(stdout, report)
 		return exitCodeForGRPC(st.Code())

@@ -20,6 +20,14 @@ const (
 	exitLocalError     = 3 // Flag parse, env, file IO before any RPC.
 )
 
+// Status strings shared between meta-command JSON payloads (`doctor`) and
+// flow-step NDJSON lines (`flow golden-m1`). Centralised so cross-file
+// drift can't introduce subtle case differences.
+const (
+	statusOK     = "OK"
+	statusFailed = "FAILED"
+)
+
 // exitCodeForGRPC maps a gRPC status code to the cli.md §8 exit code.
 // The OK case is exitOK; anything Unavailable/DeadlineExceeded-shaped is
 // exitTransportError; everything else (including Unknown for non-status

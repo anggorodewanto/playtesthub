@@ -1,0 +1,505 @@
+{
+  "schema": "cli-schema.v1",
+  "commands": [
+    {
+      "name": "applicant signup",
+      "milestone": "M1",
+      "description": "Sign up the calling player to a playtest. Requires a player token (cli.md §6.1).",
+      "requiredFlags": [
+        {
+          "name": "--slug",
+          "description": "playtest slug (PRD §5.1 regex ^[a-z0-9-]{3,50}$)",
+          "valueType": "string"
+        },
+        {
+          "name": "--platforms",
+          "description": "comma-separated platforms owned (at least one of STEAM,XBOX,PLAYSTATION,EPIC,OTHER)",
+          "valueType": "csv"
+        }
+      ],
+      "optionalFlags": [
+        {
+          "name": "--dry-run",
+          "description": "print the request JSON and exit without dialling",
+          "valueType": "bool"
+        }
+      ],
+      "example": "pth --profile player applicant signup --slug summer-stress-test --platforms STEAM,XBOX"
+    },
+    {
+      "name": "applicant status",
+      "milestone": "M1",
+      "description": "Show the calling player's applicant row for a playtest (cli.md §6.1).",
+      "requiredFlags": [
+        {
+          "name": "--slug",
+          "description": "playtest slug (PRD §5.1 regex ^[a-z0-9-]{3,50}$)",
+          "valueType": "string"
+        }
+      ],
+      "optionalFlags": [
+        {
+          "name": "--dry-run",
+          "description": "print the request JSON and exit without dialling",
+          "valueType": "bool"
+        }
+      ],
+      "example": "pth --profile player applicant status --slug summer-stress-test"
+    },
+    {
+      "name": "auth login --discord",
+      "milestone": "M1",
+      "description": "Discord-federated login. Browser → loopback → backend ExchangeDiscordCode (cli.md §7.1).",
+      "requiredFlags": null,
+      "optionalFlags": [
+        {
+          "name": "--manual",
+          "description": "skip the loopback listener; prompt for the pasted redirect URL",
+          "valueType": "bool"
+        },
+        {
+          "name": "--no-browser",
+          "description": "do not auto-open the authorize URL",
+          "valueType": "bool"
+        },
+        {
+          "name": "--dry-run",
+          "description": "print authorize/exchange URLs and exit",
+          "valueType": "bool"
+        }
+      ],
+      "example": "pth --namespace mygame auth login --discord"
+    },
+    {
+      "name": "auth login --password",
+      "milestone": "M1",
+      "description": "AGS IAM ROPC grant for native AGS users. Stores the token under --profile (cli.md §7.2).",
+      "requiredFlags": [
+        {
+          "name": "--username",
+          "description": "AGS username",
+          "valueType": "string"
+        }
+      ],
+      "optionalFlags": [
+        {
+          "name": "--password-stdin",
+          "description": "read password from one line on stdin instead of TTY prompt",
+          "valueType": "bool"
+        }
+      ],
+      "example": "pth --namespace mygame --profile admin auth login --password --username admin@example.com --password-stdin \u003cpw.txt"
+    },
+    {
+      "name": "auth logout",
+      "milestone": "M1",
+      "description": "Remove the stored credential for --profile (cli.md §6.1).",
+      "requiredFlags": null,
+      "optionalFlags": null,
+      "example": "pth --profile admin auth logout"
+    },
+    {
+      "name": "auth token",
+      "milestone": "M1",
+      "description": "Print the active bearer token to stdout for piping into curl/grpcurl (cli.md §6.1).",
+      "requiredFlags": null,
+      "optionalFlags": null,
+      "example": "pth --profile admin auth token"
+    },
+    {
+      "name": "auth whoami",
+      "milestone": "M1",
+      "description": "Print {profile, userId, namespace, addr, expiresAt} for the active token. Non-zero exit if missing/expired (cli.md §6.1).",
+      "requiredFlags": null,
+      "optionalFlags": null,
+      "example": "pth --profile admin auth whoami"
+    },
+    {
+      "name": "describe",
+      "milestone": "M1",
+      "description": "Emit the JSON catalogue of every subcommand. Stable schema cli-schema.v1 (cli.md §5, §10).",
+      "requiredFlags": null,
+      "optionalFlags": null,
+      "example": "pth describe"
+    },
+    {
+      "name": "doctor",
+      "milestone": "M1",
+      "description": "Probe the backend with an unauth GetPublicPlaytest sentinel call. Reports gRPC code + round-trip latency (cli.md §5).",
+      "requiredFlags": null,
+      "optionalFlags": null,
+      "example": "pth --addr localhost:6565 doctor"
+    },
+    {
+      "name": "flow golden-m1",
+      "milestone": "M1",
+      "description": "Composite: create-playtest → transition OPEN → signup (synthetic player) → assert PENDING. NDJSON output (cli.md §6.4, §8).",
+      "requiredFlags": [
+        {
+          "name": "--slug",
+          "description": "playtest slug (PRD §5.1 regex ^[a-z0-9-]{3,50}$)",
+          "valueType": "string"
+        },
+        {
+          "name": "--admin-profile",
+          "description": "credential profile for admin steps (create, transition)",
+          "valueType": "string"
+        },
+        {
+          "name": "--player-profile",
+          "description": "credential profile for player steps (signup, status)",
+          "valueType": "string"
+        }
+      ],
+      "optionalFlags": [
+        {
+          "name": "--title",
+          "description": "playtest title (default: 'Playtest \u003cslug\u003e')",
+          "valueType": "string"
+        },
+        {
+          "name": "--platforms",
+          "description": "platforms for both create and signup (default STEAM)",
+          "valueType": "csv"
+        },
+        {
+          "name": "--dry-run",
+          "description": "print every step's request JSON and exit without dialling",
+          "valueType": "bool"
+        }
+      ],
+      "example": "pth --namespace mygame flow golden-m1 --slug e2e-1234 --admin-profile admin --player-profile player"
+    },
+    {
+      "name": "playtest create",
+      "milestone": "M1",
+      "description": "Create a playtest. Admin token required. Mutable fields are PRD-whitelisted (cli.md §6.1, PRD §5.1).",
+      "requiredFlags": [
+        {
+          "name": "--slug",
+          "description": "playtest slug (PRD §5.1 regex ^[a-z0-9-]{3,50}$)",
+          "valueType": "string"
+        },
+        {
+          "name": "--title",
+          "description": "playtest title",
+          "valueType": "string"
+        }
+      ],
+      "optionalFlags": [
+        {
+          "name": "--description",
+          "description": "playtest description",
+          "valueType": "string"
+        },
+        {
+          "name": "--banner-image-url",
+          "description": "banner image URL",
+          "valueType": "string"
+        },
+        {
+          "name": "--platforms",
+          "description": "comma-separated platforms supported",
+          "valueType": "csv"
+        },
+        {
+          "name": "--starts-at",
+          "description": "RFC3339 timestamp",
+          "valueType": "string"
+        },
+        {
+          "name": "--ends-at",
+          "description": "RFC3339 timestamp",
+          "valueType": "string"
+        },
+        {
+          "name": "--nda-required",
+          "description": "set if the playtest requires NDA acceptance",
+          "valueType": "bool"
+        },
+        {
+          "name": "--nda-text",
+          "description": "NDA prose; prefix with @ to read from a file (e.g. @nda.md)",
+          "valueType": "string"
+        },
+        {
+          "name": "--distribution-model",
+          "description": "STEAM_KEYS | AGS_CAMPAIGN (M1: AGS_CAMPAIGN returns Unimplemented)",
+          "valueType": "enum"
+        },
+        {
+          "name": "--initial-code-quantity",
+          "description": "initial code quantity (AGS_CAMPAIGN only)",
+          "valueType": "int"
+        },
+        {
+          "name": "--dry-run",
+          "description": "print the request JSON and exit without dialling",
+          "valueType": "bool"
+        }
+      ],
+      "example": "pth --namespace mygame --profile admin playtest create --slug summer-stress-test --title 'Summer Stress Test' --platforms STEAM"
+    },
+    {
+      "name": "playtest delete",
+      "milestone": "M1",
+      "description": "Soft-delete a playtest (idempotent). Admin token required (cli.md §6.1).",
+      "requiredFlags": [
+        {
+          "name": "--id",
+          "description": "ULID identifier",
+          "valueType": "string"
+        }
+      ],
+      "optionalFlags": [
+        {
+          "name": "--dry-run",
+          "description": "print the request JSON and exit without dialling",
+          "valueType": "bool"
+        }
+      ],
+      "example": "pth --namespace mygame --profile admin playtest delete --id 01J0..."
+    },
+    {
+      "name": "playtest edit",
+      "milestone": "M1",
+      "description": "Edit PRD-whitelisted mutable fields only. Slug + status + distribution-model are immutable post-creation (PRD §5.1).",
+      "requiredFlags": [
+        {
+          "name": "--id",
+          "description": "ULID identifier",
+          "valueType": "string"
+        }
+      ],
+      "optionalFlags": [
+        {
+          "name": "--title",
+          "description": "playtest title",
+          "valueType": "string"
+        },
+        {
+          "name": "--description",
+          "description": "playtest description",
+          "valueType": "string"
+        },
+        {
+          "name": "--banner-image-url",
+          "description": "banner image URL",
+          "valueType": "string"
+        },
+        {
+          "name": "--platforms",
+          "description": "comma-separated platforms",
+          "valueType": "csv"
+        },
+        {
+          "name": "--starts-at",
+          "description": "RFC3339 timestamp",
+          "valueType": "string"
+        },
+        {
+          "name": "--ends-at",
+          "description": "RFC3339 timestamp",
+          "valueType": "string"
+        },
+        {
+          "name": "--nda-required",
+          "description": "NDA required",
+          "valueType": "bool"
+        },
+        {
+          "name": "--nda-text",
+          "description": "NDA prose; @file to load from disk",
+          "valueType": "string"
+        },
+        {
+          "name": "--dry-run",
+          "description": "print the request JSON and exit without dialling",
+          "valueType": "bool"
+        }
+      ],
+      "example": "pth --namespace mygame --profile admin playtest edit --id 01J0... --title 'Updated Title'"
+    },
+    {
+      "name": "playtest get",
+      "milestone": "M1",
+      "description": "Fetch the admin view of a playtest. Admin token required (cli.md §6.1).",
+      "requiredFlags": [
+        {
+          "name": "--id",
+          "description": "ULID identifier",
+          "valueType": "string"
+        }
+      ],
+      "optionalFlags": [
+        {
+          "name": "--dry-run",
+          "description": "print the request JSON and exit without dialling",
+          "valueType": "bool"
+        }
+      ],
+      "example": "pth --namespace mygame --profile admin playtest get --id 01J0..."
+    },
+    {
+      "name": "playtest get-player",
+      "milestone": "M1",
+      "description": "Fetch the player view of a playtest. Player token required (cli.md §6.1).",
+      "requiredFlags": [
+        {
+          "name": "--slug",
+          "description": "playtest slug (PRD §5.1 regex ^[a-z0-9-]{3,50}$)",
+          "valueType": "string"
+        }
+      ],
+      "optionalFlags": [
+        {
+          "name": "--dry-run",
+          "description": "print the request JSON and exit without dialling",
+          "valueType": "bool"
+        }
+      ],
+      "example": "pth --profile player playtest get-player --slug summer-stress-test"
+    },
+    {
+      "name": "playtest get-public",
+      "milestone": "M1",
+      "description": "Fetch the public view of a playtest. --anon implied (cli.md §6.1).",
+      "requiredFlags": [
+        {
+          "name": "--slug",
+          "description": "playtest slug (PRD §5.1 regex ^[a-z0-9-]{3,50}$)",
+          "valueType": "string"
+        }
+      ],
+      "optionalFlags": [
+        {
+          "name": "--dry-run",
+          "description": "print the request JSON and exit without dialling",
+          "valueType": "bool"
+        }
+      ],
+      "example": "pth --addr localhost:6565 playtest get-public --slug summer-stress-test"
+    },
+    {
+      "name": "playtest list",
+      "milestone": "M1",
+      "description": "List all playtests in --namespace. Admin token required (cli.md §6.1).",
+      "requiredFlags": null,
+      "optionalFlags": [
+        {
+          "name": "--dry-run",
+          "description": "print the request JSON and exit without dialling",
+          "valueType": "bool"
+        }
+      ],
+      "example": "pth --namespace mygame --profile admin playtest list"
+    },
+    {
+      "name": "playtest transition",
+      "milestone": "M1",
+      "description": "Drive the playtest status machine (DRAFT → OPEN → CLOSED). Admin token required (cli.md §6.1).",
+      "requiredFlags": [
+        {
+          "name": "--id",
+          "description": "ULID identifier",
+          "valueType": "string"
+        },
+        {
+          "name": "--to",
+          "description": "target status: DRAFT | OPEN | CLOSED",
+          "valueType": "enum"
+        }
+      ],
+      "optionalFlags": [
+        {
+          "name": "--dry-run",
+          "description": "print the request JSON and exit without dialling",
+          "valueType": "bool"
+        }
+      ],
+      "example": "pth --namespace mygame --profile admin playtest transition --id 01J0... --to OPEN"
+    },
+    {
+      "name": "user create",
+      "milestone": "M1",
+      "description": "Create N AGS test users via /iam/v4/admin/.../test_users. Admin token required (cli.md §6.1).",
+      "requiredFlags": null,
+      "optionalFlags": [
+        {
+          "name": "--count",
+          "description": "number of test users to create (1..100, default 1)",
+          "valueType": "int"
+        },
+        {
+          "name": "--country",
+          "description": "ISO3166-1 alpha-2 country code (default US)",
+          "valueType": "string"
+        },
+        {
+          "name": "--dry-run",
+          "description": "print the request JSON and exit without dialling",
+          "valueType": "bool"
+        }
+      ],
+      "example": "pth --namespace mygame --profile admin user create --count 1"
+    },
+    {
+      "name": "user delete",
+      "milestone": "M1",
+      "description": "Delete an AGS user (destructive). Refuses without --yes (cli.md §6.1).",
+      "requiredFlags": [
+        {
+          "name": "--id",
+          "description": "ULID identifier",
+          "valueType": "string"
+        },
+        {
+          "name": "--yes",
+          "description": "skip the destructive-confirm guard",
+          "valueType": "bool"
+        }
+      ],
+      "optionalFlags": [
+        {
+          "name": "--dry-run",
+          "description": "print the request JSON and exit without dialling",
+          "valueType": "bool"
+        }
+      ],
+      "example": "pth --namespace mygame --profile admin user delete --id \u003cuserId\u003e --yes"
+    },
+    {
+      "name": "user login-as",
+      "milestone": "M1",
+      "description": "Password-login as a previously-created test user; stores credential under --profile (cli.md §6.1).",
+      "requiredFlags": [
+        {
+          "name": "--id",
+          "description": "ULID identifier",
+          "valueType": "string"
+        }
+      ],
+      "optionalFlags": [
+        {
+          "name": "--password-stdin",
+          "description": "read password from one line on stdin instead of TTY prompt",
+          "valueType": "bool"
+        },
+        {
+          "name": "--dry-run",
+          "description": "print the request JSON and exit without dialling",
+          "valueType": "bool"
+        }
+      ],
+      "example": "pth --namespace mygame --profile player user login-as --id \u003cuserId\u003e --password-stdin \u003cpw.txt"
+    },
+    {
+      "name": "version",
+      "milestone": "M1",
+      "description": "Print {buildSHA, buildDate, goVersion, protoSchema, protoFileCount} (cli.md §5).",
+      "requiredFlags": null,
+      "optionalFlags": null,
+      "example": "pth version"
+    }
+  ]
+}

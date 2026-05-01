@@ -251,10 +251,12 @@ cmd/pth/
 ├── version.go              # `pth version`
 ├── doctor.go               # `pth doctor`
 ├── describe.go             # `pth describe` catalogue (phase 10.6)
+├── registry.go             # source-of-truth command catalogue (phase 10.6)
 ├── user.go                 # user create/delete/login-as — AGS IAM admin endpoints (phase 10.4)
 ├── playtest.go             # playtest subcommands (10.5 fans this out)
 ├── applicant.go            # applicant subcommands (phase 10.5)
 ├── flow.go                 # `pth flow golden-m1` (phase 10.6)
+├── testdata/describe.golden.json # CI diff-check (phase 10.6)
 └── *_test.go               # unit tests (see below)
 ```
 
