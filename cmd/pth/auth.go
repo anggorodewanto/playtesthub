@@ -19,18 +19,30 @@ import (
 // margin of expiry is refreshed before the dial completes.
 const refreshLeeway = 60 * time.Second
 
+// Login-mode constants persisted as `loginMode` on profileEntry. Kept
+// in one place so dispatch + storage agree on the wire string.
+const (
+	loginModePassword = "password"
+	loginModeDiscord  = "discord"
+)
+
 // authDeps centralises the things `pth auth ...` (and the dial-time
 // refresh path) need but cannot easily look up themselves: a credentials
 // store, an IAM HTTP client, a clock, and a password reader. Tests
 // substitute each one independently.
 type authDeps struct {
-	store          *credStore
-	iam            *iamClient
-	now            func() time.Time
-	readPassword   func(prompt string) (string, error) // interactive TTY prompt
-	stdinPassword  func() (string, error)              // --password-stdin source
-	stdin          io.Reader                           // raw stdin for stdinPassword default
-	loginModeLabel string                              // "password" / "discord" — set per command
+	store         *credStore
+	iam           *iamClient
+	now           func() time.Time
+	readPassword  func(prompt string) (string, error) // interactive TTY prompt
+	stdinPassword func() (string, error)              // --password-stdin source
+	stdin         io.Reader                           // raw stdin for stdinPassword default
+
+	// discordDepsFactory wires the Discord-flow seams. Defaults to
+	// defaultDiscordDeps; tests substitute a stub. Held as a factory (not
+	// a built struct) so the env snapshot used at runAuth() entry feeds
+	// every call without a global.
+	discordDepsFactory func(getenv envSnapshot) (*discordDeps, error)
 }
 
 // defaultAuthDeps wires the production seams: filesystem store at
@@ -56,6 +68,9 @@ func defaultAuthDeps(getenv envSnapshot) (*authDeps, error) {
 		readPassword:  readPasswordFromTTY,
 		stdinPassword: func() (string, error) { return readSingleLine(os.Stdin) },
 		stdin:         os.Stdin,
+	}
+	deps.discordDepsFactory = func(getenv envSnapshot) (*discordDeps, error) {
+		return defaultDiscordDeps(deps, getenv)
 	}
 	return deps, nil
 }
@@ -92,7 +107,7 @@ func runAuth(ctx context.Context, stdout, stderr io.Writer, g *Globals, args []s
 	action, rest := args[0], args[1:]
 	switch action {
 	case "login":
-		return runAuthLogin(ctx, stdout, stderr, g, rest, deps)
+		return runAuthLogin(ctx, stdout, stderr, g, rest, deps, getenv)
 	case "logout":
 		return runAuthLogout(stdout, stderr, g, rest, deps)
 	case "whoami":
@@ -105,22 +120,69 @@ func runAuth(ctx context.Context, stdout, stderr io.Writer, g *Globals, args []s
 	}
 }
 
-func runAuthLogin(ctx context.Context, stdout, stderr io.Writer, g *Globals, args []string, deps *authDeps) int {
-	fs := flag.NewFlagSet("auth login", flag.ContinueOnError)
+// runAuthLogin classifies the login mode from args (--password vs --discord)
+// and dispatches into the matching sub-flow. The mode flags are stripped
+// from the forwarded args so each sub-flow's own flagset doesn't trip on
+// them. Mutually exclusive: passing both is a flag error.
+func runAuthLogin(ctx context.Context, stdout, stderr io.Writer, g *Globals, args []string, deps *authDeps, getenv envSnapshot) int {
+	mode, rest := classifyLoginMode(args)
+	switch mode {
+	case loginModeDiscord:
+		if deps.discordDepsFactory == nil {
+			fmt.Fprintln(stderr, "auth login --discord: discord deps factory not wired")
+			return exitLocalError
+		}
+		ddeps, err := deps.discordDepsFactory(getenv)
+		if err != nil {
+			fmt.Fprintf(stderr, "auth login --discord: %v\n", err)
+			return exitLocalError
+		}
+		return runAuthLoginDiscord(ctx, stdout, stderr, g, rest, ddeps)
+	case loginModePassword:
+		return runAuthLoginPassword(ctx, stdout, stderr, g, rest, deps)
+	case "both":
+		fmt.Fprintln(stderr, "auth login: --discord and --password are mutually exclusive")
+		return exitLocalError
+	default:
+		fmt.Fprintln(stderr, "auth login: one of --password or --discord is required")
+		return exitLocalError
+	}
+}
+
+// classifyLoginMode walks args, peels the mode flags (--password,
+// --discord) and returns ("password" | "discord" | "both" | ""), plus
+// the remaining args for the chosen sub-flow's flagset to parse.
+func classifyLoginMode(args []string) (mode string, rest []string) {
+	rest = make([]string, 0, len(args))
+	var seenPassword, seenDiscord bool
+	for _, a := range args {
+		switch a {
+		case "--" + loginModePassword:
+			seenPassword = true
+		case "--" + loginModeDiscord:
+			seenDiscord = true
+		default:
+			rest = append(rest, a)
+		}
+	}
+	switch {
+	case seenPassword && seenDiscord:
+		return "both", rest
+	case seenPassword:
+		return loginModePassword, rest
+	case seenDiscord:
+		return loginModeDiscord, rest
+	default:
+		return "", rest
+	}
+}
+
+func runAuthLoginPassword(ctx context.Context, stdout, stderr io.Writer, g *Globals, args []string, deps *authDeps) int {
+	fs := flag.NewFlagSet("auth login --password", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	password := fs.Bool("password", false, "use AGS IAM password (ROPC) grant")
-	discord := fs.Bool("discord", false, "use Discord-federated login (deferred to phase 10.3)")
-	username := fs.String("username", "", "AGS username (required for --password)")
+	username := fs.String("username", "", "AGS username (required)")
 	stdinPw := fs.Bool("password-stdin", false, "read password from one line on stdin instead of TTY prompt")
 	if err := fs.Parse(args); err != nil {
-		return exitLocalError
-	}
-	if *discord {
-		fmt.Fprintln(stderr, "auth login --discord: not implemented until phase 10.3")
-		return exitLocalError
-	}
-	if !*password {
-		fmt.Fprintln(stderr, "auth login: --password is required (Discord login lands in phase 10.3)")
 		return exitLocalError
 	}
 	if *username == "" {
@@ -148,7 +210,7 @@ func runAuthLogin(ctx context.Context, stdout, stderr io.Writer, g *Globals, arg
 		Addr:         g.Addr,
 		Namespace:    g.Namespace,
 		UserID:       tok.UserID,
-		LoginMode:    "password",
+		LoginMode:    loginModePassword,
 		AccessToken:  tok.AccessToken,
 		RefreshToken: tok.RefreshToken,
 		ExpiresAt:    tok.ExpiresAt,
@@ -160,7 +222,7 @@ func runAuthLogin(ctx context.Context, stdout, stderr io.Writer, g *Globals, arg
 		"profile":   g.Profile,
 		"userId":    tok.UserID,
 		"namespace": g.Namespace,
-		"loginMode": "password",
+		"loginMode": loginModePassword,
 		"expiresAt": tok.ExpiresAt.UTC().Format(time.RFC3339),
 	}); err != nil {
 		fmt.Fprintf(stderr, "auth login: %v\n", err)

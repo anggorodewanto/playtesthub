@@ -77,10 +77,16 @@ func (f *authFixture) setIAMHandler(h http.HandlerFunc) {
 	f.t.Cleanup(f.srv.Close)
 }
 
+// nilEnv is a typed-nil envSnapshot. Password-path tests never reach the
+// discord branch (which is the only code path that consults env), so a
+// nil snapshot is safe; assertion-style passing here guards against
+// silent signature drift.
+var nilEnv envSnapshot = func(string) (string, bool) { return "", false }
+
 func TestRunAuthLoginPasswordHappyPath(t *testing.T) {
 	f := newAuthFixture(t)
 	stdout, stderr := &bytes.Buffer{}, &bytes.Buffer{}
-	code := runAuthLogin(context.Background(), stdout, stderr, f.g, []string{"--password", "--username", "alice"}, f.deps)
+	code := runAuthLogin(context.Background(), stdout, stderr, f.g, []string{"--password", "--username", "alice"}, f.deps, nilEnv)
 	if code != exitOK {
 		t.Fatalf("exit=%d stderr=%s", code, stderr.String())
 	}
@@ -107,7 +113,7 @@ func TestRunAuthLoginRequiresNamespace(t *testing.T) {
 	f := newAuthFixture(t)
 	f.g.Namespace = ""
 	stdout, stderr := &bytes.Buffer{}, &bytes.Buffer{}
-	code := runAuthLogin(context.Background(), stdout, stderr, f.g, []string{"--password", "--username", "alice"}, f.deps)
+	code := runAuthLogin(context.Background(), stdout, stderr, f.g, []string{"--password", "--username", "alice"}, f.deps, nilEnv)
 	if code != exitLocalError {
 		t.Fatalf("exit=%d, want %d (stderr=%s)", code, exitLocalError, stderr.String())
 	}
@@ -119,7 +125,7 @@ func TestRunAuthLoginRequiresNamespace(t *testing.T) {
 func TestRunAuthLoginRequiresPasswordFlag(t *testing.T) {
 	f := newAuthFixture(t)
 	stdout, stderr := &bytes.Buffer{}, &bytes.Buffer{}
-	code := runAuthLogin(context.Background(), stdout, stderr, f.g, []string{"--username", "alice"}, f.deps)
+	code := runAuthLogin(context.Background(), stdout, stderr, f.g, []string{"--username", "alice"}, f.deps, nilEnv)
 	if code != exitLocalError {
 		t.Fatalf("exit=%d, want %d", code, exitLocalError)
 	}
@@ -135,7 +141,7 @@ func TestRunAuthLoginInvalidGrantExitsClientError(t *testing.T) {
 		})
 	})
 	stdout, stderr := &bytes.Buffer{}, &bytes.Buffer{}
-	code := runAuthLogin(context.Background(), stdout, stderr, f.g, []string{"--password", "--username", "alice"}, f.deps)
+	code := runAuthLogin(context.Background(), stdout, stderr, f.g, []string{"--password", "--username", "alice"}, f.deps, nilEnv)
 	if code != exitClientError {
 		t.Fatalf("exit=%d want %d", code, exitClientError)
 	}
@@ -157,7 +163,7 @@ func TestRunAuthLoginPasswordStdinReadsFromStdinHook(t *testing.T) {
 		})
 	})
 	stdout, stderr := &bytes.Buffer{}, &bytes.Buffer{}
-	code := runAuthLogin(context.Background(), stdout, stderr, f.g, []string{"--password", "--username", "alice", "--password-stdin"}, f.deps)
+	code := runAuthLogin(context.Background(), stdout, stderr, f.g, []string{"--password", "--username", "alice", "--password-stdin"}, f.deps, nilEnv)
 	if code != exitOK {
 		t.Fatalf("exit=%d stderr=%s", code, stderr.String())
 	}
@@ -405,14 +411,42 @@ func TestRunAuthLoginNoArgsActionRequired(t *testing.T) {
 	}
 }
 
-func TestRunAuthDiscordIsDeferredToPhase103(t *testing.T) {
+// TestRunAuthLoginDiscordRoutes verifies the dispatch wiring: passing
+// --discord routes through deps.discordDepsFactory rather than the
+// password flow. Detailed Discord behaviour lives in discord_test.go;
+// this test exists so a refactor that drops the dispatch fails loudly.
+func TestRunAuthLoginDiscordRoutes(t *testing.T) {
+	f := newAuthFixture(t)
+	called := false
+	f.deps.discordDepsFactory = func(envSnapshot) (*discordDeps, error) {
+		called = true
+		// Returning nil deps with no error would crash runAuthLoginDiscord;
+		// return a minimal stub that fails the env-var precheck so the test
+		// asserts dispatch without exercising the loopback flow.
+		return &discordDeps{authDeps: f.deps}, nil
+	}
+	stdout, stderr := &bytes.Buffer{}, &bytes.Buffer{}
+	code := runAuthLogin(context.Background(), stdout, stderr, f.g, []string{"--discord"}, f.deps, nilEnv)
+	if !called {
+		t.Fatalf("discordDepsFactory not called; stderr=%s", stderr.String())
+	}
+	// runAuthLoginDiscord should bail on missing PTH_DISCORD_CLIENT_ID.
+	if code != exitLocalError {
+		t.Fatalf("code=%d stderr=%s", code, stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "PTH_DISCORD_CLIENT_ID") {
+		t.Errorf("stderr=%s", stderr.String())
+	}
+}
+
+func TestRunAuthLoginDiscordAndPasswordMutualExclusion(t *testing.T) {
 	f := newAuthFixture(t)
 	stdout, stderr := &bytes.Buffer{}, &bytes.Buffer{}
-	code := runAuthLogin(context.Background(), stdout, stderr, f.g, []string{"--discord"}, f.deps)
+	code := runAuthLogin(context.Background(), stdout, stderr, f.g, []string{"--discord", "--password"}, f.deps, nilEnv)
 	if code != exitLocalError {
 		t.Fatalf("code=%d", code)
 	}
-	if !strings.Contains(stderr.String(), "phase 10.3") {
+	if !strings.Contains(stderr.String(), "mutually exclusive") {
 		t.Errorf("stderr=%s", stderr.String())
 	}
 }
@@ -446,7 +480,7 @@ func TestRunAuthLoginEmptyPasswordIsLocalError(t *testing.T) {
 	f := newAuthFixture(t)
 	f.pwStdin = ""
 	stdout, stderr := &bytes.Buffer{}, &bytes.Buffer{}
-	code := runAuthLogin(context.Background(), stdout, stderr, f.g, []string{"--password", "--username", "alice", "--password-stdin"}, f.deps)
+	code := runAuthLogin(context.Background(), stdout, stderr, f.g, []string{"--password", "--username", "alice", "--password-stdin"}, f.deps, nilEnv)
 	if code != exitLocalError {
 		t.Fatalf("code=%d", code)
 	}

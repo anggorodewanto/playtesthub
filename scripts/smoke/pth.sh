@@ -150,6 +150,33 @@ dry_out=$("$PTH_BIN" --addr "doesnotresolve.invalid:9" playtest get-public --slu
 [[ "$(jq -r '.slug' <<<"$dry_out")" == "demo" ]] \
     || fail "dry-run output missing slug: $dry_out"
 
+# --- pth auth login --discord --no-browser --dry-run -----------------
+# Phase 10.3 (docs/STATUS.md): asserts CLI URL construction + env-var
+# plumbing for the Discord-direct → backend ExchangeDiscordCode flow
+# without hitting Discord, AGS, or the backend. Live login is browser-
+# bound and can't be exercised headlessly.
+log "pth auth login --discord --no-browser --dry-run prints expected JSON"
+discord_dry=$(
+    PTH_DISCORD_CLIENT_ID="smoke-discord-client" \
+    PTH_DISCORD_LOOPBACK_PORT=14565 \
+    PTH_BACKEND_REST_URL="https://backend.smoke.invalid" \
+    "$PTH_BIN" --namespace smoke --profile smoke-discord-dry \
+        auth login --discord --no-browser --dry-run
+)
+[[ "$(jq -r '.mode' <<<"$discord_dry")" == "loopback" ]] \
+    || fail "discord dry-run mode=$(jq -r '.mode' <<<"$discord_dry"); want loopback. out=$discord_dry"
+[[ "$(jq -r '.redirectUri' <<<"$discord_dry")" == "http://127.0.0.1:14565/callback" ]] \
+    || fail "discord dry-run redirectUri mismatch: $discord_dry"
+[[ "$(jq -r '.exchangeUrl' <<<"$discord_dry")" == "https://backend.smoke.invalid/v1/player/discord/exchange" ]] \
+    || fail "discord dry-run exchangeUrl mismatch: $discord_dry"
+authorize_url=$(jq -r '.authorizeUrl' <<<"$discord_dry")
+[[ "$authorize_url" == *"discord.com/oauth2/authorize"* ]] \
+    || fail "discord dry-run authorizeUrl missing discord.com/oauth2/authorize: $authorize_url"
+[[ "$authorize_url" == *"client_id=smoke-discord-client"* ]] \
+    || fail "discord dry-run authorizeUrl missing client_id: $authorize_url"
+[[ "$authorize_url" == *"state="* ]] \
+    || fail "discord dry-run authorizeUrl missing state: $authorize_url"
+
 # --- pth auth login --password (gated on PTH_E2E_* secrets) -----------
 # Phase 10.2 spec (docs/STATUS.md): probe ROPC + whoami + token + logout
 # round-trip when admin creds + IAM env are present. Skipped when any

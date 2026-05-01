@@ -95,6 +95,37 @@ DISCORD_BOT_TOKEN=<bot token, separate from OAuth app — used by pkg/discord fo
 
 `discordClientId` is the **Discord** OAuth client ID, not an AGS IAM client. `iamBaseUrl` is no longer used by the Discord exchange path — it's wired through for SDK / observability code that still references it.
 
+### 6. CLI loopback origin (`pth auth login --discord`)
+
+The `pth` CLI's `auth login --discord` flow (cli.md §7.1) runs Discord OAuth in the operator's browser, receives the authorization code on a **loopback HTTP listener**, and POSTs the code to the backend's `Player.ExchangeDiscordCode` RPC. Architecturally identical to the player flow — the same "three URLs that agree byte-for-byte" constraint applies — but the canonical origin shifts from `${PLAYER_ORIGIN}` to a fixed loopback URL.
+
+Default CLI loopback origin: `http://127.0.0.1:14565`. Override via `PTH_DISCORD_LOOPBACK_PORT`. The port is **fixed**, not ephemeral, because Discord's redirect-URI allowlist is byte-exact — see § Three URLs that must agree byte-for-byte.
+
+To enable CLI Discord login, repeat steps 1 and 2 with the CLI value:
+
+1. **Discord developer portal → OAuth2 → Redirects** — add `http://127.0.0.1:14565/callback` alongside the existing player entries.
+2. **AGS Admin Portal → Login Methods → Platforms → Discord → RedirectUri** — set this to `http://127.0.0.1:14565/callback`.
+
+Step 2 is the operationally inconvenient one. **AGS allows exactly one `RedirectUri` per Discord platform credential per namespace.** That implies a hard choice per AGS namespace:
+
+| You want | Solution |
+| --- | --- |
+| Only player Discord login working | Set RedirectUri to `${PLAYER_ORIGIN}/callback`. Don't run `pth auth login --discord`; use `pth auth login --password` against a `pth user create`'d native user instead. |
+| Only CLI Discord login working | Set RedirectUri to `http://127.0.0.1:14565/callback`. The player web app's Discord login will fail until reverted. Useful for solo CLI-driven dev. |
+| Both working in the same namespace | Not supported by a single AGS Discord credential. Options: (a) two AGS namespaces, each with its own Discord platform credential, or (b) two Discord OAuth applications — one for player, one for CLI — wired into separate AGS configs. Most self-hosted dev setups pick (a) by convention: a personal `dev-cli` namespace for CLI smoke + `dev-player` for browser testing. |
+
+The e2e test suite (M1 phase 11) does **not** need this — it uses password-grant native users (cli.md §7.4). CLI Discord login is purely a developer affordance.
+
+CLI env vars required for `pth auth login --discord`:
+
+```sh
+PTH_DISCORD_CLIENT_ID=<Discord Client ID from step 1>
+PTH_DISCORD_LOOPBACK_PORT=14565   # default; override only if 14565 is occupied locally
+PTH_BACKEND_REST_URL=https://<your-deployed-backend>/<base-path>  # HTTPS gateway base; the exchange POST goes here, not the gRPC --addr
+```
+
+Verification: after registering the redirect URI in both places, run `pth auth login --discord --no-browser --dry-run`. CLI prints the authorize URL + listener address + exchange URL as JSON and exits 0 — no network call. Then run `pth auth login --discord` for real, complete Discord login in the browser, and verify `pth auth whoami` returns the federated `userId` (matches the AGS JWT `sub` after the platform-token grant auto-creates the Justice account). Failure modes mirror the player flow — see § Common failure modes.
+
 ## Three URLs that must agree byte-for-byte
 
 The `redirect_uri` value flows through three independent systems. All three must be identical strings — character for character, including scheme, port, and absence of trailing slash. Get all three byte-equal and the flow works; miss any one and Discord rejects with a specific error documented under [§ Common failure modes](#common-failure-modes).

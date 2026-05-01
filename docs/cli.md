@@ -147,19 +147,38 @@ Each flow takes `--admin-token` and `--player-token` flags (or their `--fake-jwt
 
 ### 7.1 Discord-federated login (`pth auth login --discord`)
 
-Simulates the player-side browser flow end-to-end. Used when a human wants to exercise playtesthub as a real Discord-federated player, or when validating that the federation path itself works.
+Mirrors the player-side browser flow byte-for-byte: Discord OAuth in the user's browser → CLI loopback receives the Discord authorization code → CLI POSTs the code to the backend's `Player.ExchangeDiscordCode` RPC → backend runs the AGS platform-token grant and returns AGS access + refresh tokens. Used when a human wants to exercise playtesthub as a real Discord-federated player, or when validating the federation path itself works.
 
-1. CLI picks a random free port and starts a one-shot loopback HTTP listener at `http://127.0.0.1:<port>/callback`.
-2. CLI constructs the AGS IAM authorize URL for the playtesthub IAM client with `platform=discord`, `redirect_uri=http://127.0.0.1:<port>/callback`, a random `state`, and PKCE.
-3. CLI prints the URL to stderr and — unless `--no-browser` — attempts to open it via `xdg-open` / `open` / `start`. User logs in via Discord; AGS IAM federates the identity and redirects to the loopback URL with an auth code.
-4. Loopback handler exchanges the code for an AGS access token, validates `state` + PKCE, renders a "you can close this tab" page, then shuts down.
-5. CLI writes the token + refresh token to the credentials store (§7.3).
+This flow does **not** hit AGS IAM's `/iam/v3/oauth/authorize` endpoint. STATUS.md M1 phase 9.2 + 9.3 documented that the AGS authorization-code grant fails with `invalid_grant: justice platform account not found` on shared-cloud game namespaces because that codepath skips Justice-platform-account autocreation. The platform-token grant (which `Player.ExchangeDiscordCode` wraps) is the one AGS path that works for player-side Discord login on shared cloud.
 
-`--manual` bypasses the loopback listener: CLI prints the URL, user logs in, user copy-pastes the final redirect URL (or just the `code` param) back into the CLI prompt. Use this when the user can't hit localhost from their browser (remote dev box, restricted network).
+Sequence:
 
-`--no-browser` prints the URL and waits for callback but does not auto-open — useful over SSH.
+1. CLI binds a one-shot loopback HTTP listener at `http://127.0.0.1:<PTH_DISCORD_LOOPBACK_PORT>/callback` (default port `14565`). The port is **fixed** rather than ephemeral — see "Setup requirement" below for why.
+2. CLI constructs the **Discord** OAuth authorize URL: `https://discord.com/oauth2/authorize?response_type=code&client_id=<PTH_DISCORD_CLIENT_ID>&redirect_uri=http://127.0.0.1:<port>/callback&state=<random>&scope=identify+email`.
+3. CLI prints the URL to stderr and — unless `--no-browser` — opens it via `xdg-open` / `open` / `start`. User authenticates with Discord; Discord redirects to the loopback URL with `?code=...&state=...`.
+4. Loopback handler validates `state`, then POSTs `{"code": "...", "redirect_uri": "http://127.0.0.1:<port>/callback"}` to `<PTH_BACKEND_REST_URL>/v1/player/discord/exchange` (the grpc-gateway REST surface — gRPC's native port can't carry the unauth REST mapping). Backend runs the AGS platform-token grant and returns `{access_token, refresh_token, expires_in, token_type}`.
+5. CLI renders a "you can close this tab" page, shuts down the listener, writes the AGS tokens + a synthetic `userId` (decoded from the JWT `sub` claim) to the credentials store with `loginMode="discord"` (§7.3).
 
-**Setup requirement**: register **`http://127.0.0.1/callback`** (no port) as an allowed redirect URI on the playtesthub IAM client. AGS IAM's redirect-URI matcher (`justice-iam-service/pkg/oauth/model/utils.go`) treats loopback hosts (`localhost`, `127.0.0.1`, `[::1]`, `0.0.0.0`) specially: **port is ignored and http/https are interchangeable** — one registration covers every ephemeral port the CLI picks. Callout lives in the README "Dev onboarding" section (PRD §4.2). `--manual` mode uses the same IAM-client config; the pasted redirect URL still has to match that registered pattern.
+`--manual` bypasses the loopback listener: CLI prints the Discord authorize URL, user logs in in any browser, user copy-pastes the final redirect URL (or just the `code` param) back into the CLI prompt. CLI then performs steps 4–5. Use this when the user can't hit `127.0.0.1:14565` from their browser (remote dev box, port already in use, restricted network).
+
+`--no-browser` prints the URL and waits for callback but does not auto-open — useful over SSH with browser-on-laptop port forwarding.
+
+`--dry-run` prints the constructed authorize URL + listener address + exchange URL to stdout (one JSON object) and exits 0 without binding the listener or POSTing anything. Establishes the pattern reused by every other subcommand for offline introspection.
+
+**Required env vars** (no global flag equivalents — CLI-only secret-of-config that the rest of the surface doesn't need):
+
+| Env var | Purpose |
+| --- | --- |
+| `PTH_DISCORD_CLIENT_ID` | The **Discord** OAuth Client ID (public). Same value the player Vite bundle reads from `player/public/config.json` as `discordClientId`. |
+| `PTH_DISCORD_LOOPBACK_PORT` | Port the loopback listener binds to. Default `14565`. Must match the value registered on Discord + AGS Admin Portal — see below. |
+| `PTH_BACKEND_REST_URL` | HTTPS base URL of the backend's grpc-gateway (e.g. `https://<ags-host>/ext-<ns>-<app>`). The exchange POST goes here, not the gRPC `--addr`. |
+
+**Setup requirement**: register **`http://127.0.0.1:14565/callback`** (or whatever fixed port `PTH_DISCORD_LOOPBACK_PORT` resolves to) as an allowed redirect URI in **two** places:
+
+1. **Discord developer portal → OAuth2 → Redirects**. Discord matches byte-for-byte including port — random ephemeral ports cannot work here. The fixed-port choice exists specifically to make this allowlist a one-time operator step.
+2. **AGS Admin Portal → Login Methods → Platforms → Discord → RedirectUri**. AGS forwards this exact value to Discord's `/oauth2/token` when redeeming the code; mismatch → `invalid_grant: Invalid "redirect_uri" in request.` See `docs/runbooks/setup-ags-discord.md` § "Three URLs that must agree byte-for-byte" — the same constraint that governs the player flow applies here, and the implication is the same: **one Discord-platform credential per redirect URI per AGS tenant**. Operators who want Discord login to work for both the player web app *and* the CLI need either two AGS namespaces (each with its own Discord platform credential) or two Discord OAuth applications targeting one AGS tenant via separate platform configs.
+
+Procedure documented in `docs/runbooks/setup-ags-discord.md` § "CLI loopback origin (`pth auth login --discord`)". `--manual` mode is governed by the same allowlist constraints — the pasted redirect URL still has to match a registered value.
 
 ### 7.2 Password login (`pth auth login --password`)
 
@@ -223,24 +242,19 @@ Lives at `cmd/pth/`. This is the first `cmd/` dir in the tree — the template i
 ```
 cmd/pth/
 ├── main.go                 # flag parsing + dispatch
-├── auth/
-│   ├── discord.go          # loopback OAuth + --manual paste flow
-│   ├── password.go         # AGS IAM ROPC grant
-│   ├── store.go            # credentials.json read/write + profile selection
-│   └── refresh.go          # refresh-token rotation
+├── globals.go              # global-flag parser + dial-time bearer resolution
+├── auth.go                 # `pth auth …` subcommand dispatcher (login/logout/whoami/token)
+├── credstore.go            # credentials.json read/write + profile selection
+├── iamclient.go            # AGS IAM ROPC + refresh-token grants
+├── discord.go              # Discord-direct → backend ExchangeDiscordCode flow + --manual
 ├── output.go               # JSON/NDJSON writers, exit-code mapping
-├── describe.go             # `pth describe` catalogue
-├── domain/
-│   ├── user.go             # user create/delete/login-as — AGS IAM admin endpoints
-│   ├── playtest.go         # playtest subcommands
-│   ├── applicant.go
-│   ├── code.go
-│   ├── survey.go
-│   └── audit.go
-├── flow/
-│   ├── golden_m1.go
-│   ├── golden_m2.go
-│   └── golden_m3.go
+├── version.go              # `pth version`
+├── doctor.go               # `pth doctor`
+├── describe.go             # `pth describe` catalogue (phase 10.6)
+├── user.go                 # user create/delete/login-as — AGS IAM admin endpoints (phase 10.4)
+├── playtest.go             # playtest subcommands (10.5 fans this out)
+├── applicant.go            # applicant subcommands (phase 10.5)
+├── flow.go                 # `pth flow golden-m1` (phase 10.6)
 └── *_test.go               # unit tests (see below)
 ```
 
