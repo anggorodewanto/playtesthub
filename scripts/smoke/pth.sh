@@ -216,6 +216,98 @@ set -e
 grep -q -- '--yes' /tmp/pth-user-delete-stderr \
     || { cat /tmp/pth-user-delete-stderr >&2; fail "user delete error message did not mention --yes"; }
 
+# --- pth playtest + applicant (dry-run; unconditional) ----------------
+# Phase 10.5 (docs/STATUS.md): every M1 single-RPC wrapper exposes
+# --dry-run so an agent can validate request shape without committing
+# the action. The dry-run output is the protojson encoding of the
+# request body; the request fields use proto names (snake_case).
+log "pth playtest get-player --dry-run"
+gpl_dry=$("$PTH_BIN" --addr "$TARGET_ADDR" --insecure playtest get-player --slug demo --dry-run)
+[[ "$(jq -r '.slug' <<<"$gpl_dry")" == "demo" ]] \
+    || fail "playtest get-player dry-run slug mismatch: $gpl_dry"
+
+log "pth playtest get --dry-run"
+adm_dry=$("$PTH_BIN" --namespace smoke playtest get --id p-smoke --dry-run)
+[[ "$(jq -r '.namespace' <<<"$adm_dry")" == "smoke" ]] \
+    || fail "playtest get dry-run namespace mismatch: $adm_dry"
+[[ "$(jq -r '.playtest_id' <<<"$adm_dry")" == "p-smoke" ]] \
+    || fail "playtest get dry-run playtest_id mismatch: $adm_dry"
+
+log "pth playtest list --dry-run"
+list_dry=$("$PTH_BIN" --namespace smoke playtest list --dry-run)
+[[ "$(jq -r '.namespace' <<<"$list_dry")" == "smoke" ]] \
+    || fail "playtest list dry-run namespace mismatch: $list_dry"
+
+log "pth playtest create --dry-run renders the full body"
+create_dry=$("$PTH_BIN" --namespace smoke playtest create \
+    --slug demo-01 --title "Demo" --description "d" \
+    --platforms STEAM,XBOX \
+    --starts-at 2026-05-01T12:00:00Z --ends-at 2026-06-01T12:00:00Z \
+    --nda-required --nda-text "raw nda" \
+    --distribution-model STEAM_KEYS \
+    --dry-run)
+[[ "$(jq -r '.slug' <<<"$create_dry")" == "demo-01" ]] \
+    || fail "playtest create dry-run slug mismatch: $create_dry"
+[[ "$(jq -r '.distribution_model' <<<"$create_dry")" == "DISTRIBUTION_MODEL_STEAM_KEYS" ]] \
+    || fail "playtest create dry-run distribution_model wrong: $create_dry"
+[[ "$(jq -r '.platforms | length' <<<"$create_dry")" == "2" ]] \
+    || fail "playtest create dry-run platforms length wrong: $create_dry"
+
+log "pth playtest edit --dry-run"
+edit_dry=$("$PTH_BIN" --namespace smoke playtest edit --id p-smoke --title "New" --dry-run)
+[[ "$(jq -r '.playtest_id' <<<"$edit_dry")" == "p-smoke" ]] \
+    || fail "playtest edit dry-run playtest_id mismatch: $edit_dry"
+[[ "$(jq -r '.title' <<<"$edit_dry")" == "New" ]] \
+    || fail "playtest edit dry-run title mismatch: $edit_dry"
+# Edit must reject immutable flags client-side.
+log "pth playtest edit rejects --slug client-side"
+set +e
+"$PTH_BIN" --namespace smoke playtest edit --id p-smoke --slug new-slug --dry-run >/dev/null 2>/tmp/pth-edit-stderr
+edit_immut_exit=$?
+set -e
+[[ $edit_immut_exit -eq 3 ]] \
+    || { cat /tmp/pth-edit-stderr >&2; fail "playtest edit --slug exit=$edit_immut_exit, want 3"; }
+grep -q "immutable" /tmp/pth-edit-stderr \
+    || { cat /tmp/pth-edit-stderr >&2; fail "playtest edit error did not name immutability"; }
+
+log "pth playtest delete --dry-run"
+del_dry=$("$PTH_BIN" --namespace smoke playtest delete --id p-smoke --dry-run)
+[[ "$(jq -r '.playtest_id' <<<"$del_dry")" == "p-smoke" ]] \
+    || fail "playtest delete dry-run playtest_id mismatch: $del_dry"
+
+log "pth playtest transition --dry-run normalizes short status"
+trans_dry=$("$PTH_BIN" --namespace smoke playtest transition --id p-smoke --to OPEN --dry-run)
+[[ "$(jq -r '.target_status' <<<"$trans_dry")" == "PLAYTEST_STATUS_OPEN" ]] \
+    || fail "playtest transition dry-run target_status mismatch: $trans_dry"
+
+log "pth playtest transition rejects unknown status"
+set +e
+"$PTH_BIN" --namespace smoke playtest transition --id p-smoke --to ARCHIVED --dry-run >/dev/null 2>/tmp/pth-trans-stderr
+trans_bad_exit=$?
+set -e
+[[ $trans_bad_exit -eq 3 ]] \
+    || { cat /tmp/pth-trans-stderr >&2; fail "playtest transition ARCHIVED exit=$trans_bad_exit, want 3"; }
+
+log "pth applicant signup --dry-run"
+sign_dry=$("$PTH_BIN" applicant signup --slug demo-01 --platforms STEAM --dry-run)
+[[ "$(jq -r '.slug' <<<"$sign_dry")" == "demo-01" ]] \
+    || fail "applicant signup dry-run slug mismatch: $sign_dry"
+[[ "$(jq -r '.platforms[0]' <<<"$sign_dry")" == "PLATFORM_STEAM" ]] \
+    || fail "applicant signup dry-run platforms[0] mismatch: $sign_dry"
+
+log "pth applicant signup requires --platforms"
+set +e
+"$PTH_BIN" applicant signup --slug demo-01 --dry-run >/dev/null 2>/tmp/pth-sign-stderr
+sign_bad_exit=$?
+set -e
+[[ $sign_bad_exit -eq 3 ]] \
+    || { cat /tmp/pth-sign-stderr >&2; fail "applicant signup without --platforms exit=$sign_bad_exit, want 3"; }
+
+log "pth applicant status --dry-run"
+status_dry=$("$PTH_BIN" applicant status --slug demo-01 --dry-run)
+[[ "$(jq -r '.slug' <<<"$status_dry")" == "demo-01" ]] \
+    || fail "applicant status dry-run slug mismatch: $status_dry"
+
 # --- pth auth login --password (gated on PTH_E2E_* secrets) -----------
 # Phase 10.2 spec (docs/STATUS.md): probe ROPC + whoami + token + logout
 # round-trip when admin creds + IAM env are present. Skipped when any
@@ -290,6 +382,52 @@ else
         || fail "user login-as userId mismatch: $login_as_out"
     [[ "$(jq -r '.username' <<<"$login_as_out")" == "$test_username" ]] \
         || fail "user login-as username mismatch: $login_as_out"
+
+    # --- playtest + applicant round-trip (phase 10.5) -----------------
+    # admin (smoke-pth) creates a playtest, lists, transitions to OPEN
+    # so it's player-visible; then the player profile (smoke-test-$id)
+    # signs up and observes PENDING; admin soft-deletes. Slug is
+    # uniquified per the cli.md §11 strategy so a failed teardown does
+    # not poison the next run against the same namespace.
+    smoke_slug="pt-$(date +%s)-$$"
+    log "pth playtest create as admin (slug=$smoke_slug)"
+    pt_create_out=$("$PTH_BIN" --addr "$TARGET_ADDR" --insecure \
+        --namespace "$PTH_E2E_NAMESPACE" --profile smoke-pth \
+        playtest create --slug "$smoke_slug" --title "Smoke $smoke_slug" \
+        --platforms STEAM --distribution-model STEAM_KEYS)
+    smoke_playtest_id=$(jq -r '.playtest.id' <<<"$pt_create_out")
+    [[ -n "$smoke_playtest_id" && "$smoke_playtest_id" != "null" ]] \
+        || fail "playtest create: missing id: $pt_create_out"
+
+    log "pth playtest list includes the new playtest"
+    list_out=$("$PTH_BIN" --addr "$TARGET_ADDR" --insecure \
+        --namespace "$PTH_E2E_NAMESPACE" --profile smoke-pth playtest list)
+    jq -e --arg id "$smoke_playtest_id" '.playtests[] | select(.id == $id)' <<<"$list_out" >/dev/null \
+        || fail "playtest list missing $smoke_playtest_id: $list_out"
+
+    log "pth playtest transition DRAFT → OPEN"
+    "$PTH_BIN" --addr "$TARGET_ADDR" --insecure \
+        --namespace "$PTH_E2E_NAMESPACE" --profile smoke-pth \
+        playtest transition --id "$smoke_playtest_id" --to OPEN >/dev/null
+
+    log "pth applicant signup as test player"
+    signup_out=$("$PTH_BIN" --addr "$TARGET_ADDR" --insecure \
+        --namespace "$PTH_E2E_NAMESPACE" --profile "smoke-test-$test_user_id" \
+        applicant signup --slug "$smoke_slug" --platforms STEAM)
+    [[ "$(jq -r '.applicant.status' <<<"$signup_out")" == "APPLICANT_STATUS_PENDING" ]] \
+        || fail "applicant signup status != PENDING: $signup_out"
+
+    log "pth applicant status returns PENDING for the same player"
+    appstatus_out=$("$PTH_BIN" --addr "$TARGET_ADDR" --insecure \
+        --namespace "$PTH_E2E_NAMESPACE" --profile "smoke-test-$test_user_id" \
+        applicant status --slug "$smoke_slug")
+    [[ "$(jq -r '.applicant.status' <<<"$appstatus_out")" == "APPLICANT_STATUS_PENDING" ]] \
+        || fail "applicant status != PENDING: $appstatus_out"
+
+    log "pth playtest delete cleans up the smoke playtest"
+    "$PTH_BIN" --addr "$TARGET_ADDR" --insecure \
+        --namespace "$PTH_E2E_NAMESPACE" --profile smoke-pth \
+        playtest delete --id "$smoke_playtest_id" >/dev/null
 
     log "pth user delete cleans up the test user (--yes)"
     delete_out=$("$PTH_BIN" --addr "$TARGET_ADDR" --insecure \

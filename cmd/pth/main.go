@@ -48,6 +48,8 @@ func run(ctx context.Context, stdout, stderr io.Writer, args []string, getenv en
 		return runAuth(ctx, stdout, stderr, g, cmdArgs, getenv)
 	case "user":
 		return runUser(ctx, stdout, stderr, g, cmdArgs, getenv)
+	case "applicant":
+		return runApplicant(ctx, stdout, stderr, g, cmdArgs, factory)
 	case "help", "-h", "--help":
 		writeUsage(stdout)
 		return exitOK
@@ -77,10 +79,29 @@ func writeUsage(w io.Writer) {
 Usage:
   pth [global flags] <command> [command flags]
 
-Commands (M1 phase 10.1–10.4):
+Commands (M1 phase 10.1–10.5):
   version                          Print build SHA, proto schema, Go version.
   doctor                           Probe the backend. Reports gRPC code + latency.
   playtest get-public --slug <s>   Fetch the public view of a playtest (unauth).
+  playtest get-player --slug <s>   Fetch the player view (player token required).
+  playtest get --id <id>           Fetch the admin view (admin token required).
+  playtest list                    List all playtests in --namespace (admin).
+  playtest create --slug <s>       Create a playtest. Required: --slug, --title.
+    --title <t> [--description <d>] [--banner-image-url <u>]
+    [--platforms STEAM,XBOX,...]
+    [--starts-at <RFC3339>] [--ends-at <RFC3339>]
+    [--nda-required] [--nda-text @file.md]
+    [--distribution-model STEAM_KEYS|AGS_CAMPAIGN]
+    [--initial-code-quantity N]
+  playtest edit --id <id>          Edit PRD-whitelisted mutable fields only.
+    [--title|--description|--banner-image-url|--platforms|
+     --starts-at|--ends-at|--nda-required|--nda-text]
+  playtest delete --id <id>        Soft-delete (idempotent).
+  playtest transition --id <id>    Drive the status machine (DRAFT → OPEN → CLOSED).
+    --to DRAFT|OPEN|CLOSED
+  applicant signup --slug <s>      Sign up the calling player.
+    --platforms STEAM,XBOX,...
+  applicant status --slug <s>      Show the calling player's applicant row.
   auth login --password            Log in via AGS IAM ROPC grant. Stores token under --profile.
     --username <u> [--password-stdin]
   auth login --discord             Log in via Discord OAuth (cli.md §7.1).

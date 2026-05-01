@@ -99,8 +99,8 @@ Commands mirror PRD §4.7, grouped by domain. Each command lands **in the same m
 | `pth playtest edit --id <id> [mutable fields]` | `EditPlaytest` | Only PRD-whitelisted fields. |
 | `pth playtest delete --id <id>` | `SoftDeletePlaytest` | Idempotent. |
 | `pth playtest transition --id <id> --to <status>` | `TransitionPlaytestStatus` | |
-| `pth applicant signup --playtest <id> --platforms STEAM,XBOX` | `Signup` | Requires player token. |
-| `pth applicant status --playtest <id>` | `GetApplicantStatus` | Player's own. |
+| `pth applicant signup --slug <s> --platforms STEAM,XBOX` | `Signup` | Requires player token. The proto field is `slug`, so we surface `--slug` here for symmetry with `playtest get-public --slug`. |
+| `pth applicant status --slug <s>` | `GetApplicantStatus` | Player's own. Same `--slug` reasoning as above. |
 
 ### 6.2 M2 — land alongside M2 RPCs
 
