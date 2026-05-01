@@ -200,6 +200,189 @@ func (c *iamClient) postToken(ctx context.Context, form url.Values, now func() t
 	return tok, nil
 }
 
+// adminCreateTestUsersPath is the AGS IAM v4 "create test users" endpoint.
+// AGS generates the username/password/email itself and marks the rows as
+// test users — distinct from production rows, no verification email sent.
+// We use this rather than `/admin/namespaces/{ns}/users` because the e2e
+// surface only needs ephemeral throwaway accounts, and pinning a username
+// on the production endpoint requires injecting fake country/dob defaults.
+const adminCreateTestUsersPath = "/iam/v4/admin/namespaces/%s/test_users"
+
+// adminGetUserPath is the v3 admin "get user by id" endpoint. Used by
+// `pth user login-as` to resolve the AGS userId → username before running
+// the ROPC grant (which requires a username).
+const adminGetUserPath = "/iam/v3/admin/namespaces/%s/users/%s"
+
+// adminDeleteUserPath is the v3 admin "delete user information" endpoint.
+// The /iam/namespaces/.../users/{id} (no `v3`) variant is deprecated; AGS
+// docs forward callers to /information.
+const adminDeleteUserPath = "/iam/v3/admin/namespaces/%s/users/%s/information"
+
+// adminCreateTestUsersRequest mirrors the JSON body for the v4 test_users
+// endpoint. count is required (max 100 per AGS); userInfo.country is the
+// only field AGS lets us pin — username/password/email are generated.
+type adminCreateTestUsersRequest struct {
+	Count    int                `json:"count"`
+	UserInfo *adminTestUserInfo `json:"userInfo,omitempty"`
+}
+
+type adminTestUserInfo struct {
+	Country string `json:"country,omitempty"`
+}
+
+// adminCreateTestUsersResponse mirrors the AGS shape `{data: [...]}`.
+type adminCreateTestUsersResponse struct {
+	Data []*adminCreateTestUserResponse `json:"data"`
+}
+
+// adminCreateTestUserResponse is one entry of the `data` array. AGS
+// returns AuthType/Country/DateOfBirth/DisplayName too — the CLI only
+// surfaces identity + the generated password.
+type adminCreateTestUserResponse struct {
+	UserID       string `json:"userId"`
+	Username     string `json:"username"`
+	Password     string `json:"password"`
+	EmailAddress string `json:"emailAddress"`
+	Namespace    string `json:"namespace"`
+}
+
+// adminGetUserResponse covers the v3 admin GET-user fields login-as needs
+// (just the username; UserID is round-tripped to surface mismatches).
+type adminGetUserResponse struct {
+	UserID    string `json:"userId"`
+	Username  string `json:"userName"`
+	Namespace string `json:"namespace"`
+}
+
+// adminCreateTestUsers POSTs a test-user creation request as the supplied
+// bearer (an admin JWT). The bearer is required — admin endpoints reject
+// anonymous callers with 401.
+func (c *iamClient) adminCreateTestUsers(ctx context.Context, bearer, namespace string, body *adminCreateTestUsersRequest) (*adminCreateTestUsersResponse, error) {
+	if err := c.requireAdminConfig(bearer, namespace); err != nil {
+		return nil, err
+	}
+	if body == nil || body.Count <= 0 {
+		return nil, fmt.Errorf("count must be >= 1")
+	}
+	target := strings.TrimRight(c.BaseURL, "/") + fmt.Sprintf(adminCreateTestUsersPath, url.PathEscape(namespace))
+	respBody, err := c.doAdminJSON(ctx, http.MethodPost, target, bearer, body)
+	if err != nil {
+		return nil, err
+	}
+	var out adminCreateTestUsersResponse
+	if err := json.Unmarshal(respBody, &out); err != nil {
+		return nil, fmt.Errorf("decoding admin create-test-users response: %w", err)
+	}
+	if len(out.Data) == 0 {
+		return nil, fmt.Errorf("admin create-test-users response missing data array")
+	}
+	for i, u := range out.Data {
+		if u.UserID == "" {
+			return nil, fmt.Errorf("admin create-test-users response entry %d missing userId", i)
+		}
+	}
+	return &out, nil
+}
+
+// adminGetUserByID resolves a userId → user record. Used by login-as to
+// translate the caller-supplied id to the username AGS ROPC needs.
+func (c *iamClient) adminGetUserByID(ctx context.Context, bearer, namespace, userID string) (*adminGetUserResponse, error) {
+	if err := c.requireAdminConfig(bearer, namespace); err != nil {
+		return nil, err
+	}
+	if userID == "" {
+		return nil, fmt.Errorf("user id is empty")
+	}
+	target := strings.TrimRight(c.BaseURL, "/") + fmt.Sprintf(adminGetUserPath, url.PathEscape(namespace), url.PathEscape(userID))
+	respBody, err := c.doAdminJSON(ctx, http.MethodGet, target, bearer, nil)
+	if err != nil {
+		return nil, err
+	}
+	var out adminGetUserResponse
+	if err := json.Unmarshal(respBody, &out); err != nil {
+		return nil, fmt.Errorf("decoding admin get-user response: %w", err)
+	}
+	if out.Username == "" {
+		return nil, fmt.Errorf("admin get-user response missing userName")
+	}
+	return &out, nil
+}
+
+// adminDeleteUser sends DELETE to the user-information endpoint. A 204 is
+// the success shape; 404 is mapped through the iamError path so callers
+// can surface a clear "no such user" message.
+func (c *iamClient) adminDeleteUser(ctx context.Context, bearer, namespace, userID string) error {
+	if err := c.requireAdminConfig(bearer, namespace); err != nil {
+		return err
+	}
+	if userID == "" {
+		return fmt.Errorf("user id is empty")
+	}
+	target := strings.TrimRight(c.BaseURL, "/") + fmt.Sprintf(adminDeleteUserPath, url.PathEscape(namespace), url.PathEscape(userID))
+	_, err := c.doAdminJSON(ctx, http.MethodDelete, target, bearer, nil)
+	return err
+}
+
+// requireAdminConfig is the shared precondition check for admin REST
+// calls — every admin path needs the base URL, an admin bearer, and a
+// namespace.
+func (c *iamClient) requireAdminConfig(bearer, namespace string) error {
+	if c == nil {
+		return fmt.Errorf("iam client not configured")
+	}
+	if c.BaseURL == "" {
+		return fmt.Errorf("AGS base URL not configured (set --ags-base-url or PTH_AGS_BASE_URL)")
+	}
+	if bearer == "" {
+		return fmt.Errorf("admin token required (run: pth auth login --password as an admin user)")
+	}
+	if namespace == "" {
+		return fmt.Errorf("namespace required (set --namespace or PTH_NAMESPACE)")
+	}
+	return nil
+}
+
+// doAdminJSON is the shared transport for admin REST calls: JSON in, JSON
+// out (or empty body on 204), bearer auth, parseIAMError on >=400. body
+// may be nil for GET/DELETE.
+func (c *iamClient) doAdminJSON(ctx context.Context, method, target, bearer string, body any) ([]byte, error) {
+	var reader io.Reader
+	if body != nil {
+		buf, err := json.Marshal(body)
+		if err != nil {
+			return nil, fmt.Errorf("encoding admin request: %w", err)
+		}
+		reader = strings.NewReader(string(buf))
+	}
+	req, err := http.NewRequestWithContext(ctx, method, target, reader)
+	if err != nil {
+		return nil, fmt.Errorf("building admin request: %w", err)
+	}
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Authorization", "Bearer "+bearer)
+
+	httpClient := c.HTTPClient
+	if httpClient == nil {
+		httpClient = http.DefaultClient
+	}
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("AGS IAM unreachable: %w", err)
+	}
+	defer drainAndClose(resp.Body)
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("reading AGS IAM response: %w", err)
+	}
+	if resp.StatusCode >= 400 {
+		return nil, parseIAMError(resp.StatusCode, respBody)
+	}
+	return respBody, nil
+}
+
 func parseIAMError(statusCode int, body []byte) error {
 	e := &iamError{StatusCode: statusCode, Raw: string(body)}
 	var parsed iamErrorResponse

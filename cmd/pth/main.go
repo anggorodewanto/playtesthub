@@ -46,6 +46,8 @@ func run(ctx context.Context, stdout, stderr io.Writer, args []string, getenv en
 		return runPlaytest(ctx, stdout, stderr, g, cmdArgs, factory)
 	case "auth":
 		return runAuth(ctx, stdout, stderr, g, cmdArgs, getenv)
+	case "user":
+		return runUser(ctx, stdout, stderr, g, cmdArgs, getenv)
 	case "help", "-h", "--help":
 		writeUsage(stdout)
 		return exitOK
@@ -75,7 +77,7 @@ func writeUsage(w io.Writer) {
 Usage:
   pth [global flags] <command> [command flags]
 
-Commands (M1 phase 10.1–10.3):
+Commands (M1 phase 10.1–10.4):
   version                          Print build SHA, proto schema, Go version.
   doctor                           Probe the backend. Reports gRPC code + latency.
   playtest get-public --slug <s>   Fetch the public view of a playtest (unauth).
@@ -86,6 +88,11 @@ Commands (M1 phase 10.1–10.3):
   auth logout                      Remove the stored credential for --profile.
   auth whoami                      Print {profile, userId, namespace, addr, expiresAt}.
   auth token                       Print the active bearer token (for piping into curl/grpcurl).
+  user create [--count N]          Create N AGS test users. Emits {userId, username, password, ...}.
+    [--country US]                 Admin token required.
+  user delete --id <userId> --yes  Delete an AGS user (destructive — --yes required).
+  user login-as --id <userId>      Password-login as a previously-created test user.
+    [--password-stdin]              Stores the credential under --profile.
   help                             Show this message.
 
 Auth env (cli.md §7.2 / §7.1 setup; not in §4 since they only feed the auth subcommand):

@@ -177,6 +177,45 @@ authorize_url=$(jq -r '.authorizeUrl' <<<"$discord_dry")
 [[ "$authorize_url" == *"state="* ]] \
     || fail "discord dry-run authorizeUrl missing state: $authorize_url"
 
+# --- pth user (dry-run; unconditional) --------------------------------
+# Phase 10.4 (docs/STATUS.md): assert URL + body shape for the AGS IAM
+# admin endpoints without dialling. Live round-trip is gated below on
+# PTH_E2E_* secrets.
+log "pth user create --dry-run prints the test_users path and body"
+user_create_dry=$("$PTH_BIN" --namespace smoke --profile smoke-pth user create --count 2 --country ID --dry-run)
+[[ "$(jq -r '.method' <<<"$user_create_dry")" == "POST" ]] \
+    || fail "user create dry-run method != POST: $user_create_dry"
+[[ "$(jq -r '.path' <<<"$user_create_dry")" == "/iam/v4/admin/namespaces/smoke/test_users" ]] \
+    || fail "user create dry-run path mismatch: $user_create_dry"
+[[ "$(jq -r '.body.count' <<<"$user_create_dry")" == "2" ]] \
+    || fail "user create dry-run count mismatch: $user_create_dry"
+[[ "$(jq -r '.body.userInfo.country' <<<"$user_create_dry")" == "ID" ]] \
+    || fail "user create dry-run country mismatch: $user_create_dry"
+
+log "pth user delete --dry-run prints the v3 information path"
+user_delete_dry=$("$PTH_BIN" --namespace smoke --profile smoke-pth user delete --id u-smoke --dry-run)
+[[ "$(jq -r '.method' <<<"$user_delete_dry")" == "DELETE" ]] \
+    || fail "user delete dry-run method != DELETE: $user_delete_dry"
+[[ "$(jq -r '.path' <<<"$user_delete_dry")" == "/iam/v3/admin/namespaces/smoke/users/u-smoke/information" ]] \
+    || fail "user delete dry-run path mismatch: $user_delete_dry"
+
+log "pth user login-as --dry-run prints both lookup + token paths"
+user_login_dry=$("$PTH_BIN" --namespace smoke --profile smoke-pth user login-as --id u-smoke --dry-run)
+[[ "$(jq -r '.lookupPath' <<<"$user_login_dry")" == "/iam/v3/admin/namespaces/smoke/users/u-smoke" ]] \
+    || fail "user login-as dry-run lookupPath mismatch: $user_login_dry"
+[[ "$(jq -r '.tokenPath' <<<"$user_login_dry")" == "/iam/v3/oauth/token" ]] \
+    || fail "user login-as dry-run tokenPath mismatch: $user_login_dry"
+
+log "pth user delete without --yes refuses (destructive guard)"
+set +e
+"$PTH_BIN" --namespace smoke --profile smoke-pth user delete --id u-smoke 2>/tmp/pth-user-delete-stderr
+delete_no_yes_exit=$?
+set -e
+[[ $delete_no_yes_exit -eq 3 ]] \
+    || { cat /tmp/pth-user-delete-stderr >&2; fail "user delete without --yes exit=$delete_no_yes_exit, want 3"; }
+grep -q -- '--yes' /tmp/pth-user-delete-stderr \
+    || { cat /tmp/pth-user-delete-stderr >&2; fail "user delete error message did not mention --yes"; }
+
 # --- pth auth login --password (gated on PTH_E2E_* secrets) -----------
 # Phase 10.2 spec (docs/STATUS.md): probe ROPC + whoami + token + logout
 # round-trip when admin creds + IAM env are present. Skipped when any
@@ -223,6 +262,47 @@ else
     token_out=$("$PTH_BIN" --addr "$TARGET_ADDR" --insecure \
         --namespace "$PTH_E2E_NAMESPACE" --profile smoke-pth auth token)
     [[ -n "$token_out" ]] || fail "auth token returned empty"
+
+    # --- pth user (live round-trip) -----------------------------------
+    # Spec line for phase 10.4: create→login-as→delete using the active
+    # admin profile (smoke-pth, just logged in above). The created user
+    # is a fresh AGS test user — its credentials are AGS-generated and
+    # round-tripped via stdin into login-as so neither end of the
+    # round-trip relies on a static password.
+    log "pth user create produces an AGS-generated test user"
+    user_create_out=$("$PTH_BIN" --addr "$TARGET_ADDR" --insecure \
+        --namespace "$PTH_E2E_NAMESPACE" --profile smoke-pth \
+        user create --count 1)
+    test_user_id=$(jq -r '.userId' <<<"$user_create_out")
+    test_username=$(jq -r '.username' <<<"$user_create_out")
+    test_password=$(jq -r '.password' <<<"$user_create_out")
+    [[ -n "$test_user_id" && "$test_user_id" != "null" ]] \
+        || fail "user create: missing userId in response: $user_create_out"
+    [[ -n "$test_password" && "$test_password" != "null" ]] \
+        || fail "user create: missing password in response: $user_create_out"
+
+    log "pth user login-as binds the test user to a fresh profile"
+    login_as_out=$(printf '%s' "$test_password" \
+        | "$PTH_BIN" --addr "$TARGET_ADDR" --insecure \
+            --namespace "$PTH_E2E_NAMESPACE" --profile "smoke-test-$test_user_id" \
+            user login-as --id "$test_user_id" --password-stdin)
+    [[ "$(jq -r '.userId' <<<"$login_as_out")" == "$test_user_id" ]] \
+        || fail "user login-as userId mismatch: $login_as_out"
+    [[ "$(jq -r '.username' <<<"$login_as_out")" == "$test_username" ]] \
+        || fail "user login-as username mismatch: $login_as_out"
+
+    log "pth user delete cleans up the test user (--yes)"
+    delete_out=$("$PTH_BIN" --addr "$TARGET_ADDR" --insecure \
+        --namespace "$PTH_E2E_NAMESPACE" --profile smoke-pth \
+        user delete --id "$test_user_id" --yes)
+    [[ "$(jq -r '.deleted' <<<"$delete_out")" == "true" ]] \
+        || fail "user delete did not return deleted=true: $delete_out"
+
+    # Drop the throwaway login-as profile from the isolated store so the
+    # next smoke run starts clean.
+    "$PTH_BIN" --addr "$TARGET_ADDR" --insecure \
+        --namespace "$PTH_E2E_NAMESPACE" --profile "smoke-test-$test_user_id" \
+        auth logout >/dev/null
 
     log "pth auth logout removes the credential"
     logout_out=$("$PTH_BIN" --addr "$TARGET_ADDR" --insecure \
