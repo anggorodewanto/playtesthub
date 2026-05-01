@@ -20,39 +20,21 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/anggorodewanto/playtesthub/pkg/discord"
-	"github.com/anggorodewanto/playtesthub/pkg/service"
-
 	"github.com/go-openapi/loads"
 	"github.com/jackc/pgx/v5/pgxpool"
-
-	"github.com/anggorodewanto/playtesthub/pkg/common"
-	"github.com/anggorodewanto/playtesthub/pkg/config"
-	"github.com/anggorodewanto/playtesthub/pkg/migrate"
-	"github.com/anggorodewanto/playtesthub/pkg/repo"
-
-	"github.com/AccelByte/accelbyte-go-sdk/services-api/pkg/repository"
-
-	"github.com/AccelByte/accelbyte-go-sdk/services-api/pkg/factory"
-	"github.com/AccelByte/accelbyte-go-sdk/services-api/pkg/service/iam"
-	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"go.opentelemetry.io/contrib/propagators/b3"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
-	"go.opentelemetry.io/otel/trace"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/health"
-	"google.golang.org/grpc/health/grpc_health_v1"
-	"google.golang.org/grpc/reflection"
 
-	pb "github.com/anggorodewanto/playtesthub/pkg/pb/playtesthub/v1"
-
-	sdkAuth "github.com/AccelByte/accelbyte-go-sdk/services-api/pkg/utils/auth"
 	prometheusGrpc "github.com/grpc-ecosystem/go-grpc-prometheus"
 	prometheusCollectors "github.com/prometheus/client_golang/prometheus/collectors"
+
+	"github.com/anggorodewanto/playtesthub/internal/bootapp"
+	"github.com/anggorodewanto/playtesthub/pkg/common"
+	"github.com/anggorodewanto/playtesthub/pkg/config"
+	"github.com/anggorodewanto/playtesthub/pkg/migrate"
 )
 
 const (
@@ -83,96 +65,6 @@ func newLogger(level string) *slog.Logger {
 	return slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: parseSlogLevel(level)}))
 }
 
-// agsConfigRepo is the AGS SDK's ConfigRepository view of our pkg/config
-// values. The SDK's default implementation reads AB_* env vars at
-// construction time; our PRD uses AGS_*, so we wire the SDK through this
-// thin adapter instead.
-type agsConfigRepo struct {
-	clientID     string
-	clientSecret string
-	baseURL      string
-}
-
-func (c agsConfigRepo) GetClientId() string       { return c.clientID }
-func (c agsConfigRepo) GetClientSecret() string   { return c.clientSecret }
-func (c agsConfigRepo) GetJusticeBaseUrl() string { return c.baseURL }
-
-// PRD §6 Observability: NDA text, survey free-text answers, and
-// Code values MUST NOT appear in logs. PayloadReceived / PayloadSent
-// would dump request/response bodies verbatim — including nda_text
-// on CreatePlaytest / EditPlaytest and Code.value once M2 lands —
-// so we log only the call boundaries.
-func buildLoggingOptions() []logging.Option {
-	return []logging.Option{
-		logging.WithLogOnEvents(logging.StartCall, logging.FinishCall),
-		logging.WithFieldsFromContext(func(ctx context.Context) logging.Fields {
-			if span := trace.SpanContextFromContext(ctx); span.IsSampled() {
-				return logging.Fields{"traceID", span.TraceID().String()}
-			}
-
-			return nil
-		}),
-		logging.WithLevels(logging.DefaultClientCodeToLevel),
-		logging.WithDurationField(logging.DurationToDurationField),
-	}
-}
-
-// buildOAuthService bridges pkg/config to the AGS SDK; the SDK's default
-// would otherwise read AB_* env vars that PRD §5.9 does not define.
-func buildOAuthService(cfg *config.Config) (iam.OAuth20Service, repository.ConfigRepository) {
-	var tokenRepo repository.TokenRepository = sdkAuth.DefaultTokenRepositoryImpl()
-	var configRepo repository.ConfigRepository = agsConfigRepo{
-		clientID:     cfg.AGSIAMClientID,
-		clientSecret: cfg.AGSIAMClientSecret,
-		baseURL:      cfg.AGSBaseURL,
-	}
-	var refreshRepo repository.RefreshTokenRepository = &sdkAuth.RefreshTokenImpl{RefreshRate: 0.8, AutoRefresh: true}
-
-	return iam.OAuth20Service{
-		Client:                 factory.NewIamClient(configRepo),
-		TokenRepository:        tokenRepo,
-		RefreshTokenRepository: refreshRepo,
-		ConfigRepository:       configRepo,
-	}, configRepo
-}
-
-func installAuthInterceptors(
-	ctx context.Context,
-	cfg *config.Config,
-	oauthService iam.OAuth20Service,
-	logger *slog.Logger,
-	unary []grpc.UnaryServerInterceptor,
-	stream []grpc.StreamServerInterceptor,
-) ([]grpc.UnaryServerInterceptor, []grpc.StreamServerInterceptor) {
-	common.Validator = common.NewTokenValidator(oauthService, time.Duration(cfg.RefreshIntervalSeconds)*time.Second, true)
-	if err := common.Validator.Initialize(ctx); err != nil {
-		logger.Info(err.Error())
-	}
-	unary = append(unary, common.NewUnaryAuthServerIntercept())
-	stream = append(stream, common.NewStreamAuthServerIntercept())
-	logger.Info("added auth interceptors")
-
-	return unary, stream
-}
-
-func buildPlaytesthubServer(cfg *config.Config, dbPool *pgxpool.Pool) *service.PlaytesthubServiceServer {
-	playtestStore := repo.NewPgPlaytestStore(dbPool)
-	applicantStore := repo.NewPgApplicantStore(dbPool)
-	svcServer := service.NewPlaytesthubServiceServer(playtestStore, applicantStore, cfg.AGSNamespace)
-	if botClient := discord.NewBotClient(cfg.DiscordBotToken); botClient != nil {
-		svcServer = svcServer.WithDiscordLookup(botClient)
-	}
-	// ExchangeDiscordCode posts the Discord OAuth code to AGS IAM's
-	// platform-token grant. Confidential auth (Basic) is required;
-	// the public PKCE client cannot drive this endpoint.
-	return svcServer.WithDiscordExchangeProxy(service.DiscordExchangeProxy{
-		AGSBaseURL:   cfg.AGSBaseURL,
-		ClientID:     cfg.AGSIAMClientID,
-		ClientSecret: cfg.AGSIAMClientSecret,
-		HTTPClient:   &http.Client{Timeout: 10 * time.Second},
-	})
-}
-
 func serveGateway(grpcGateway http.Handler, logger *slog.Logger, basePath string) {
 	swaggerDir := "gateway/apidocs"
 	srv := newGRPCGatewayHTTPServer(fmt.Sprintf(":%d", grpcGatewayHTTPPort), grpcGateway, logger, swaggerDir, basePath)
@@ -187,18 +79,6 @@ func serveMetrics(logger *slog.Logger, registry *prometheus.Registry) {
 	http.Handle(metricsEndpoint, promhttp.HandlerFor(registry, promhttp.HandlerOpts{}))
 	if err := http.ListenAndServe(fmt.Sprintf(":%d", metricsPort), nil); err != nil {
 		logger.Error("failed to start metrics server", "error", err)
-		os.Exit(1)
-	}
-}
-
-func serveGRPC(s *grpc.Server, logger *slog.Logger) {
-	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", grpcServerPort))
-	if err != nil {
-		logger.Error("failed to listen to tcp", "port", grpcServerPort, "error", err)
-		os.Exit(1)
-	}
-	if err := s.Serve(lis); err != nil {
-		logger.Error("failed to run gRPC server", "error", err)
 		os.Exit(1)
 	}
 }
@@ -237,30 +117,34 @@ func main() {
 	}
 	logger.Info("migrations applied")
 
-	loggingOptions := buildLoggingOptions()
-	unaryInterceptors := []grpc.UnaryServerInterceptor{
-		prometheusGrpc.UnaryServerInterceptor,
-		logging.UnaryServerInterceptor(common.InterceptorLogger(logger), loggingOptions...),
+	dbPool, err := pgxpool.New(ctx, cfg.DatabaseURL)
+	if err != nil {
+		logger.Error("failed to open database pool", "error", err)
+		os.Exit(1)
 	}
-	streamInterceptors := []grpc.StreamServerInterceptor{
-		prometheusGrpc.StreamServerInterceptor,
-		logging.StreamServerInterceptor(common.InterceptorLogger(logger), loggingOptions...),
+	defer dbPool.Close()
+
+	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", grpcServerPort))
+	if err != nil {
+		logger.Error("failed to listen to tcp", "port", grpcServerPort, "error", err)
+		os.Exit(1)
 	}
 
-	oauthService, configRepo := buildOAuthService(cfg)
-	if cfg.AuthEnabled {
-		unaryInterceptors, streamInterceptors = installAuthInterceptors(ctx, cfg, oauthService, logger, unaryInterceptors, streamInterceptors)
+	server, err := bootapp.New(ctx, bootapp.Options{
+		Config:   cfg,
+		DBPool:   dbPool,
+		Listener: listener,
+		Logger:   logger,
+	})
+	if err != nil {
+		logger.Error("failed to construct app server", "error", err)
+		os.Exit(1)
 	}
-
-	s := grpc.NewServer(
-		grpc.StatsHandler(otelgrpc.NewServerHandler()),
-		grpc.ChainUnaryInterceptor(unaryInterceptors...),
-		grpc.ChainStreamInterceptor(streamInterceptors...),
-	)
 
 	// Local dev and integration smoke tests run with auth off and no AGS
 	// reachability, so an unconditional LoginClient call would wedge boot.
 	if cfg.AuthEnabled {
+		oauthService, configRepo := bootapp.BuildOAuthService(cfg)
 		clientId := configRepo.GetClientId()
 		clientSecret := configRepo.GetClientSecret()
 		if err := oauthService.LoginClient(&clientId, &clientSecret); err != nil {
@@ -269,17 +153,6 @@ func main() {
 		}
 	}
 
-	dbPool, err := pgxpool.New(ctx, cfg.DatabaseURL)
-	if err != nil {
-		logger.Error("failed to open database pool", "error", err)
-		os.Exit(1)
-	}
-	defer dbPool.Close()
-
-	pb.RegisterPlaytesthubServiceServer(s, buildPlaytesthubServer(cfg, dbPool))
-	reflection.Register(s)
-	grpc_health_v1.RegisterHealthServer(s, health.NewServer())
-
 	grpcGateway, err := common.NewGateway(ctx, fmt.Sprintf("localhost:%d", grpcServerPort), cfg.BasePath)
 	if err != nil {
 		logger.Error("failed to create gRPC-Gateway", "error", err)
@@ -287,7 +160,6 @@ func main() {
 	}
 	go serveGateway(grpcGateway, logger, cfg.BasePath)
 
-	prometheusGrpc.Register(s)
 	go serveMetrics(logger, newPrometheusRegistry())
 	logger.Info("serving prometheus metrics", "port", metricsPort, "endpoint", metricsEndpoint)
 
@@ -315,13 +187,19 @@ func main() {
 		),
 	)
 
-	go serveGRPC(s, logger)
-	logger.Info("app server started", "service", serviceName)
+	go func() {
+		if err := server.Serve(); err != nil {
+			logger.Error("failed to run gRPC server", "error", err)
+			os.Exit(1)
+		}
+	}()
+	logger.Info("app server started", "service", serviceName, "addr", server.Addr())
 
 	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	<-ctx.Done()
 	logger.Info("signal received")
+	server.Stop()
 }
 
 func newGRPCGatewayHTTPServer(
