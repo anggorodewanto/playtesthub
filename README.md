@@ -1,331 +1,169 @@
-# extend-service-extension-go
+# playtesthub
+
+Open-source, self-hosted [AccelByte Gaming Services (AGS) Extend](https://docs.accelbyte.io/gaming-services/modules/foundations/extend/) application for running closed game playtests. Apply for a slot, accept the NDA, get a Steam key (or AGS Campaign-issued code), play, fill out a survey. MIT-licensed.
 
 ```mermaid
 flowchart LR
-   CL[Game Client]
-   subgraph "Extend Service Ext. App"
-   GW["gRPC Gateway"]
-   SV["gRPC Server"]
-   end
-   CL --- GW
-   GW --- SV
+  Player[Discord-authed player]
+  Admin[AGS admin]
+  subgraph "Extend Service Extension"
+    GW["grpc-gateway HTTP/JSON"]
+    SV["gRPC server\n(Go)"]
+    PG[("Postgres\nExtend-managed")]
+    GW --- SV --- PG
+  end
+  AppUI["Extend App UI\n(React, in AGS Admin Portal)"]
+  Svelte["Player static bundle\n(GitHub Pages / Vercel)"]
+  AGS["AGS Platform / IAM / Campaign"]
+  Player --> Svelte --> GW
+  Admin --> AppUI --> GW
+  SV <--> AGS
 ```
 
-`AccelByte Gaming Services` (AGS) capabilities can be enhanced using 
-`Extend Service Extension` apps. An `Extend Service Extension` app is a RESTful 
-web service created using a stack that includes a `gRPC Server` and the 
-[gRPC Gateway](https://github.com/grpc-ecosystem/grpc-gateway?tab=readme-ov-file#about).
+> **⚠️ Not production safe.** MVP ships **without a custom admin RBAC role** — every authenticated AGS admin session is permitted on every admin RPC. The `AuditLog` table is the accountability model. RBAC is a release blocker for production deployments. See [PRD §6 AuthZ](docs/PRD.md#security) and [PRD §9 R8](docs/PRD.md).
 
-## Overview
+## Status
 
-This repository provides a project template for an `Extend Service Extension` 
-app written in `Go`. It includes an example of a custom guild service which has 
-two endpoints to create and get guild progress data. Additionally, it comes 
-with built-in instrumentation for observability, ensuring that metrics, traces, 
-and logs are available upon deployment.
+This is **MVP work-in-progress**. Track progress in [`docs/STATUS.md`](docs/STATUS.md). Sources of truth, in order:
 
-You can clone this repository to begin developing your own 
-`Extend Service Extension` app. Simply modify this project by defining your 
-endpoints in `service.proto` file and implementing the handlers for those 
-endpoints.
+| Doc | What it owns |
+| --- | --- |
+| [`docs/PRD.md`](docs/PRD.md) | Behavior. Authoritative if anything else disagrees. |
+| [`docs/schema.md`](docs/schema.md) | DB schemas, audit-log enum + JSONB shapes, fenced-finalize SQL. |
+| [`docs/errors.md`](docs/errors.md) | Byte-exact gRPC error codes / messages. |
+| [`docs/architecture.md`](docs/architecture.md) | Stack + external dependency detail. |
+| [`docs/engineering.md`](docs/engineering.md) | Repo layout, test strategy, TDD workflow, CI gates. |
+| [`docs/cli.md`](docs/cli.md) | `pth` CLI spec — surface for humans + AI to drive the app end-to-end. |
+| [`docs/dm-queue.md`](docs/dm-queue.md) | DM worker FIFO, circuit breaker, restart sweep. |
+| [`docs/ags-failure-modes.md`](docs/ags-failure-modes.md) | AGS retry policy, cleanup matrix, M2 sub-cap rules. |
 
-## Project Structure
+## Quick start
 
-The `playtesthub.v1` gRPC surface is defined in `proto/playtesthub/v1/playtesthub.proto`; handlers live in `pkg/service/`. The app initializes key components — gRPC server, grpc-gateway HTTP proxy, DB migrations — in `main.go`. When a request reaches the RESTful endpoint, the gRPC gateway forwards it to the matching gRPC method. Before handlers execute, `authServerInterceptor.go` validates the AGS IAM token and enforces the method-level `permission.action` / `permission.resource` options declared in the proto.
+### Prerequisites
 
-```shell
-.
-├── main.go   # App starts here
-├── pkg
-│   ├── common
-│   │   ├── authServerInterceptor.go    # gRPC server interceptor for access token authentication and authorization
-│   │   ├── ...
-│   ├── pb    # gRPC stubs generated from gRPC server protobuf (pkg/pb/playtesthub/v1)
-│   │   └── ...
-│   ├── service
-│   │   ├── playtest.go       # gRPC handler implementations (one file per domain)
-│   │   └── ...
-│   └── ...
-└── ...
+- Linux / macOS / WSL2; Bash; Docker 23+; Go 1.25; Node 22+; `protoc`, `grpcurl`, `jq`, `curl`.
+- An AGS namespace and a confidential IAM client (PRD §5.9). [`docs/runbooks/setup-ags-discord.md`](docs/runbooks/setup-ags-discord.md) walks the AGS-side setup.
+
+### Boot the backend
+
+```bash
+git clone https://github.com/anggorodewanto/playtesthub.git
+cd playtesthub
+
+cp .env.template .env
+# Fill AGS_BASE_URL, AGS_NAMESPACE, AGS_IAM_CLIENT_ID, AGS_IAM_CLIENT_SECRET,
+# DISCORD_BOT_TOKEN. DATABASE_URL + BASE_PATH already have local-dev defaults.
+
+docker compose up --build       # backend + Postgres
 ```
 
-## Prerequisites
+Smoke check:
 
-1. Windows 11 WSL2 or Linux Ubuntu 22.04 or macOS 14+ with the following tools installed:
-
-   a. Bash
-
-      - On Windows WSL2 or Linux Ubuntu:
-
-         ```
-         bash --version
-
-         GNU bash, version 5.1.16(1)-release (x86_64-pc-linux-gnu)
-         ...
-         ```
-
-      - On macOS:
-
-         ```
-         bash --version
-
-         GNU bash, version 3.2.57(1)-release (arm64-apple-darwin23)
-         ...
-         ```
-
-   b. Make
-
-      - On Windows WSL2 or Linux Ubuntu:
-
-         To install from the Ubuntu repository, run `sudo apt update && sudo apt install make`.
-
-         ```
-         make --version
-
-         GNU Make 4.3
-         ...
-         ```
-
-      - On macOS:
-
-         ```
-         make --version
-
-         GNU Make 3.81
-         ...
-         ```
-
-   c. Docker (Docker Desktop 4.30+/Docker Engine v23.0+)
-   
-      - On Linux Ubuntu:
-
-         1. To install from the Ubuntu repository, run `sudo apt update && sudo apt install docker.io docker-buildx docker-compose-v2`.
-         2. Add your user to the `docker` group: `sudo usermod -aG docker $USER`.
-         3. Log out and log back in to allow the changes to take effect.
-
-      - On Windows or macOS:
-
-         Follow Docker's documentation on installing the Docker Desktop on [Windows](https://docs.docker.com/desktop/install/windows-install/) or [macOS](https://docs.docker.com/desktop/install/mac-install/).
-
-         ```
-         docker version
-
-         ...
-         Server: Docker Desktop
-            Engine:
-            Version:          24.0.5
-         ...
-         ```
-
-   d. Go v1.24
-
-      - Follow [Go's installation guide](https://go.dev/doc/install).
-
-      ```
-      go version
-
-      go version go1.24.0 ...
-      ```
-
-   e. [Postman](https://www.postman.com/)
-
-      - Use binary available [here](https://www.postman.com/downloads/)
-
-   f. [extend-helper-cli](https://github.com/AccelByte/extend-helper-cli)
-
-      - Use the available binary from [extend-helper-cli](https://github.com/AccelByte/extend-helper-cli/releases).
-
-   > :exclamation: In macOS, you may use [Homebrew](https://brew.sh/) to easily install some of the tools above.
-
-2. Access to AGS environment.
-
-   a. Base URL:
-
-      - Sample URL for AGS Shared Cloud customers: `https://spaceshooter.prod.gamingservices.accelbyte.io`
-      - Sample URL for AGS Private Cloud customers:  `https://dev.accelbyte.io`
-
-   b. [Create a Game Namespace](https://docs.accelbyte.io/gaming-services/modules/foundations/identity-access/namespaces/manage-your-namespaces/) if you don't have one yet. Keep the `Namespace ID`. Make sure this namespace is in active status.
-
-   c. [Create an OAuth Client](https://docs.accelbyte.io/gaming-services/modules/foundations/identity-access/authorization/manage-access-control-for-applications/#create-an-iam-client) with confidential client type with the following permissions. Keep the `Client ID` and `Client Secret`.
-
-      - For AGS Private Cloud customers:
-         - `ADMIN:ROLE [READ]` to validate access token and permissions
-         - `ADMIN:NAMESPACE:{namespace}:NAMESPACE [READ]` to validate access namespace
-         - `ADMIN:NAMESPACE:{namespace}:CLOUDSAVE:RECORD [CREATE,READ,UPDATE,DELETE]` to create, read, update, and delete cloudsave records
-      - For AGS Shared Cloud customers:
-         - IAM -> Roles (Read)
-         - Basic -> Namespace (Read)
-         - Cloud Save -> Game Records (Create, Read, Update, Delete)
-## Setup
-
-> :information_source: **Player Discord login setup**: see [`docs/runbooks/setup-ags-discord.md`](docs/runbooks/setup-ags-discord.md) for the AGS Admin Portal + Discord developer portal walkthrough that the player Discord login depends on. The byte-exact `redirect_uri` constraint between the three systems is the single most common setup trap.
-
-To be able to run this app, you will need to follow these setup steps.
-
-1. Create a docker compose `.env` file by copying the content of [.env.template](.env.template) file.
-
-   > :warning: **The host OS environment variables have higher precedence compared to `.env` file variables**:
-   > If the variables in `.env` file do not seem to take effect properly, check if there are host OS environment variables with the same name. 
-   > See documentation about [docker compose environment variables precedence](https://docs.docker.com/compose/how-tos/environment-variables/envvars-precedence/) for more details.
-
-2. Fill in the required environment variables in `.env` file as shown below.
-
-   ```
-   AGS_BASE_URL='http://test.accelbyte.io'      # Your environment's domain Base URL
-   AGS_IAM_CLIENT_ID='xxxxxxxxxx'               # Client ID from the Prerequisites section
-   AGS_IAM_CLIENT_SECRET='xxxxxxxxxx'           # Client Secret from the Prerequisites section
-   AGS_NAMESPACE='xxxxxxxxxx'                   # Namespace ID from the Prerequisites section
-   DATABASE_URL='postgres://playtesthub:playtesthub@postgres:5432/playtesthub?sslmode=disable'
-   DISCORD_BOT_TOKEN='xxxxxxxxxx'               # Discord bot token for handle lookup (https://discord.com/developers/applications)
-   PLUGIN_GRPC_SERVER_AUTH_ENABLED=true         # Enable or disable access token and permission validation
-   BASE_PATH='/playtesthub'                     # The base path used for the app
-   ```
-
-   > :exclamation: **In this app, PLUGIN_GRPC_SERVER_AUTH_ENABLED is `true` by default**: If it is set to `false`, the endpoint `permission.action` and `permission.resource`  validation will be disabled and the endpoint can be accessed without a valid access token. This option is provided for development purpose only.
-
-## Building
-
-To build this app, use the following command.
-
-```shell
-make build
+```bash
+./scripts/smoke/boot.sh         # ephemeral PG + backend boot + reflection probe
 ```
 
-## Running
+### Reproduce the golden flow
 
-To (build and) run this app in a container, use the following command.
+The `pth` CLI is the canonical end-to-end harness — same surface a human or AI uses to drive the system, and the same path the e2e test exercises. The composite command **`pth flow golden-m1`** runs the entire M1 golden flow (admin creates playtest → publishes → player signs up → applicant lands `PENDING`) and emits one NDJSON line per step.
 
-```shell
-docker compose up --build
+```bash
+go build -o pth ./cmd/pth
+
+# Profile A — admin (used to create + publish the playtest).
+export PTH_AGS_BASE_URL=https://your-namespace.gamingservices.accelbyte.io
+export PTH_IAM_CLIENT_ID=<confidential-iam-client-id>
+export PTH_IAM_CLIENT_SECRET=<confidential-iam-client-secret>
+export PTH_BACKEND=localhost:6565
+
+./pth --profile admin auth login --password \
+  --namespace your-namespace --username admin@example.com
+
+# Profile B — player (created on the fly via the AGS test-user-group endpoint).
+read -r USER_ID USERNAME PASSWORD < <(./pth user create --json | jq -r '[.userId,.username,.password] | @tsv')
+echo "$PASSWORD" | ./pth --profile "player-$USER_ID" user login-as \
+  --user-id "$USER_ID" --username "$USERNAME" --password-stdin
+
+# Drive the golden flow.
+./pth flow golden-m1 \
+  --slug "demo-$(date +%s)" \
+  --admin-profile admin \
+  --player-profile "player-$USER_ID"
 ```
 
-## Testing
+Expected output — four NDJSON lines, all `status=OK`:
 
-### Test in Local Development Environment
+```json
+{"step":"create-playtest","status":"OK","response":{"playtest":{"id":"…","slug":"demo-1714...","status":"PLAYTEST_STATUS_DRAFT"}}}
+{"step":"transition-open","status":"OK","response":{"playtest":{"status":"PLAYTEST_STATUS_OPEN"}}}
+{"step":"signup","status":"OK","response":{"applicant":{"status":"APPLICANT_STATUS_PENDING"}}}
+{"step":"assert-pending","status":"OK","response":{"applicant":{"status":"APPLICANT_STATUS_PENDING"}}}
+```
 
-This app can be tested locally through the Swagger UI.
+Tear down:
 
-1. Run this app by using the command below.
+```bash
+./pth playtest delete --slug "demo-..." --yes
+./pth user delete --user-id "$USER_ID" --yes
+```
 
-   ```shell
-   docker compose up --build
+The test under [`e2e/golden_m1_test.go`](e2e/golden_m1_test.go) wraps the same sequence behind `go test ./e2e/...` for CI / operator verification — see [`docs/cli.md` §7.4](docs/cli.md).
+
+## Architecture at a glance
+
+- **Backend** — Go, gRPC + grpc-gateway in-process, Postgres (Extend-managed), `pgx` driver, `golang-migrate` migrations, `accelbyte-go-sdk` for IAM + Platform.
+- **Player frontend** — Svelte 5 + Vite + Tailwind v4, static bundle, hash router. Discord login via AGS's platform-token grant ([`docs/engineering.md` §"Discord federation via platform-token grant"](docs/engineering.md)).
+- **Admin frontend** — React 19 + TypeScript Extend App UI bundled as a Module Federation remote, hosted by AccelByte and rendered inside the AGS Admin Portal. Currently Internal-Shared-Cloud only ([PRD §9 R11](docs/PRD.md)).
+- **CLI (`pth`)** — Go binary, talks gRPC directly on `:6565`. Authoritative end-to-end harness. Spec in [`docs/cli.md`](docs/cli.md).
+
+Repo layout is documented in [`docs/engineering.md` §2](docs/engineering.md#2-repo-layout).
+
+## Development workflow
+
+This repo is **TDD-first**. Every production change follows red → green → refactor:
+
+1. Write a failing test that names the behavior.
+2. Write the minimum code to pass.
+3. Refactor with tests green.
+
+Smoke harness lands with the code that introduces it — see [`CLAUDE.md`](CLAUDE.md) and [`docs/engineering.md` §4](docs/engineering.md#4-redgreen-tdd-loop).
+
+### Verification before committing
+
+```bash
+go test ./...                           # unit + integration (testcontainers-postgres)
+golangci-lint run
+buf lint
+./proto.sh && git diff --exit-code      # proto stubs in sync
+./scripts/smoke/boot.sh                 # backend boots + RPCs reach handlers
+./pth flow golden-m1 ...                # canonical e2e (once env is configured)
+
+# Frontend
+( cd player && npm test && npm run build )
+( cd admin  && npm test && npm run build )
+```
+
+CI runs the same gates on every PR — see [`.github/workflows/ci.yml`](.github/workflows/ci.yml). Browser-based a11y (`@axe-core/playwright` per [`docs/engineering.md` §5](docs/engineering.md#5-ci-gates)) is tracked under STATUS phase 12.1.
+
+## Deploy to AGS Extend
+
+1. **Create the Extend Service Extension app** in the AGS Admin Portal. Set the env vars and secrets per [PRD §5.9](docs/PRD.md#59-runtime-configuration-go-backend).
+2. **Build + push** with [`extend-helper-cli`](https://github.com/AccelByte/extend-helper-cli):
+   ```bash
+   extend-helper-cli image-upload --login \
+     --namespace <namespace> --app <app-name> --image-tag v0.0.1
    ```
+3. **Deploy** the pushed image from **App Detail → Image Version History → Deploy**.
+4. **Admin UI** — `extend-helper-cli appui create` + `appui upload` (Internal Shared Cloud only today; see [`docs/engineering.md` §8](docs/engineering.md#8-temporary-ags-platform-workarounds)).
 
-2. If **PLUGIN_GRPC_SERVER_AUTH_ENABLED** is `true`: Get an access token to 
-   be able to access the REST API service. 
-   
-   To get an access token, you can use [get-access-token.postman_collection.json](demo/get-access-token.postman_collection.json) in demo folder.
-   Import the Postman collection to your Postman workspace and create a 
-   Postman environment containing the following variables.
+## Contributing
 
-   - `AGS_BASE_URL` For example, https://test.accelbyte.io
-   - `AGS_IAM_CLIENT_ID` A confidential IAM OAuth client ID
-   - `AGS_IAM_CLIENT_SECRET` The corresponding confidential IAM OAuth client secret
-   - `AB_USERNAME` The username or e-mail of the user (for user token)
-   - `AB_PASSWORD` The corresponding user password (for user token)
+Issues and PRs welcome. Before opening one:
 
-   Inside the postman collection, use `get-client-access-token` request to get client token or use `get-user-access-token` request to get user access token.
+- Read [`CLAUDE.md`](CLAUDE.md) and [`docs/engineering.md`](docs/engineering.md) — they encode the conventions CI enforces.
+- Add a failing test before the fix. PRs that change behavior without a test will be sent back.
+- For PRD-shaping proposals, file an issue first; the PRD is authoritative and changes there gate everything else.
 
-   > :info: When using client access token, make sure the IAM client has following permission: 
-   `ADMIN:NAMESPACE:{namespace}:CLOUDSAVE:RECORD [CREATE,READ,UPDATE,DELETE]`.
-   
-   > :info: When using user access token, make sure the user has a role which contains following permission:
-   `ADMIN:NAMESPACE:{namespace}:CLOUDSAVE:RECORD [CREATE,READ,UPDATE,DELETE]`.
+## License
 
-3. The REST API service can then be tested by opening Swagger UI at 
-   `http://localhost:8000/guild/apidocs/`. Use this to create an API request 
-   to try the endpoints.
-   
-   > :info: Depending on the envar you set for `BASE_PATH`, the service will 
-   have different service URL. This how it's the formatted 
-   `http://localhost:8000/<base_path>`
-
-   ![swagger-interface](./docs/images/swagger-interface.png)
-
-   To authorize Swagger UI, click on "Authorize" button on right side.
-
-   ![swagger-interface](./docs/images/swagger-authorize.png)
-
-   Popup will show, input "Bearer <user access token>" in `Value` field for 
-   `Bearer (apiKey)`. Then click "Authorize" to save the user's access token.
-
-### Test Observability
-
-To be able to see the how the observability works in this template project in
-local development environment, there are few things that need be setup before 
-performing test.
-
-1. Uncomment loki logging driver in [docker-compose.yaml](docker-compose.yaml)
-
-   ```
-    # logging:
-    #   driver: loki
-    #   options:
-    #     loki-url: http://host.docker.internal:3100/loki/api/v1/push
-    #     mode: non-blocking
-    #     max-buffer-size: 4m
-    #     loki-retries: "3"
-   ```
-
-   > :warning: **Make sure to install docker loki plugin beforehand**: Otherwise,
-   this app will not be able to run. This is required so that container 
-   logs can flow to the `loki` service within `grpc-plugin-dependencies` stack. 
-   Use this command to install docker loki plugin: 
-   `docker plugin install grafana/loki-docker-driver:latest --alias loki --grant-all-permissions`.
-
-2. Clone and run [grpc-plugin-dependencies](https://github.com/AccelByte/grpc-plugin-dependencies) stack alongside this app. After this, Grafana 
-will be accessible at http://localhost:3000.
-
-   ```
-   git clone https://github.com/AccelByte/grpc-plugin-dependencies.git
-   cd grpc-plugin-dependencies
-   docker compose up
-   ```
-
-   > :exclamation: More information about [grpc-plugin-dependencies](https://github.com/AccelByte/grpc-plugin-dependencies) is available [here](https://github.com/AccelByte/grpc-plugin-dependencies/blob/main/README.md).
-
-3. Perform testing. For example, by following [Test in Local Development Environment](#test-in-local-development-environment).
-
-## Deploying
-
-After completing testing, the next step is to deploy your app to `AccelByte Gaming Services`.
-
-1. **Create an Extend Service Extension app**
-
-   If you do not already have one, create a new [Extend Service Extension App](https://docs.accelbyte.io/gaming-services/modules/foundations/extend/service-extension/getting-started-service-extension/#create-the-extend-app).
-
-   On the **App Detail** page, take note of the following values.
-   - `Namespace`
-   - `App Name`
-
-   Under the **Environment Configuration** section, set the required secrets and/or variables per PRD §5.9.
-   - Secrets
-      - `AGS_IAM_CLIENT_SECRET`
-      - `DATABASE_URL`
-      - `DISCORD_BOT_TOKEN`
-   - Variables
-      - `AGS_IAM_CLIENT_ID`
-      - `AGS_BASE_URL`
-      - `AGS_NAMESPACE`
-      - `BASE_PATH` (`/playtesthub`)
-
-2. **Build and Push the Container Image**
-
-   Use [extend-helper-cli](https://github.com/AccelByte/extend-helper-cli) to build and upload the container image.
-
-   ```
-   extend-helper-cli image-upload --login --namespace <namespace> --app <app-name> --image-tag v0.0.1
-   ```
-
-   > :warning: Run this command from your project directory. If you are in a different directory, add the `--work-dir <project-dir>` option to specify the correct path.
-
-3. **Deploy the Image**
-   
-   On the **App Detail** page:
-   - Click **Image Version History**
-   - Select the image you just pushed
-   - Click **Deploy Image**
-
-## Next Step
-
-Proceed by modifying this `Extend Service Extension` app template to implement your own custom logic. For more details, see [here](https://docs.accelbyte.io/gaming-services/modules/foundations/extend/service-extension/customize-service-extension-app/).
+MIT — see [`LICENSE`](LICENSE).

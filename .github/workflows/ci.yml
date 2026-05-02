@@ -1,0 +1,135 @@
+# CI gates per docs/engineering.md §5.
+#
+# A11y gate (axe-core/playwright over five player pages) is intentionally
+# absent — phase 12.1 wires it once the Playwright scaffold lands.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  GO_VERSION: "1.25"
+  NODE_VERSION: "22"
+
+jobs:
+  go-lint:
+    name: golangci-lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+      - uses: golangci/golangci-lint-action@v6
+        with:
+          version: v1.62.2
+          args: --timeout=5m
+
+  go-test:
+    name: go test (incl. testcontainers)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+      # Docker daemon ships pre-installed on ubuntu-latest runners — testcontainers
+      # uses it for the ephemeral Postgres in pkg/repo, pkg/migrate, and e2e.
+      - run: docker info
+      - run: go test ./...
+
+  proto-lint:
+    name: buf lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: bufbuild/buf-setup-action@v1
+        with:
+          version: 1.50.0
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+      - run: buf lint
+
+  proto-fresh:
+    name: proto stubs fresh (./proto.sh + git diff)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+      - name: Install protoc
+        run: |
+          set -euo pipefail
+          PROTOC_VERSION=28.3
+          curl -fsSL -o /tmp/protoc.zip \
+            "https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-linux-x86_64.zip"
+          sudo unzip -q -o /tmp/protoc.zip -d /usr/local
+          protoc --version
+      - name: Install protoc plugins
+        run: |
+          set -euo pipefail
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.4
+          go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.5.1
+          go install github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-grpc-gateway@v2.24.0
+          go install github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2@v2.24.0
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+      - run: ./proto.sh
+      - name: Assert no drift
+        run: |
+          if ! git diff --exit-code -- pkg/pb gateway/apidocs; then
+            echo "::error::Generated stubs drift from .proto. Re-run ./proto.sh and commit." >&2
+            exit 1
+          fi
+
+  player:
+    name: player (build + test)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: player
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: player/package-lock.json
+      - run: npm ci
+      - run: npm run test
+      - run: npm run build
+
+  admin:
+    name: admin (codegen-fresh + build + test)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: admin
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: admin/package-lock.json
+      - run: npm ci
+      # cg:download fetches from a deployed URL we can't reach in CI; regenerate
+      # against the checked-in admin/swaggers/playtesthub.json instead — catches
+      # drift between that committed spec and admin/src/playtesthubapi/.
+      - run: npm run cg:clean-and-generate
+      - name: Assert no codegen drift
+        run: |
+          if ! git diff --exit-code -- src/playtesthubapi; then
+            echo "::error::Admin codegen drift. Re-run 'npm run cg:clean-and-generate' in admin/ and commit." >&2
+            exit 1
+          fi
+      - run: npm run test
+      - run: npm run build
