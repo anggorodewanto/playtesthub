@@ -65,13 +65,13 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-// truncateAll resets every M1 table, restarting identity sequences and
-// cascading FKs. Intended to be the first line of every test; it is
+// truncateAll resets every table in scope, restarting identity sequences
+// and cascading FKs. Intended to be the first line of every test; it is
 // cheap next to container start.
 func truncateAll(t *testing.T) {
 	t.Helper()
 	_, err := testPool.Exec(context.Background(),
-		`TRUNCATE playtest, code, applicant, audit_log, leader_lease RESTART IDENTITY CASCADE`)
+		`TRUNCATE playtest, code, applicant, audit_log, leader_lease, nda_acceptance RESTART IDENTITY CASCADE`)
 	if err != nil {
 		t.Fatalf("truncate: %v", err)
 	}
