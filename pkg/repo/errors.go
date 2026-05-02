@@ -7,10 +7,23 @@
 package repo
 
 import (
+	"context"
 	"errors"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 )
+
+// Querier is the subset of pgx surface satisfied by both *pgxpool.Pool
+// and pgx.Tx. Methods that must compose into a caller-controlled
+// transaction (the approve flow's fenced finalize + applicant CAS, per
+// docs/schema.md §"Approve flow") accept a Querier so the same code
+// path serves both the pool-direct case and the in-tx case.
+type Querier interface {
+	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
+	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+}
 
 // Sentinel errors callers may switch on with errors.Is.
 var (
@@ -32,6 +45,12 @@ var (
 	// when the current row state no longer matches the expected state
 	// the caller passed in (another writer won the race).
 	ErrStatusCASMismatch = errors.New("repo: status CAS mismatch")
+
+	// ErrPoolEmpty is returned by Code.Reserve when there are no UNUSED
+	// rows left in a playtest's pool. The service layer maps this to
+	// the model-specific ResourceExhausted message in errors.md (rows
+	// 12 / 13).
+	ErrPoolEmpty = errors.New("repo: code pool empty")
 )
 
 // classifyPgError maps low-level pgconn.PgError SQLSTATE codes to the

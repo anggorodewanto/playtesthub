@@ -5,11 +5,26 @@ import (
 	"errors"
 	"fmt"
 	"time"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+// applicantLastDMErrorMaxBytes mirrors the DB CHECK on
+// applicant.last_dm_error in migration 0001 and the dm-queue.md rule:
+// the persisted message is byte-truncated to 500 bytes preserving valid
+// UTF-8 codepoint boundaries.
+const applicantLastDMErrorMaxBytes = 500
+
+// Applicant status enum values — keep in sync with applicant_status_enum
+// CHECK in migration 0001.
+const (
+	ApplicantStatusPending  = "PENDING"
+	ApplicantStatusApproved = "APPROVED"
+	ApplicantStatusRejected = "REJECTED"
 )
 
 // Applicant mirrors the applicant table in migration 0001. Admin vs.
@@ -40,6 +55,23 @@ type ApplicantStore interface {
 	GetByPlaytestUser(ctx context.Context, playtestID, userID uuid.UUID) (*Applicant, error)
 	ListByPlaytest(ctx context.Context, playtestID uuid.UUID, status string) ([]*Applicant, error)
 	UpdateStatus(ctx context.Context, a *Applicant) (*Applicant, error)
+	// ApproveCAS performs the PENDING → APPROVED transition with grant
+	// attribution (docs/schema.md §"Approve flow"). The Querier argument
+	// is the transaction the caller has opened around the fenced code
+	// finalize; the applicant update must run inside that same tx so
+	// either both rows commit or neither does. Returns
+	// ErrStatusCASMismatch when the row is no longer PENDING (the
+	// "applicant already approved" race per errors.md row 11).
+	ApproveCAS(ctx context.Context, q Querier, applicantID, codeID uuid.UUID, approvedAt time.Time) (*Applicant, error)
+	// RejectCAS is the terminal PENDING → REJECTED transition (PRD
+	// §5.4). The reason is the admin-supplied free-text per errors.md;
+	// nil rejects without a reason.
+	RejectCAS(ctx context.Context, q Querier, applicantID uuid.UUID, reason *string) (*Applicant, error)
+	// UpdateDMStatus stamps the DM attribution fields (PRD §5.4 / docs
+	// /dm-queue.md). status is "sent" or "failed"; errMsg is preserved
+	// verbatim for "sent" (typically nil) and byte-truncated to 500
+	// UTF-8-safe bytes for "failed".
+	UpdateDMStatus(ctx context.Context, applicantID uuid.UUID, status string, attemptAt time.Time, errMsg *string) (*Applicant, error)
 }
 
 type PgApplicantStore struct {
@@ -177,6 +209,97 @@ func (s *PgApplicantStore) UpdateStatus(ctx context.Context, a *Applicant) (*App
 		return nil, fmt.Errorf("updating applicant status: %w", classifyPgError(err))
 	}
 	return got, nil
+}
+
+// ApproveCAS runs inside the caller's transaction. The CAS is the
+// status='PENDING' guard — when two admins click Approve on the same
+// row, only one UPDATE returns a row; the other gets pgx.ErrNoRows
+// surfaced as ErrStatusCASMismatch.
+func (s *PgApplicantStore) ApproveCAS(ctx context.Context, q Querier, applicantID, codeID uuid.UUID, approvedAt time.Time) (*Applicant, error) {
+	const sql = `
+		UPDATE applicant
+		   SET status = 'APPROVED',
+		       granted_code_id = $2,
+		       approved_at = $3
+		 WHERE id = $1
+		   AND status = 'PENDING'
+		RETURNING ` + applicantColumns
+
+	row := q.QueryRow(ctx, sql, applicantID, codeID, approvedAt)
+	got, err := scanApplicant(row)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrStatusCASMismatch
+	}
+	if err != nil {
+		return nil, fmt.Errorf("approving applicant: %w", classifyPgError(err))
+	}
+	return got, nil
+}
+
+// RejectCAS is the terminal PENDING → REJECTED transition. Same CAS
+// discipline as ApproveCAS — losing the race surfaces as
+// ErrStatusCASMismatch.
+func (s *PgApplicantStore) RejectCAS(ctx context.Context, q Querier, applicantID uuid.UUID, reason *string) (*Applicant, error) {
+	const sql = `
+		UPDATE applicant
+		   SET status = 'REJECTED',
+		       rejection_reason = $2
+		 WHERE id = $1
+		   AND status = 'PENDING'
+		RETURNING ` + applicantColumns
+
+	row := q.QueryRow(ctx, sql, applicantID, stringPtr(reason))
+	got, err := scanApplicant(row)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrStatusCASMismatch
+	}
+	if err != nil {
+		return nil, fmt.Errorf("rejecting applicant: %w", classifyPgError(err))
+	}
+	return got, nil
+}
+
+// UpdateDMStatus is latest-write-wins — by design (PRD §5.4): a manual
+// Retry DM that succeeds after a prior failure must overwrite the
+// recorded status. errMsg is byte-truncated to 500 bytes preserving
+// UTF-8 codepoint boundaries (docs/dm-queue.md).
+func (s *PgApplicantStore) UpdateDMStatus(ctx context.Context, applicantID uuid.UUID, status string, attemptAt time.Time, errMsg *string) (*Applicant, error) {
+	const sql = `
+		UPDATE applicant
+		   SET last_dm_status = $2,
+		       last_dm_attempt_at = $3,
+		       last_dm_error = $4
+		 WHERE id = $1
+		RETURNING ` + applicantColumns
+
+	row := s.pool.QueryRow(ctx, sql, applicantID, status, attemptAt, stringPtr(truncateUTF8(errMsg, applicantLastDMErrorMaxBytes)))
+	got, err := scanApplicant(row)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("updating applicant dm status: %w", classifyPgError(err))
+	}
+	return got, nil
+}
+
+// truncateUTF8 returns a string whose byte length is ≤ maxBytes and
+// whose final byte still ends on a valid UTF-8 codepoint boundary. nil
+// passes through unchanged. Used to honour the DB CHECK on
+// applicant.last_dm_error and the dm-queue.md 500-byte rule.
+func truncateUTF8(s *string, maxBytes int) *string {
+	if s == nil {
+		return nil
+	}
+	if len(*s) <= maxBytes {
+		return s
+	}
+	cut := maxBytes
+	for cut > 0 && !utf8.RuneStart((*s)[cut]) {
+		cut--
+	}
+	out := (*s)[:cut]
+	return &out
 }
 
 func scanApplicant(row pgx.Row) (*Applicant, error) {

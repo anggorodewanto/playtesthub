@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/anggorodewanto/playtesthub/pkg/repo"
@@ -83,6 +85,179 @@ func TestCodeBulkInsert_SameValueAcrossPlaytestsOK(t *testing.T) {
 	}
 	if _, err := store.BulkInsert(ctx, pt2.ID, []string{"shared-key"}); err != nil {
 		t.Errorf("insert into pt2: %v", err)
+	}
+}
+
+func TestCodeReserve_HappyPath(t *testing.T) {
+	truncateAll(t)
+	pt := seedPlaytest(t, "code-reserve-happy")
+	store := repo.NewPgCodeStore(testPool)
+	ctx := context.Background()
+
+	if _, err := store.BulkInsert(ctx, pt.ID, []string{"K-1", "K-2", "K-3"}); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	user := uuid.New()
+	got, err := store.Reserve(ctx, testPool, pt.ID, user)
+	if err != nil {
+		t.Fatalf("Reserve: %v", err)
+	}
+	if got.State != repo.CodeStateReserved {
+		t.Errorf("state = %q, want RESERVED", got.State)
+	}
+	if got.ReservedBy == nil || *got.ReservedBy != user {
+		t.Errorf("reserved_by = %v, want %v", got.ReservedBy, user)
+	}
+	if got.ReservedAt == nil {
+		t.Error("reserved_at not populated")
+	}
+
+	counts, err := store.CountByState(ctx, pt.ID)
+	if err != nil {
+		t.Fatalf("CountByState: %v", err)
+	}
+	if counts[repo.CodeStateReserved] != 1 || counts[repo.CodeStateUnused] != 2 {
+		t.Errorf("counts = %+v, want RESERVED=1 UNUSED=2", counts)
+	}
+}
+
+// errors.md rows 12-13: empty pool is the model-specific
+// ResourceExhausted case. Repo surfaces it as the sentinel ErrPoolEmpty.
+func TestCodeReserve_EmptyPoolReturnsSentinel(t *testing.T) {
+	truncateAll(t)
+	pt := seedPlaytest(t, "code-reserve-empty")
+	store := repo.NewPgCodeStore(testPool)
+
+	_, err := store.Reserve(context.Background(), testPool, pt.ID, uuid.New())
+	if !errors.Is(err, repo.ErrPoolEmpty) {
+		t.Errorf("empty pool: got %v, want ErrPoolEmpty", err)
+	}
+}
+
+func TestCodeFencedFinalize_HappyPath(t *testing.T) {
+	truncateAll(t)
+	pt := seedPlaytest(t, "code-finalize-happy")
+	store := repo.NewPgCodeStore(testPool)
+	ctx := context.Background()
+
+	if _, err := store.BulkInsert(ctx, pt.ID, []string{"K-1"}); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	user := uuid.New()
+	reserved, err := store.Reserve(ctx, testPool, pt.ID, user)
+	if err != nil {
+		t.Fatalf("Reserve: %v", err)
+	}
+
+	rows, err := store.FencedFinalize(ctx, testPool, reserved.ID, user, *reserved.ReservedAt)
+	if err != nil {
+		t.Fatalf("FencedFinalize: %v", err)
+	}
+	if rows != 1 {
+		t.Errorf("rows affected = %d, want 1", rows)
+	}
+
+	final, err := store.GetByID(ctx, reserved.ID)
+	if err != nil {
+		t.Fatalf("GetByID: %v", err)
+	}
+	if final.State != repo.CodeStateGranted {
+		t.Errorf("state = %q, want GRANTED", final.State)
+	}
+	if final.GrantedAt == nil {
+		t.Error("granted_at not populated")
+	}
+}
+
+// schema.md §"Approve flow" (STATUS.md M2 phase 3): the canonical
+// fenced UPDATE returns 0 rows when reservedBy / reservedAt change
+// between reserve and finalize — the reclaim-and-steal scenario.
+func TestCodeFencedFinalize_ReclaimAndStealReturnsZeroRows(t *testing.T) {
+	truncateAll(t)
+	pt := seedPlaytest(t, "code-finalize-stolen")
+	store := repo.NewPgCodeStore(testPool)
+	ctx := context.Background()
+
+	if _, err := store.BulkInsert(ctx, pt.ID, []string{"K-X"}); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	userA := uuid.New()
+	reserved, err := store.Reserve(ctx, testPool, pt.ID, userA)
+	if err != nil {
+		t.Fatalf("Reserve A: %v", err)
+	}
+	originalReservedAt := *reserved.ReservedAt
+
+	// Reclaim+steal scenario: the reclaim worker flips the row back to
+	// UNUSED, then user B reserves it. fenced UPDATE keyed on (userA,
+	// originalReservedAt) must affect 0 rows.
+	if _, err := testPool.Exec(ctx, `
+		UPDATE code SET state='UNUSED', reserved_by=NULL, reserved_at=NULL WHERE id=$1`, reserved.ID); err != nil {
+		t.Fatalf("simulate reclaim: %v", err)
+	}
+	userB := uuid.New()
+	if _, err := store.Reserve(ctx, testPool, pt.ID, userB); err != nil {
+		t.Fatalf("Reserve B: %v", err)
+	}
+
+	rows, err := store.FencedFinalize(ctx, testPool, reserved.ID, userA, originalReservedAt)
+	if err != nil {
+		t.Fatalf("FencedFinalize: %v", err)
+	}
+	if rows != 0 {
+		t.Errorf("rows affected = %d, want 0 (reclaim-and-steal)", rows)
+	}
+
+	// The row stayed RESERVED for B, not GRANTED.
+	final, err := store.GetByID(ctx, reserved.ID)
+	if err != nil {
+		t.Fatalf("GetByID: %v", err)
+	}
+	if final.State != repo.CodeStateReserved {
+		t.Errorf("state = %q, want RESERVED (B's reservation)", final.State)
+	}
+	if final.ReservedBy == nil || *final.ReservedBy != userB {
+		t.Errorf("reserved_by = %v, want %v", final.ReservedBy, userB)
+	}
+}
+
+// Reclaim releases RESERVED rows past TTL; younger reservations stay.
+func TestCodeReclaim_ReleasesStaleReservations(t *testing.T) {
+	truncateAll(t)
+	pt := seedPlaytest(t, "code-reclaim")
+	store := repo.NewPgCodeStore(testPool)
+	ctx := context.Background()
+
+	if _, err := store.BulkInsert(ctx, pt.ID, []string{"K-1", "K-2"}); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	// One stale (reserved 10 minutes ago), one fresh (just reserved).
+	if _, err := testPool.Exec(ctx, `
+		UPDATE code
+		   SET state='RESERVED', reserved_by=$1, reserved_at=NOW() - INTERVAL '10 minutes'
+		 WHERE playtest_id=$2 AND value='K-1'`, uuid.New(), pt.ID); err != nil {
+		t.Fatalf("seed stale: %v", err)
+	}
+	if _, err := store.Reserve(ctx, testPool, pt.ID, uuid.New()); err != nil {
+		t.Fatalf("Reserve fresh: %v", err)
+	}
+
+	released, err := store.Reclaim(ctx, 5*time.Minute)
+	if err != nil {
+		t.Fatalf("Reclaim: %v", err)
+	}
+	if released != 1 {
+		t.Errorf("released = %d, want 1", released)
+	}
+
+	counts, err := store.CountByState(ctx, pt.ID)
+	if err != nil {
+		t.Fatalf("CountByState: %v", err)
+	}
+	if counts[repo.CodeStateUnused] != 1 || counts[repo.CodeStateReserved] != 1 {
+		t.Errorf("post-reclaim counts = %+v, want UNUSED=1 RESERVED=1", counts)
 	}
 }
 

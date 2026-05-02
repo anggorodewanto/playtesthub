@@ -147,7 +147,7 @@ func (f *fakeApplicantStore) Insert(_ context.Context, a *repo.Applicant) (*repo
 	clone.ID = uuid.New()
 	clone.CreatedAt = time.Now()
 	if clone.Status == "" {
-		clone.Status = "PENDING"
+		clone.Status = applicantStatusPending
 	}
 	f.rows = append(f.rows, &clone)
 	ret := clone
@@ -198,6 +198,63 @@ func (f *fakeApplicantStore) UpdateStatus(_ context.Context, a *repo.Applicant) 
 			ret := clone
 			return &ret, nil
 		}
+	}
+	return nil, repo.ErrNotFound
+}
+
+// ApproveCAS / RejectCAS / UpdateDMStatus exist on the interface for
+// the M2 approve flow. These M1-era unit tests do not exercise the
+// approve path; the methods stub out cleanly here and the M2 phases
+// that introduce the call sites bring their own table-driven tests.
+func (f *fakeApplicantStore) ApproveCAS(_ context.Context, _ repo.Querier, applicantID, codeID uuid.UUID, approvedAt time.Time) (*repo.Applicant, error) {
+	for i, existing := range f.rows {
+		if existing.ID != applicantID {
+			continue
+		}
+		if existing.Status != applicantStatusPending {
+			return nil, repo.ErrStatusCASMismatch
+		}
+		clone := *existing
+		clone.Status = applicantStatusApproved
+		clone.GrantedCodeID = &codeID
+		clone.ApprovedAt = &approvedAt
+		f.rows[i] = &clone
+		ret := clone
+		return &ret, nil
+	}
+	return nil, repo.ErrNotFound
+}
+
+func (f *fakeApplicantStore) RejectCAS(_ context.Context, _ repo.Querier, applicantID uuid.UUID, reason *string) (*repo.Applicant, error) {
+	for i, existing := range f.rows {
+		if existing.ID != applicantID {
+			continue
+		}
+		if existing.Status != applicantStatusPending {
+			return nil, repo.ErrStatusCASMismatch
+		}
+		clone := *existing
+		clone.Status = applicantStatusRejected
+		clone.RejectionReason = reason
+		f.rows[i] = &clone
+		ret := clone
+		return &ret, nil
+	}
+	return nil, repo.ErrNotFound
+}
+
+func (f *fakeApplicantStore) UpdateDMStatus(_ context.Context, applicantID uuid.UUID, status string, attemptAt time.Time, errMsg *string) (*repo.Applicant, error) {
+	for i, existing := range f.rows {
+		if existing.ID != applicantID {
+			continue
+		}
+		clone := *existing
+		clone.LastDMStatus = &status
+		clone.LastDMAttemptAt = &attemptAt
+		clone.LastDMError = errMsg
+		f.rows[i] = &clone
+		ret := clone
+		return &ret, nil
 	}
 	return nil, repo.ErrNotFound
 }
@@ -944,7 +1001,7 @@ func TestGetPlaytestForPlayer_Closed_ApprovedCaller_Visible(t *testing.T) {
 		DistributionModel: "STEAM_KEYS", Status: "CLOSED",
 	})
 	applicants.rows = append(applicants.rows, &repo.Applicant{
-		ID: uuid.New(), PlaytestID: pid, UserID: userID, Status: "APPROVED",
+		ID: uuid.New(), PlaytestID: pid, UserID: userID, Status: applicantStatusApproved,
 	})
 	resp, err := svr.GetPlaytestForPlayer(authCtx(userID), &pb.GetPlaytestForPlayerRequest{Slug: "c"})
 	if err != nil {

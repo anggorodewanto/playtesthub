@@ -36,12 +36,32 @@ type Code struct {
 }
 
 // CodeStore is the data access surface for pool inventory. The
-// reserve/finalize pair lands in M2; M1 only needs seeding + counting
-// so the CSV-upload path (phase 8 of M2) has a target to land against.
+// reserve / finalize / reclaim trio lands in M2 phase 3 to support
+// the approve flow (PRD §4.1 step 6 + docs/schema.md §"Approve flow")
+// and the reclaim worker (PRD §5.5).
 type CodeStore interface {
 	BulkInsert(ctx context.Context, playtestID uuid.UUID, values []string) (int, error)
+	BulkInsertCSV(ctx context.Context, playtestID uuid.UUID, values []string) (int, error)
+	BulkInsertGenerated(ctx context.Context, playtestID uuid.UUID, values []string) (int, error)
 	CountByState(ctx context.Context, playtestID uuid.UUID) (map[string]int, error)
 	GetByID(ctx context.Context, id uuid.UUID) (*Code, error)
+	// Reserve picks a single UNUSED row from the playtest's pool, marks
+	// it RESERVED with reserved_by=userID and reserved_at=NOW(), and
+	// returns the row. Concurrent callers do not block on each other —
+	// FOR UPDATE SKIP LOCKED hands each one a distinct row. Returns
+	// ErrPoolEmpty when no UNUSED rows are available.
+	Reserve(ctx context.Context, q Querier, playtestID, userID uuid.UUID) (*Code, error)
+	// FencedFinalize runs the canonical fenced UPDATE from schema.md
+	// §"Approve flow". Returns the number of rows affected: 1 on
+	// success, 0 when the reservation was reclaimed/stolen between
+	// reserve and finalize. The service layer turns the 0-row case
+	// into the code.grant_orphaned audit + Aborted RPC error
+	// (errors.md row 10).
+	FencedFinalize(ctx context.Context, q Querier, codeID, userID uuid.UUID, originalReservedAt time.Time) (int64, error)
+	// Reclaim flips RESERVED rows whose reservation is older than ttl
+	// back to UNUSED and clears reserved_by / reserved_at. Powers the
+	// reclaim worker (PRD §5.5). Returns the number of rows released.
+	Reclaim(ctx context.Context, ttl time.Duration) (int64, error)
 }
 
 type PgCodeStore struct {
@@ -117,6 +137,96 @@ func (s *PgCodeStore) GetByID(ctx context.Context, id uuid.UUID) (*Code, error) 
 		return nil, fmt.Errorf("fetching code by id: %w", err)
 	}
 	return got, nil
+}
+
+// BulkInsertCSV is the STEAM_KEYS upload path. Same SQL behavior as
+// BulkInsert (CopyFrom is atomic by default — duplicate values abort
+// the whole batch via the UNIQUE (playtest_id, value) constraint per
+// PRD §4.3 whole-file-reject rule). Named for the call site so the
+// upload-tx + advisory-lock concerns the service layer wraps around it
+// stay legible.
+func (s *PgCodeStore) BulkInsertCSV(ctx context.Context, playtestID uuid.UUID, values []string) (int, error) {
+	return s.BulkInsert(ctx, playtestID, values)
+}
+
+// BulkInsertGenerated is the AGS_CAMPAIGN insert path: writes one
+// generated batch with the same atomic-batch semantics as BulkInsert.
+// The non-idempotent / no-tx wrapper rule for TopUpCodes (PRD §4.6)
+// lives at the service layer.
+func (s *PgCodeStore) BulkInsertGenerated(ctx context.Context, playtestID uuid.UUID, values []string) (int, error) {
+	return s.BulkInsert(ctx, playtestID, values)
+}
+
+const codeColumns = `id, playtest_id, value, state, reserved_by, reserved_at, granted_at, created_at`
+
+// Reserve atomically picks one UNUSED row and flips it to RESERVED.
+// The inner SELECT uses FOR UPDATE SKIP LOCKED so concurrent reservers
+// take different rows; ORDER BY created_at ASC keeps consumption FIFO
+// (oldest codes redeemed first).
+func (s *PgCodeStore) Reserve(ctx context.Context, q Querier, playtestID, userID uuid.UUID) (*Code, error) {
+	const sql = `
+		UPDATE code
+		   SET state = 'RESERVED',
+		       reserved_by = $2,
+		       reserved_at = NOW()
+		 WHERE id = (
+		     SELECT id
+		       FROM code
+		      WHERE playtest_id = $1
+		        AND state = 'UNUSED'
+		      ORDER BY created_at ASC
+		      LIMIT 1
+		      FOR UPDATE SKIP LOCKED
+		 )
+		RETURNING ` + codeColumns
+
+	row := q.QueryRow(ctx, sql, playtestID, userID)
+	got, err := scanCode(row)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrPoolEmpty
+	}
+	if err != nil {
+		return nil, fmt.Errorf("reserving code: %w", classifyPgError(err))
+	}
+	return got, nil
+}
+
+// FencedFinalize runs the canonical fenced UPDATE. Returns the rows
+// affected (0 = reclaim-and-steal happened mid-approve; 1 = success).
+func (s *PgCodeStore) FencedFinalize(ctx context.Context, q Querier, codeID, userID uuid.UUID, originalReservedAt time.Time) (int64, error) {
+	const sql = `
+		UPDATE code
+		   SET state = 'GRANTED',
+		       granted_at = NOW()
+		 WHERE id = $1
+		   AND state = 'RESERVED'
+		   AND reserved_by = $2
+		   AND reserved_at = $3`
+
+	tag, err := q.Exec(ctx, sql, codeID, userID, originalReservedAt)
+	if err != nil {
+		return 0, fmt.Errorf("finalizing code grant: %w", classifyPgError(err))
+	}
+	return tag.RowsAffected(), nil
+}
+
+// Reclaim releases RESERVED rows whose reservation is older than ttl.
+// Pool-wide (no playtest filter) so a single tick cleans the whole
+// instance. PRD §5.5 reclaim worker.
+func (s *PgCodeStore) Reclaim(ctx context.Context, ttl time.Duration) (int64, error) {
+	const sql = `
+		UPDATE code
+		   SET state = 'UNUSED',
+		       reserved_by = NULL,
+		       reserved_at = NULL
+		 WHERE state = 'RESERVED'
+		   AND reserved_at < NOW() - $1::interval`
+
+	tag, err := s.pool.Exec(ctx, sql, ttl.String())
+	if err != nil {
+		return 0, fmt.Errorf("reclaiming codes: %w", err)
+	}
+	return tag.RowsAffected(), nil
 }
 
 func scanCode(row pgx.Row) (*Code, error) {

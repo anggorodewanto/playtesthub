@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 
@@ -149,6 +150,172 @@ func TestApplicantListByPlaytest_FiltersAndOrders(t *testing.T) {
 	}
 }
 
+func TestApplicantApproveCAS_PendingTransitions(t *testing.T) {
+	truncateAll(t)
+	pt := seedPlaytest(t, "apl-approve")
+	store := repo.NewPgApplicantStore(testPool)
+	codeStore := repo.NewPgCodeStore(testPool)
+	ctx := context.Background()
+
+	a, err := store.Insert(ctx, newApplicant(pt.ID, uuid.New()))
+	if err != nil {
+		t.Fatalf("Insert: %v", err)
+	}
+	if _, err := codeStore.BulkInsert(ctx, pt.ID, []string{"K-1"}); err != nil {
+		t.Fatalf("seed code: %v", err)
+	}
+	codes, err := codeStore.CountByState(ctx, pt.ID)
+	if err != nil || codes[repo.CodeStateUnused] != 1 {
+		t.Fatalf("seed code count = %+v err=%v", codes, err)
+	}
+
+	// Pull the seeded code id directly so we can use it as the grant.
+	var codeID uuid.UUID
+	if err := testPool.QueryRow(ctx, `SELECT id FROM code WHERE playtest_id=$1`, pt.ID).Scan(&codeID); err != nil {
+		t.Fatalf("look up code id: %v", err)
+	}
+
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	got, err := store.ApproveCAS(ctx, testPool, a.ID, codeID, now)
+	if err != nil {
+		t.Fatalf("ApproveCAS: %v", err)
+	}
+	if got.Status != "APPROVED" {
+		t.Errorf("status = %q, want APPROVED", got.Status)
+	}
+	if got.GrantedCodeID == nil || *got.GrantedCodeID != codeID {
+		t.Errorf("granted_code_id = %v, want %v", got.GrantedCodeID, codeID)
+	}
+	if got.ApprovedAt == nil || !got.ApprovedAt.Equal(now) {
+		t.Errorf("approved_at = %v, want %v", got.ApprovedAt, now)
+	}
+}
+
+// errors.md row 11: two admins click Approve on the same PENDING
+// applicant simultaneously — second caller must see CAS mismatch.
+func TestApplicantApproveCAS_DoubleApproveLosesCAS(t *testing.T) {
+	truncateAll(t)
+	pt := seedPlaytest(t, "apl-approve-race")
+	store := repo.NewPgApplicantStore(testPool)
+	codeStore := repo.NewPgCodeStore(testPool)
+	ctx := context.Background()
+
+	a, err := store.Insert(ctx, newApplicant(pt.ID, uuid.New()))
+	if err != nil {
+		t.Fatalf("Insert: %v", err)
+	}
+	if _, err := codeStore.BulkInsert(ctx, pt.ID, []string{"K-A", "K-B"}); err != nil {
+		t.Fatalf("seed codes: %v", err)
+	}
+	var codeIDs []uuid.UUID
+	rows, err := testPool.Query(ctx, `SELECT id FROM code WHERE playtest_id=$1`, pt.ID)
+	if err != nil {
+		t.Fatalf("look up codes: %v", err)
+	}
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			t.Fatalf("scan code id: %v", err)
+		}
+		codeIDs = append(codeIDs, id)
+	}
+	rows.Close()
+
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	if _, err := store.ApproveCAS(ctx, testPool, a.ID, codeIDs[0], now); err != nil {
+		t.Fatalf("first ApproveCAS: %v", err)
+	}
+	_, err = store.ApproveCAS(ctx, testPool, a.ID, codeIDs[1], now)
+	if !errors.Is(err, repo.ErrStatusCASMismatch) {
+		t.Errorf("second ApproveCAS: got %v, want ErrStatusCASMismatch", err)
+	}
+}
+
+func TestApplicantRejectCAS_PendingToRejected(t *testing.T) {
+	truncateAll(t)
+	pt := seedPlaytest(t, "apl-reject")
+	store := repo.NewPgApplicantStore(testPool)
+	ctx := context.Background()
+
+	a, err := store.Insert(ctx, newApplicant(pt.ID, uuid.New()))
+	if err != nil {
+		t.Fatalf("Insert: %v", err)
+	}
+
+	reason := "ineligible region"
+	got, err := store.RejectCAS(ctx, testPool, a.ID, &reason)
+	if err != nil {
+		t.Fatalf("RejectCAS: %v", err)
+	}
+	if got.Status != repo.ApplicantStatusRejected {
+		t.Errorf("status = %q, want REJECTED", got.Status)
+	}
+	if got.RejectionReason == nil || *got.RejectionReason != reason {
+		t.Errorf("rejection_reason = %v, want %q", got.RejectionReason, reason)
+	}
+
+	// Second reject loses the CAS.
+	_, err = store.RejectCAS(ctx, testPool, a.ID, &reason)
+	if !errors.Is(err, repo.ErrStatusCASMismatch) {
+		t.Errorf("second RejectCAS: got %v, want ErrStatusCASMismatch", err)
+	}
+}
+
+// PRD §5.4 / dm-queue.md: lastDmError is byte-truncated to 500 bytes
+// preserving valid UTF-8 codepoint boundaries. Build a string whose
+// untruncated length straddles the 500th byte mid-codepoint and assert
+// the persisted result has byte length ≤500 and decodes cleanly as
+// UTF-8.
+func TestApplicantUpdateDMStatus_TruncatesUTF8At500Bytes(t *testing.T) {
+	truncateAll(t)
+	pt := seedPlaytest(t, "apl-dm-trunc")
+	store := repo.NewPgApplicantStore(testPool)
+	ctx := context.Background()
+
+	a, err := store.Insert(ctx, newApplicant(pt.ID, uuid.New()))
+	if err != nil {
+		t.Fatalf("Insert: %v", err)
+	}
+
+	// "é" is two UTF-8 bytes (0xC3 0xA9). 251 copies = 502 bytes; the
+	// naive byte cut at index 500 lands mid-codepoint.
+	const e = "é"
+	long := ""
+	for range 251 {
+		long += e
+	}
+	if len(long) != 502 {
+		t.Fatalf("test fixture wrong: len=%d want 502", len(long))
+	}
+
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	got, err := store.UpdateDMStatus(ctx, a.ID, "failed", now, &long)
+	if err != nil {
+		t.Fatalf("UpdateDMStatus: %v", err)
+	}
+	if got.LastDMError == nil {
+		t.Fatal("last_dm_error nil after update")
+	}
+	if got.LastDMStatus == nil || *got.LastDMStatus != "failed" {
+		t.Errorf("last_dm_status = %v, want failed", got.LastDMStatus)
+	}
+	if !got.LastDMAttemptAt.Equal(now) {
+		t.Errorf("last_dm_attempt_at = %v, want %v", got.LastDMAttemptAt, now)
+	}
+	if len(*got.LastDMError) > 500 {
+		t.Errorf("len(last_dm_error) = %d, want ≤500", len(*got.LastDMError))
+	}
+	if !utf8.ValidString(*got.LastDMError) {
+		t.Errorf("truncated last_dm_error not valid UTF-8: %q", *got.LastDMError)
+	}
+	// Final char must be a complete "é" — naive cut would have left a
+	// dangling 0xC3.
+	if (*got.LastDMError)[len(*got.LastDMError)-2:] != "é" {
+		t.Errorf("trailing 2 bytes not 'é': got %q", (*got.LastDMError)[len(*got.LastDMError)-2:])
+	}
+}
+
 func TestApplicantUpdateStatus_RoundTrip(t *testing.T) {
 	truncateAll(t)
 	pt := seedPlaytest(t, "apl-upd")
@@ -161,14 +328,14 @@ func TestApplicantUpdateStatus_RoundTrip(t *testing.T) {
 	}
 
 	reason := "does not meet criteria"
-	inserted.Status = "REJECTED"
+	inserted.Status = repo.ApplicantStatusRejected
 	inserted.RejectionReason = &reason
 
 	updated, err := store.UpdateStatus(ctx, inserted)
 	if err != nil {
 		t.Fatalf("UpdateStatus: %v", err)
 	}
-	if updated.Status != "REJECTED" {
+	if updated.Status != repo.ApplicantStatusRejected {
 		t.Errorf("status = %q, want REJECTED", updated.Status)
 	}
 	if updated.RejectionReason == nil || *updated.RejectionReason != reason {
