@@ -113,28 +113,13 @@ jobs:
       - run: npm run test
       - run: npm run build
 
-  admin:
-    name: admin (build + test)
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: admin
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-          cache-dependency-path: admin/package-lock.json
-      - run: npm ci
-      # The "codegen fresh" gate from engineering.md §5 is intentionally
-      # absent: `npm run codegen` calls `cg:download` against a private
-      # Internal-Shared-Cloud URL the runner cannot reach, and
-      # `admin/swaggers/` is gitignored (so `cg:clean-and-generate` has no
-      # spec to read against either). The committed `src/playtesthubapi/`
-      # is what gets compiled + tested below — wire-shape drift between
-      # those clients and the live backend surfaces in the build/test
-      # steps. Re-wiring a real codegen-fresh gate is tracked under phase
-      # 12.1 alongside the a11y gap.
-      - run: npm run test
-      - run: npm run build
+  # The admin job from engineering.md §5 (codegen-fresh + build + test) is
+  # intentionally absent today. The job's two prerequisites — the OpenAPI
+  # spec at admin/swaggers/playtesthub.json and the generated TS clients
+  # at admin/src/playtesthubapi/ — are both gitignored (.gitignore lines
+  # 251 & 252), and neither can be regenerated in CI without reach to
+  # the private deployed-namespace URL that `cg:download` targets. Until
+  # phase 12.1 either commits the generated artefacts or rewires codegen
+  # to consume the proto-derived gateway/apidocs/api.swagger.json, the
+  # admin frontend is exercised only by maintainers running
+  # `npm run test && npm run build` locally before merging.
