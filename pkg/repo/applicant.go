@@ -72,6 +72,11 @@ type ApplicantStore interface {
 	// verbatim for "sent" (typically nil) and byte-truncated to 500
 	// UTF-8-safe bytes for "failed".
 	UpdateDMStatus(ctx context.Context, applicantID uuid.UUID, status string, attemptAt time.Time, errMsg *string) (*Applicant, error)
+	// SetNDAVersionHash overwrites Applicant.nda_version_hash on every
+	// accept (idempotent re-accept on the same hash is a no-op write,
+	// re-accept after an NDA edit advances the stored hash). Powers the
+	// PRD §5.3 NdaReacceptRequired derived state.
+	SetNDAVersionHash(ctx context.Context, applicantID uuid.UUID, hash string) (*Applicant, error)
 }
 
 type PgApplicantStore struct {
@@ -279,6 +284,27 @@ func (s *PgApplicantStore) UpdateDMStatus(ctx context.Context, applicantID uuid.
 	}
 	if err != nil {
 		return nil, fmt.Errorf("updating applicant dm status: %w", classifyPgError(err))
+	}
+	return got, nil
+}
+
+// SetNDAVersionHash updates only the nda_version_hash column. Returns
+// ErrNotFound when the row is gone (caller should resolve that as a
+// transient race rather than a user-visible error).
+func (s *PgApplicantStore) SetNDAVersionHash(ctx context.Context, applicantID uuid.UUID, hash string) (*Applicant, error) {
+	const sql = `
+		UPDATE applicant
+		   SET nda_version_hash = $2
+		 WHERE id = $1
+		RETURNING ` + applicantColumns
+
+	row := s.pool.QueryRow(ctx, sql, applicantID, hash)
+	got, err := scanApplicant(row)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("setting applicant nda_version_hash: %w", classifyPgError(err))
 	}
 	return got, nil
 }

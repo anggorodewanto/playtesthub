@@ -219,7 +219,11 @@ func buildOAuthService(cfg *config.Config) (iam.OAuth20Service, repository.Confi
 func buildPlaytesthubServer(cfg *config.Config, dbPool *pgxpool.Pool, httpClient *http.Client) *service.PlaytesthubServiceServer {
 	playtestStore := repo.NewPgPlaytestStore(dbPool)
 	applicantStore := repo.NewPgApplicantStore(dbPool)
-	svcServer := service.NewPlaytesthubServiceServer(playtestStore, applicantStore, cfg.AGSNamespace)
+	ndaStore := repo.NewPgNDAAcceptanceStore(dbPool)
+	auditStore := repo.NewPgAuditLogStore(dbPool)
+	svcServer := service.NewPlaytesthubServiceServer(playtestStore, applicantStore, cfg.AGSNamespace).
+		WithNDAStore(ndaStore).
+		WithAuditLogStore(auditStore)
 	if botClient := discord.NewBotClient(cfg.DiscordBotToken); botClient != nil {
 		svcServer = svcServer.WithDiscordLookup(botClient)
 	}

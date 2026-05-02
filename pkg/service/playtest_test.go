@@ -259,6 +259,21 @@ func (f *fakeApplicantStore) UpdateDMStatus(_ context.Context, applicantID uuid.
 	return nil, repo.ErrNotFound
 }
 
+func (f *fakeApplicantStore) SetNDAVersionHash(_ context.Context, applicantID uuid.UUID, hash string) (*repo.Applicant, error) {
+	for i, existing := range f.rows {
+		if existing.ID != applicantID {
+			continue
+		}
+		clone := *existing
+		h := hash
+		clone.NDAVersionHash = &h
+		f.rows[i] = &clone
+		ret := clone
+		return &ret, nil
+	}
+	return nil, repo.ErrNotFound
+}
+
 // ---------------- test helpers ----------------------------------------------
 
 const testNamespace = "playtesthub-test"

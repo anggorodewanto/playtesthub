@@ -19,6 +19,40 @@ export type PublicPlaytest = {
   endsAt?: string;
 };
 
+export type DistributionModel =
+  | 'DISTRIBUTION_MODEL_UNSPECIFIED'
+  | 'DISTRIBUTION_MODEL_STEAM_KEYS'
+  | 'DISTRIBUTION_MODEL_AGS_CAMPAIGN';
+
+export type PlaytestStatus =
+  | 'PLAYTEST_STATUS_UNSPECIFIED'
+  | 'PLAYTEST_STATUS_DRAFT'
+  | 'PLAYTEST_STATUS_OPEN'
+  | 'PLAYTEST_STATUS_CLOSED';
+
+export type PlayerPlaytest = {
+  id?: string;
+  slug: string;
+  title: string;
+  description: string;
+  bannerImageUrl?: string;
+  platforms?: Platform[];
+  startsAt?: string;
+  endsAt?: string;
+  status: PlaytestStatus;
+  ndaRequired: boolean;
+  ndaText: string;
+  currentNdaVersionHash: string;
+  distributionModel: DistributionModel;
+};
+
+export type NdaAcceptance = {
+  userId: string;
+  playtestId: string;
+  ndaVersionHash: string;
+  acceptedAt: string;
+};
+
 export type ApplicantStatus =
   | 'APPLICANT_STATUS_UNSPECIFIED'
   | 'APPLICANT_STATUS_PENDING'
@@ -120,4 +154,43 @@ export async function fetchApplicantStatus(config: Config, slug: string): Promis
     { method: 'GET', authed: true },
   );
   return body.applicant;
+}
+
+// Applicant for the authenticated player includes playtestId — needed
+// to drive AcceptNDA, which is keyed on the UUID rather than the slug.
+export type ApplicantWithPlaytestId = Applicant & { playtestId: string };
+
+export async function fetchApplicantStatusWithIds(
+  config: Config,
+  slug: string,
+): Promise<ApplicantWithPlaytestId> {
+  const body = await doJson<{ applicant: ApplicantWithPlaytestId }>(
+    config,
+    `/v1/player/playtests/${encodeURIComponent(slug)}/applicant`,
+    { method: 'GET', authed: true },
+  );
+  return body.applicant;
+}
+
+export async function fetchPlayerPlaytest(config: Config, slug: string): Promise<PlayerPlaytest> {
+  const body = await doJson<{ playtest: PlayerPlaytest }>(
+    config,
+    `/v1/player/playtests/${encodeURIComponent(slug)}`,
+    { method: 'GET', authed: true },
+  );
+  return body.playtest;
+}
+
+export async function acceptNda(config: Config, playtestId: string): Promise<NdaAcceptance> {
+  const body = await doJson<{ acceptance: NdaAcceptance }>(
+    config,
+    `/v1/player/playtests/${encodeURIComponent(playtestId)}:acceptNda`,
+    {
+      method: 'POST',
+      authed: true,
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}',
+    },
+  );
+  return body.acceptance;
 }

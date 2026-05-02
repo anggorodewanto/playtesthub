@@ -47,6 +47,8 @@ type PlaytesthubServiceServer struct {
 
 	playtest        repo.PlaytestStore
 	applicant       repo.ApplicantStore
+	nda             repo.NDAAcceptanceStore
+	audit           repo.AuditLogStore
 	discord         discord.HandleLookup
 	discordExchange DiscordExchangeProxy
 	namespace       string
@@ -55,13 +57,33 @@ type PlaytesthubServiceServer struct {
 // NewPlaytesthubServiceServer wires a service with real repositories.
 // Callers that want the bare skeleton (e.g. pre-phase-6 smoke-harness
 // boots) can pass nil for both stores — every RPC will surface Internal
-// until a concrete store is wired.
+// until a concrete store is wired. The optional nda + audit stores are
+// attached via WithNDAStore / WithAuditLogStore so the M1 handler tests
+// (which never exercise the M2 click-accept path) keep their existing
+// constructor calls.
 func NewPlaytesthubServiceServer(playtest repo.PlaytestStore, applicant repo.ApplicantStore, namespace string) *PlaytesthubServiceServer {
 	return &PlaytesthubServiceServer{
 		playtest:  playtest,
 		applicant: applicant,
 		namespace: namespace,
 	}
+}
+
+// WithNDAStore attaches the NDA-acceptance repository required by
+// AcceptNDA (M2 phase 4). Optional in M1; AcceptNDA returns Internal
+// when called without one wired.
+func (s *PlaytesthubServiceServer) WithNDAStore(n repo.NDAAcceptanceStore) *PlaytesthubServiceServer {
+	s.nda = n
+	return s
+}
+
+// WithAuditLogStore attaches the audit-log repository. Required by every
+// admin write path that emits an audit row (EditPlaytest's nda.edit and
+// every M2 typed writer). Calls fall back to silent-no-op when nil so
+// pre-M2 unit tests can still construct the server.
+func (s *PlaytesthubServiceServer) WithAuditLogStore(a repo.AuditLogStore) *PlaytesthubServiceServer {
+	s.audit = a
+	return s
 }
 
 // requireActor returns the AGS user id stashed by the auth interceptor,
@@ -173,7 +195,8 @@ func (s *PlaytesthubServiceServer) CreatePlaytest(ctx context.Context, req *pb.C
 // actually differs from the stored value, so a no-op re-send does not
 // force every approved applicant into re-accept.
 func (s *PlaytesthubServiceServer) EditPlaytest(ctx context.Context, req *pb.EditPlaytestRequest) (*pb.EditPlaytestResponse, error) {
-	if _, err := requireActor(ctx); err != nil {
+	actorID, err := requireActor(ctx)
+	if err != nil {
 		return nil, err
 	}
 	if err := s.checkNamespace(req.GetNamespace()); err != nil {
@@ -211,6 +234,9 @@ func (s *PlaytesthubServiceServer) EditPlaytest(ctx context.Context, req *pb.Edi
 		return nil, status.Error(codes.NotFound, "playtest not found")
 	}
 
+	previousNDAText := current.NDAText
+	ndaTextChanged := req.GetNdaText() != current.NDAText
+
 	current.Title = req.GetTitle()
 	current.Description = req.GetDescription()
 	current.BannerImageURL = req.GetBannerImageUrl()
@@ -222,7 +248,7 @@ func (s *PlaytesthubServiceServer) EditPlaytest(ctx context.Context, req *pb.Edi
 	// to re-accept. Only recompute the version hash when the text has
 	// actually changed so clients can edit cosmetic fields without
 	// churning the acceptance workflow.
-	if req.GetNdaText() != current.NDAText {
+	if ndaTextChanged {
 		current.NDAText = req.GetNdaText()
 		current.CurrentNDAVersionHash = hashNDA(req.GetNdaText())
 	}
@@ -233,6 +259,15 @@ func (s *PlaytesthubServiceServer) EditPlaytest(ctx context.Context, req *pb.Edi
 	}
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "updating playtest: %v", err)
+	}
+	// PRD §5.3 / schema.md L42: NDA-text edits are the one audit row
+	// where the full free-text payload is intentionally preserved (every
+	// other audited action redacts free-text). Skip when audit store is
+	// unset (M1 unit tests construct without it).
+	if ndaTextChanged && s.audit != nil {
+		if auditErr := repo.AppendNDAEdit(ctx, s.audit, s.namespace, got.ID, actorID, previousNDAText, got.NDAText); auditErr != nil {
+			return nil, status.Errorf(codes.Internal, "appending nda.edit audit: %v", auditErr)
+		}
 	}
 	return &pb.EditPlaytestResponse{Playtest: playtestToProto(got)}, nil
 }

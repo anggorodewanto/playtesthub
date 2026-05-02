@@ -138,19 +138,35 @@ for m in "${EXPECTED_METHODS[@]}"; do
         || fail "method missing from service descriptor: $m"
 done
 
-log "M2 RPCs return Unimplemented until handler phases land"
-# Probe one M2 RPC over the grpc-gateway HTTP surface. Unimplemented
-# maps to HTTP 501. Pick GetCodePool because it's GET (no body needed)
-# and admin-authed; auth interceptor short-circuits on missing bearer
-# *before* the dispatch reaches the (still-Unimplemented) handler.
-# So we check via grpcurl on the native gRPC port instead, which has
-# no auth interceptor when PLUGIN_GRPC_SERVER_AUTH_ENABLED=false.
+log "remaining M2 RPCs still return Unimplemented"
+# M2 phase 4 implements AcceptNDA; the remaining 9 M2 RPCs still ride
+# the embedded UnimplementedPlaytesthubServiceServer. Probe one over
+# the native gRPC port (no auth interceptor when AUTH_ENABLED=false)
+# to confirm the runtime gating still distinguishes shipped from
+# pending handlers. GetGrantedCode is GET-shaped, takes only a
+# playtest_id, and is in the next phase to ship.
 unimpl_status=$(grpcurl -plaintext \
     -d '{"playtest_id":"00000000-0000-0000-0000-000000000000"}' \
     "localhost:$APP_PORT_GRPC" \
     playtesthub.v1.PlaytesthubService/GetGrantedCode 2>&1 || true)
 grep -q "Unimplemented" <<<"$unimpl_status" \
-    || { echo "$unimpl_status" >&2; fail "expected Unimplemented from GetGrantedCode (M2 phase 1 — no handler yet)"; }
+    || { echo "$unimpl_status" >&2; fail "expected Unimplemented from GetGrantedCode (still pending in M2)"; }
+
+log "AcceptNDA reaches the handler (no longer Unimplemented)"
+# Phase 4: AcceptNDA must surface its own validation, not the generic
+# Unimplemented. With auth disabled the auth interceptor does not
+# attach an actor, so the handler short-circuits on requireActor with
+# Unauthenticated — that is the proof the handler ran.
+accept_status=$(grpcurl -plaintext \
+    -d '{"playtest_id":"00000000-0000-0000-0000-000000000000"}' \
+    "localhost:$APP_PORT_GRPC" \
+    playtesthub.v1.PlaytesthubService/AcceptNDA 2>&1 || true)
+if grep -q "Unimplemented" <<<"$accept_status"; then
+    echo "$accept_status" >&2
+    fail "AcceptNDA still Unimplemented — phase 4 wiring did not land"
+fi
+grep -q "Unauthenticated" <<<"$accept_status" \
+    || { echo "$accept_status" >&2; fail "expected Unauthenticated from AcceptNDA (auth disabled, handler reached)"; }
 
 log "OpenAPI spec served and parses"
 spec=$(curl -sf "http://localhost:$APP_PORT_HTTP$BASE_PATH/apidocs/api.json")
@@ -194,6 +210,18 @@ code=$(curl -s -o /dev/null -w '%{http_code}' \
     "http://localhost:$APP_PORT_HTTP$BASE_PATH/v1/player/playtests/smoke-test/applicant")
 [[ "$code" == "401" ]] \
     || { tail -30 /tmp/playtesthub-smoke.log >&2; fail "expected 401 Unauthenticated from GetApplicantStatus, got $code"; }
+
+log "player AcceptNDA reaches the handler over the gateway (expect 401 Unauthenticated)"
+# M2 phase 4 wires the gateway path POST /v1/player/playtests/{id}:acceptNda.
+# auth interceptor → handler short-circuit gives 401, distinct from a
+# 501 Unimplemented response that would mean phase 4 wiring did not land.
+acceptnda_code=$(curl -s -o /dev/null -w '%{http_code}' \
+    -H 'Content-Type: application/json' \
+    -X POST \
+    -d '{}' \
+    "http://localhost:$APP_PORT_HTTP$BASE_PATH/v1/player/playtests/00000000-0000-0000-0000-000000000000:acceptNda")
+[[ "$acceptnda_code" == "401" ]] \
+    || { tail -30 /tmp/playtesthub-smoke.log >&2; fail "expected 401 Unauthenticated from AcceptNDA gateway path, got $acceptnda_code"; }
 
 # PRD §6 forbids NDA text in logs. CreatePlaytest is rejected upstream (no
 # auth), but the logging interceptor runs before the auth check — so a

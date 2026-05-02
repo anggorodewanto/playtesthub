@@ -3,6 +3,7 @@
   import { route } from './lib/router';
   import Landing from './routes/Landing.svelte';
   import Signup from './routes/Signup.svelte';
+  import Nda from './routes/Nda.svelte';
   import Pending from './routes/Pending.svelte';
   import Callback from './routes/Callback.svelte';
 
@@ -13,6 +14,8 @@
   <Landing {config} slug={$route.slug} />
 {:else if $route.name === 'signup'}
   <Signup {config} slug={$route.slug} />
+{:else if $route.name === 'nda'}
+  <Nda {config} slug={$route.slug} />
 {:else if $route.name === 'pending'}
   <Pending {config} slug={$route.slug} />
 {:else if $route.name === 'callback'}

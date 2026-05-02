@@ -3,6 +3,7 @@ import { readable, type Readable } from 'svelte/store';
 export type Route =
   | { name: 'landing'; slug: string }
   | { name: 'signup'; slug: string }
+  | { name: 'nda'; slug: string }
   | { name: 'pending'; slug: string }
   | { name: 'callback'; params: Record<string, string> }
   | { name: 'not-found' };
@@ -26,6 +27,7 @@ export function parseRoute(hash: string): Route {
     const sub = parts[2];
     if (!sub) return { name: 'landing', slug };
     if (sub === 'signup') return { name: 'signup', slug };
+    if (sub === 'nda') return { name: 'nda', slug };
     if (sub === 'pending') return { name: 'pending', slug };
     return { name: 'not-found' };
   }
@@ -48,6 +50,7 @@ export function navigate(hash: string): void {
 
 export const playtestPath = (slug: string): string => `/playtest/${slug}`;
 export const signupPath = (slug: string): string => `/playtest/${slug}/signup`;
+export const ndaPath = (slug: string): string => `/playtest/${slug}/nda`;
 export const pendingPath = (slug: string): string => `/playtest/${slug}/pending`;
 
 export const route: Readable<Route> = readable<Route>(

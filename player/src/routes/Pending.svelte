@@ -1,16 +1,32 @@
 <script lang="ts">
   import type { Config } from '../lib/config';
-  import { ApiError, fetchApplicantStatus, type Applicant } from '../lib/api';
-  import { navigate, playtestPath } from '../lib/router';
+  import {
+    ApiError,
+    fetchApplicantStatusWithIds,
+    fetchPlayerPlaytest,
+    type ApplicantWithPlaytestId,
+  } from '../lib/api';
+  import { navigate, ndaPath, playtestPath } from '../lib/router';
 
   let { config, slug }: { config: Config; slug: string } = $props();
 
-  let applicant = $state<Applicant | null>(null);
+  let applicant = $state<ApplicantWithPlaytestId | null>(null);
   let loadError = $state<string | null>(null);
 
   async function load() {
     try {
-      applicant = await fetchApplicantStatus(config, slug);
+      const [pt, app] = await Promise.all([
+        fetchPlayerPlaytest(config, slug),
+        fetchApplicantStatusWithIds(config, slug),
+      ]);
+      // PRD §5.3: when an NDA is required and the applicant's stored
+      // hash diverges from the playtest's current hash, the player must
+      // re-accept before progressing — bounce them to the NDA route.
+      if (pt.ndaRequired && app.ndaVersionHash !== pt.currentNdaVersionHash) {
+        navigate(ndaPath(slug));
+        return;
+      }
+      applicant = app;
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
         navigate(playtestPath(slug));

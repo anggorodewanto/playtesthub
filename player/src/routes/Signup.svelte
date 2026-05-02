@@ -3,7 +3,7 @@
   import { ApiError, submitSignup, type Platform } from '../lib/api';
   import { PLATFORM_OPTIONS } from '../lib/platforms';
   import { getAccessToken } from '../lib/auth';
-  import { navigate, pendingPath, playtestPath } from '../lib/router';
+  import { navigate, ndaPath, playtestPath } from '../lib/router';
 
   let { config, slug }: { config: Config; slug: string } = $props();
 
@@ -35,10 +35,10 @@
     submitting = true;
     try {
       await submitSignup(config, slug, { platforms: Array.from(selected) });
-      navigate(pendingPath(slug));
+      navigate(ndaPath(slug));
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) {
-        navigate(pendingPath(slug));
+        navigate(ndaPath(slug));
         return;
       }
       if (err instanceof ApiError) {
