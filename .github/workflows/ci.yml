@@ -27,9 +27,9 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
-      - uses: golangci/golangci-lint-action@v6
+      - uses: golangci/golangci-lint-action@v8
         with:
-          version: v1.62.2
+          version: v2.5.0
           args: --timeout=5m
 
   go-test:
@@ -66,10 +66,16 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
-      - name: Install protoc
+      # Protoc + plugins are pinned to the versions used to generate the
+      # currently-committed stubs (header comments in pkg/pb/**/*.pb.go are
+      # the source of truth). Drift here means CI's generator emits subtly
+      # different code than a maintainer's local generator → false-positive
+      # diff failures. When you intentionally bump any version below, also
+      # regenerate locally and commit the result.
+      - name: Install protoc 21.12
         run: |
           set -euo pipefail
-          PROTOC_VERSION=28.3
+          PROTOC_VERSION=21.12
           curl -fsSL -o /tmp/protoc.zip \
             "https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-linux-x86_64.zip"
           sudo unzip -q -o /tmp/protoc.zip -d /usr/local
@@ -77,10 +83,10 @@ jobs:
       - name: Install protoc plugins
         run: |
           set -euo pipefail
-          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.4
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.6
           go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.5.1
-          go install github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-grpc-gateway@v2.24.0
-          go install github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2@v2.24.0
+          go install github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-grpc-gateway@v2.27.1
+          go install github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2@v2.27.1
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       - run: ./proto.sh
       - name: Assert no drift
@@ -108,7 +114,7 @@ jobs:
       - run: npm run build
 
   admin:
-    name: admin (codegen-fresh + build + test)
+    name: admin (build + test)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -121,15 +127,14 @@ jobs:
           cache: npm
           cache-dependency-path: admin/package-lock.json
       - run: npm ci
-      # cg:download fetches from a deployed URL we can't reach in CI; regenerate
-      # against the checked-in admin/swaggers/playtesthub.json instead — catches
-      # drift between that committed spec and admin/src/playtesthubapi/.
-      - run: npm run cg:clean-and-generate
-      - name: Assert no codegen drift
-        run: |
-          if ! git diff --exit-code -- src/playtesthubapi; then
-            echo "::error::Admin codegen drift. Re-run 'npm run cg:clean-and-generate' in admin/ and commit." >&2
-            exit 1
-          fi
+      # The "codegen fresh" gate from engineering.md §5 is intentionally
+      # absent: `npm run codegen` calls `cg:download` against a private
+      # Internal-Shared-Cloud URL the runner cannot reach, and
+      # `admin/swaggers/` is gitignored (so `cg:clean-and-generate` has no
+      # spec to read against either). The committed `src/playtesthubapi/`
+      # is what gets compiled + tested below — wire-shape drift between
+      # those clients and the live backend surfaces in the build/test
+      # steps. Re-wiring a real codegen-fresh gate is tracked under phase
+      # 12.1 alongside the a11y gap.
       - run: npm run test
       - run: npm run build
