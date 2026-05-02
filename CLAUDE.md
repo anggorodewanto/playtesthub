@@ -67,6 +67,15 @@ Run the **full verification checklist** — not just the parts you touched. Part
 
 Do not commit code whose tests were skipped, or tests that pass without actually asserting the behavior in their name. If a test is hard to write, the design is probably wrong — pause and discuss.
 
+### Keep `main` CI green
+
+`main` CI must stay green. A red `main` is a stop-the-line event: do not stack new feature work on top of a failing pipeline.
+
+- After every push to `main`, watch the run (`gh run watch` or `gh run view --log-failed`) until it goes green.
+- If a push lands red, the next commit fixes CI — not the next feature. Roll forward with the smallest possible fix; revert only if the fix is non-trivial.
+- The proto-fresh job is a common trap: if you regenerate stubs locally with plugin versions that drift from the pins in `.github/workflows/ci.yml` (`protoc-gen-go`, `protoc-gen-go-grpc`, `protoc-gen-grpc-gateway`, `protoc-gen-openapiv2`, `protoc` itself), the committed stubs won't match what CI emits. Match the workflow's pinned versions locally before committing generated code, or bump the workflow pins in the same PR that bumps your local plugins.
+- Before pushing anything that touches `.proto`, `go.mod`, `golangci.yml`, the workflow itself, or the player/admin frontends, run the relevant CI gate locally first (`./proto.sh && git diff --exit-code`, `go test ./...`, `golangci-lint run`, `buf lint`, `(cd player && npm run test && npm run build)`).
+
 ## Conventions
 
 - **Early return** over nested conditionals (matches user-global preference; worth reinforcing here because the codebase is greenfield and sets the tone).
