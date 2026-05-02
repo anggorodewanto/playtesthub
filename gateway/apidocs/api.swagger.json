@@ -17,6 +17,159 @@
     "application/json"
   ],
   "paths": {
+    "/v1/admin/namespaces/{namespace}/applicants/{applicantId}:approve": {
+      "post": {
+        "summary": "Approve a PENDING applicant (admin; reserve → fenced finalize per schema.md)",
+        "description": "Re-approve on an already-APPROVED applicant returns the existing row (natural-key idempotency). Errors per docs/errors.md ApproveApplicant rows.",
+        "operationId": "PlaytesthubService_ApproveApplicant",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ApproveApplicantResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "applicantId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/PlaytesthubServiceApproveApplicantBody"
+            }
+          }
+        ],
+        "tags": [
+          "PlaytesthubService"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v1/admin/namespaces/{namespace}/applicants/{applicantId}:reject": {
+      "post": {
+        "summary": "Reject a PENDING applicant (admin; terminal)",
+        "description": "Re-reject returns the existing row (natural-key idempotency). rejection_reason is admin-visible (max 500 chars per schema.md).",
+        "operationId": "PlaytesthubService_RejectApplicant",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1RejectApplicantResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "applicantId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/PlaytesthubServiceRejectApplicantBody"
+            }
+          }
+        ],
+        "tags": [
+          "PlaytesthubService"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v1/admin/namespaces/{namespace}/applicants/{applicantId}:retryDm": {
+      "post": {
+        "summary": "Re-send the approval DM for an applicant (admin; not idempotent)",
+        "description": "No cooldown — double-click sends two DMs (PRD §5.4). Returns the updated Applicant row with refreshed DM fields.",
+        "operationId": "PlaytesthubService_RetryDM",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1RetryDMResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "applicantId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/PlaytesthubServiceRetryDMBody"
+            }
+          }
+        ],
+        "tags": [
+          "PlaytesthubService"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
     "/v1/admin/namespaces/{namespace}/playtests": {
       "get": {
         "summary": "List playtests in a namespace (admin, unpaginated; 100-item cap)",
@@ -227,6 +380,281 @@
         ]
       }
     },
+    "/v1/admin/namespaces/{namespace}/playtests/{playtestId}/applicants": {
+      "get": {
+        "summary": "List applicants for a playtest (admin; cursor pagination, page 50)",
+        "description": "Order: createdAt DESC. Filters: status_filter (UNSPECIFIED → no filter), dm_failed_filter (true → only lastDmStatus='failed'). page_token is opaque; absent → start of stream. page_size 0 → server default (50).",
+        "operationId": "PlaytesthubService_ListApplicants",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListApplicantsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "playtestId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "statusFilter",
+            "description": "UNSPECIFIED → no status filter.",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "enum": [
+              "APPLICANT_STATUS_UNSPECIFIED",
+              "APPLICANT_STATUS_PENDING",
+              "APPLICANT_STATUS_APPROVED",
+              "APPLICANT_STATUS_REJECTED"
+            ],
+            "default": "APPLICANT_STATUS_UNSPECIFIED"
+          },
+          {
+            "name": "dmFailedFilter",
+            "description": "true → only rows where last_dm_status='failed'.",
+            "in": "query",
+            "required": false,
+            "type": "boolean"
+          },
+          {
+            "name": "pageToken",
+            "description": "Opaque cursor; absent → start of stream.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "pageSize",
+            "description": "0 → server default (50).",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          }
+        ],
+        "tags": [
+          "PlaytesthubService"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v1/admin/namespaces/{namespace}/playtests/{playtestId}/codes": {
+      "get": {
+        "summary": "Inspect the code pool for a playtest (admin)",
+        "description": "Returns aggregate counts plus the full code list including raw values — admin surfaces are exempt from the §6 log-redaction rule (PRD §5.7).",
+        "operationId": "PlaytesthubService_GetCodePool",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetCodePoolResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "playtestId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "PlaytesthubService"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v1/admin/namespaces/{namespace}/playtests/{playtestId}/codes:syncFromAgs": {
+      "post": {
+        "summary": "Recover AGS_CAMPAIGN codes from the AGS side (admin; idempotent on UNIQUE(playtestId,value))",
+        "description": "Fetch-only recovery for the case where AGS holds codes our DB never persisted. STEAM_KEYS playtests reject with FailedPrecondition.",
+        "operationId": "PlaytesthubService_SyncFromAGS",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1SyncFromAGSResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "playtestId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/PlaytesthubServiceSyncFromAGSBody"
+            }
+          }
+        ],
+        "tags": [
+          "PlaytesthubService"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v1/admin/namespaces/{namespace}/playtests/{playtestId}/codes:topUp": {
+      "post": {
+        "summary": "Generate additional AGS_CAMPAIGN codes (admin; not idempotent)",
+        "description": "Each call generates a fresh batch via the AGS Campaign API. Per docs/ags-failure-modes.md the call is not transactional; partial fulfillment commits the codes received. STEAM_KEYS playtests reject with FailedPrecondition.",
+        "operationId": "PlaytesthubService_TopUpCodes",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1TopUpCodesResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "playtestId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/PlaytesthubServiceTopUpCodesBody"
+            }
+          }
+        ],
+        "tags": [
+          "PlaytesthubService"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v1/admin/namespaces/{namespace}/playtests/{playtestId}/codes:upload": {
+      "post": {
+        "summary": "Upload a CSV of STEAM_KEYS codes (admin; whole-file reject on any violation)",
+        "description": "PRD §4.3: UTF-8, charset [A-Za-z0-9._-], 1–128 chars/code, file ≤10 MB, ≤50,000 codes, file-level + cross-row dedup. On any violation the response carries per-line rejection details and 0 codes are inserted.",
+        "operationId": "PlaytesthubService_UploadCodes",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1UploadCodesResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "playtestId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/PlaytesthubServiceUploadCodesBody"
+            }
+          }
+        ],
+        "tags": [
+          "PlaytesthubService"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
     "/v1/admin/namespaces/{namespace}/playtests/{playtestId}:transitionStatus": {
       "post": {
         "summary": "Transition a playtest's status (admin; DRAFT→OPEN→CLOSED only)",
@@ -309,6 +737,88 @@
         ],
         "tags": [
           "PlaytesthubService"
+        ]
+      }
+    },
+    "/v1/player/playtests/{playtestId}/grantedCode": {
+      "get": {
+        "summary": "Get the granted code for the caller (authenticated player; APPROVED applicants only)",
+        "description": "NotFound for any soft-deleted playtest regardless of applicant state (PRD §5.1 / errors.md).",
+        "operationId": "PlaytesthubService_GetGrantedCode",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetGrantedCodeResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "playtestId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "PlaytesthubService"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v1/player/playtests/{playtestId}:acceptNda": {
+      "post": {
+        "summary": "Accept the current NDA for a playtest (authenticated player)",
+        "description": "Idempotent on (userId, playtestId, ndaVersionHash) per PRD §4.7. Backend recomputes the current hash from the live playtest row; second accept on the same tuple returns the existing NDAAcceptance, no error.",
+        "operationId": "PlaytesthubService_AcceptNDA",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1AcceptNDAResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "playtestId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/PlaytesthubServiceAcceptNDABody"
+            }
+          }
+        ],
+        "tags": [
+          "PlaytesthubService"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
         ]
       }
     },
@@ -463,6 +973,12 @@
     }
   },
   "definitions": {
+    "PlaytesthubServiceAcceptNDABody": {
+      "type": "object"
+    },
+    "PlaytesthubServiceApproveApplicantBody": {
+      "type": "object"
+    },
     "PlaytesthubServiceCreatePlaytestBody": {
       "type": "object",
       "properties": {
@@ -542,6 +1058,18 @@
       },
       "description": "EditPlaytestRequest mutable-field whitelist tracks PRD §5.1 L146.\nImmutable fields (slug, namespace path params excluded, status,\ndistribution_model, initial_code_quantity, ags_*, timestamps) are\ndeliberately absent — clients that send them on the JSON body still have\nthem rejected at the handler layer."
     },
+    "PlaytesthubServiceRejectApplicantBody": {
+      "type": "object",
+      "properties": {
+        "rejectionReason": {
+          "type": "string",
+          "description": "Admin-visible reason; max 500 chars (schema.md §\"Applicant entity\")."
+        }
+      }
+    },
+    "PlaytesthubServiceRetryDMBody": {
+      "type": "object"
+    },
     "PlaytesthubServiceSignupBody": {
       "type": "object",
       "properties": {
@@ -553,11 +1081,34 @@
         }
       }
     },
+    "PlaytesthubServiceSyncFromAGSBody": {
+      "type": "object"
+    },
+    "PlaytesthubServiceTopUpCodesBody": {
+      "type": "object",
+      "properties": {
+        "quantity": {
+          "type": "integer",
+          "format": "int32",
+          "description": "1–50,000 per call (PRD §4.6 / §5.1 bound mirrors initial_code_quantity)."
+        }
+      }
+    },
     "PlaytesthubServiceTransitionPlaytestStatusBody": {
       "type": "object",
       "properties": {
         "targetStatus": {
           "$ref": "#/definitions/v1PlaytestStatus"
+        }
+      }
+    },
+    "PlaytesthubServiceUploadCodesBody": {
+      "type": "object",
+      "properties": {
+        "csvContent": {
+          "type": "string",
+          "format": "byte",
+          "description": "CSV file bytes. UTF-8, ≤10 MB. Server-side validation per PRD §4.3."
         }
       }
     },
@@ -586,6 +1137,14 @@
             "type": "object",
             "$ref": "#/definitions/protobufAny"
           }
+        }
+      }
+    },
+    "v1AcceptNDAResponse": {
+      "type": "object",
+      "properties": {
+        "acceptance": {
+          "$ref": "#/definitions/v1NDAAcceptance"
         }
       }
     },
@@ -660,6 +1219,80 @@
         "APPLICANT_STATUS_REJECTED"
       ],
       "default": "APPLICANT_STATUS_UNSPECIFIED"
+    },
+    "v1ApproveApplicantResponse": {
+      "type": "object",
+      "properties": {
+        "applicant": {
+          "$ref": "#/definitions/v1Applicant"
+        }
+      }
+    },
+    "v1Code": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "playtestId": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        },
+        "state": {
+          "$ref": "#/definitions/v1CodeState"
+        },
+        "reservedBy": {
+          "type": "string"
+        },
+        "reservedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "grantedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "description": "Code — full admin-visible pool entity (schema.md §\"Code table\").\nPlayer-facing surfaces (GetGrantedCode) return the bare code value\ninstead of the entity."
+    },
+    "v1CodePoolStats": {
+      "type": "object",
+      "properties": {
+        "total": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "unused": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "reserved": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "granted": {
+          "type": "integer",
+          "format": "int32"
+        }
+      },
+      "description": "CodePoolStats — aggregate counts. The admin UI low-pool banner\n(≤10% remaining) is computed off these."
+    },
+    "v1CodeState": {
+      "type": "string",
+      "enum": [
+        "CODE_STATE_UNSPECIFIED",
+        "CODE_STATE_UNUSED",
+        "CODE_STATE_RESERVED",
+        "CODE_STATE_GRANTED"
+      ],
+      "default": "CODE_STATE_UNSPECIFIED",
+      "description": "CodeState — per-code state machine for the Code pool (PRD §5.5,\nschema.md §\"Code table\"). Pool-only grant (no external entitlement\nin MVP)."
     },
     "v1CreatePlaytestResponse": {
       "type": "object",
@@ -739,6 +1372,34 @@
         }
       }
     },
+    "v1GetCodePoolResponse": {
+      "type": "object",
+      "properties": {
+        "stats": {
+          "$ref": "#/definitions/v1CodePoolStats"
+        },
+        "codes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1Code"
+          },
+          "description": "Raw code values included — admin surfaces are exempt from the §6\nlog-redaction rule (PRD §5.7)."
+        }
+      }
+    },
+    "v1GetGrantedCodeResponse": {
+      "type": "object",
+      "properties": {
+        "value": {
+          "type": "string",
+          "description": "Raw redemption value. For STEAM_KEYS this is the Steam key; for\nAGS_CAMPAIGN it is the AGS-generated alphanumeric code. The player\napp renders model-specific instructions off distribution_model."
+        },
+        "distributionModel": {
+          "$ref": "#/definitions/v1DistributionModel"
+        }
+      }
+    },
     "v1GetPlaytestForPlayerResponse": {
       "type": "object",
       "properties": {
@@ -755,6 +1416,21 @@
         }
       }
     },
+    "v1ListApplicantsResponse": {
+      "type": "object",
+      "properties": {
+        "applicants": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1Applicant"
+          }
+        },
+        "nextPageToken": {
+          "type": "string"
+        }
+      }
+    },
     "v1ListPlaytestsResponse": {
       "type": "object",
       "properties": {
@@ -766,6 +1442,25 @@
           }
         }
       }
+    },
+    "v1NDAAcceptance": {
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string"
+        },
+        "playtestId": {
+          "type": "string"
+        },
+        "ndaVersionHash": {
+          "type": "string"
+        },
+        "acceptedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "description": "NDAAcceptance — append-only acceptance row (schema.md §\"NDA\"). PK is\n(user_id, playtest_id, nda_version_hash); a re-accept on the same\ntuple is a no-op that returns the existing row."
     },
     "v1Platform": {
       "type": "string",
@@ -949,6 +1644,22 @@
       },
       "description": "PublicPlaytest is the restricted field set exposed to unauthenticated\ncallers on GetPublicPlaytest (PRD §5.2)."
     },
+    "v1RejectApplicantResponse": {
+      "type": "object",
+      "properties": {
+        "applicant": {
+          "$ref": "#/definitions/v1Applicant"
+        }
+      }
+    },
+    "v1RetryDMResponse": {
+      "type": "object",
+      "properties": {
+        "applicant": {
+          "$ref": "#/definitions/v1Applicant"
+        }
+      }
+    },
     "v1SignupResponse": {
       "type": "object",
       "properties": {
@@ -960,11 +1671,71 @@
     "v1SoftDeletePlaytestResponse": {
       "type": "object"
     },
+    "v1SyncFromAGSResponse": {
+      "type": "object",
+      "properties": {
+        "pool": {
+          "$ref": "#/definitions/v1CodePoolStats"
+        },
+        "added": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Net new rows persisted by this sync (deduped against existing\nUNIQUE(playtest_id, value) constraint)."
+        }
+      }
+    },
+    "v1TopUpCodesResponse": {
+      "type": "object",
+      "properties": {
+        "pool": {
+          "$ref": "#/definitions/v1CodePoolStats"
+        },
+        "added": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Codes actually inserted into the pool. May be \u003c requested on\npartial fulfillment per docs/ags-failure-modes.md."
+        }
+      }
+    },
     "v1TransitionPlaytestStatusResponse": {
       "type": "object",
       "properties": {
         "playtest": {
           "$ref": "#/definitions/v1Playtest"
+        }
+      }
+    },
+    "v1UploadCodesRejection": {
+      "type": "object",
+      "properties": {
+        "lineNumber": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string",
+          "description": "Echo of the offending value when relevant (e.g. duplicate). Empty\nfor whole-file failures (non-UTF-8, file-size, row-count caps)."
+        }
+      },
+      "description": "UploadCodesRejection — one entry per offending CSV row when the\nupload is rejected wholesale (PRD §4.3 / errors.md UploadCodes\n\"bounds / charset / duplicate violation\"). line_number is 1-based."
+    },
+    "v1UploadCodesResponse": {
+      "type": "object",
+      "properties": {
+        "inserted": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Number of codes inserted. 0 when rejections is non-empty (whole-\nfile reject — no partial commits)."
+        },
+        "rejections": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1UploadCodesRejection"
+          }
         }
       }
     }

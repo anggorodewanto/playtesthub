@@ -118,17 +118,39 @@ grpcurl -plaintext "localhost:$APP_PORT_GRPC" list \
     | grep -q '^playtesthub\.v1\.PlaytesthubService$' \
     || fail "service not exposed via reflection"
 
-log "all 11 M1 methods visible"
+log "all 11 M1 + 10 M2 methods visible"
+# M2 phase 1 declares the full M2 RPC surface on the service so codegen
+# + admin/CLI work can land before handlers do; the embedded
+# UnimplementedPlaytesthubServiceServer makes calls return gRPC
+# Unimplemented at runtime until each milestone phase ships.
 EXPECTED_METHODS=(
+    # M1 (phase 1)
     GetPublicPlaytest GetPlaytestForPlayer AdminGetPlaytest ListPlaytests
     CreatePlaytest EditPlaytest SoftDeletePlaytest TransitionPlaytestStatus
     Signup GetApplicantStatus ExchangeDiscordCode
+    # M2 (phase 1)
+    AcceptNDA GetGrantedCode ListApplicants ApproveApplicant
+    RejectApplicant RetryDM UploadCodes TopUpCodes SyncFromAGS GetCodePool
 )
 methods_output=$(grpcurl -plaintext "localhost:$APP_PORT_GRPC" list playtesthub.v1.PlaytesthubService)
 for m in "${EXPECTED_METHODS[@]}"; do
     grep -q "\.${m}$" <<<"$methods_output" \
         || fail "method missing from service descriptor: $m"
 done
+
+log "M2 RPCs return Unimplemented until handler phases land"
+# Probe one M2 RPC over the grpc-gateway HTTP surface. Unimplemented
+# maps to HTTP 501. Pick GetCodePool because it's GET (no body needed)
+# and admin-authed; auth interceptor short-circuits on missing bearer
+# *before* the dispatch reaches the (still-Unimplemented) handler.
+# So we check via grpcurl on the native gRPC port instead, which has
+# no auth interceptor when PLUGIN_GRPC_SERVER_AUTH_ENABLED=false.
+unimpl_status=$(grpcurl -plaintext \
+    -d '{"playtest_id":"00000000-0000-0000-0000-000000000000"}' \
+    "localhost:$APP_PORT_GRPC" \
+    playtesthub.v1.PlaytesthubService/GetGrantedCode 2>&1 || true)
+grep -q "Unimplemented" <<<"$unimpl_status" \
+    || { echo "$unimpl_status" >&2; fail "expected Unimplemented from GetGrantedCode (M2 phase 1 — no handler yet)"; }
 
 log "OpenAPI spec served and parses"
 spec=$(curl -sf "http://localhost:$APP_PORT_HTTP$BASE_PATH/apidocs/api.json")

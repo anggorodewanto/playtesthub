@@ -185,6 +185,191 @@ service PlaytesthubService {
       }
     };
   }
+
+  // ---------------- M2 ----------------
+  //
+  // M2 RPCs are declared on the service so the gateway/OpenAPI surface
+  // and CLI codegen can land in phase 1. Handlers are not implemented
+  // until the milestone phases gated in docs/STATUS.md M2 — until then
+  // the embedded UnimplementedPlaytesthubServiceServer makes each call
+  // surface gRPC Unimplemented at runtime.
+
+  rpc AcceptNDA(AcceptNDARequest) returns (AcceptNDAResponse) {
+    option (google.api.http) = {
+      post: "/v1/player/playtests/{playtest_id}:acceptNda"
+      body: "*"
+    };
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Accept the current NDA for a playtest (authenticated player)"
+      description: "Idempotent on (userId, playtestId, ndaVersionHash) per PRD §4.7. Backend recomputes the current hash from the live playtest row; second accept on the same tuple returns the existing NDAAcceptance, no error."
+      security: {
+        security_requirement: {
+          key: "Bearer"
+          value: {}
+        }
+      }
+    };
+  }
+
+  rpc GetGrantedCode(GetGrantedCodeRequest) returns (GetGrantedCodeResponse) {
+    option (google.api.http) = {get: "/v1/player/playtests/{playtest_id}/grantedCode"};
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Get the granted code for the caller (authenticated player; APPROVED applicants only)"
+      description: "NotFound for any soft-deleted playtest regardless of applicant state (PRD §5.1 / errors.md)."
+      security: {
+        security_requirement: {
+          key: "Bearer"
+          value: {}
+        }
+      }
+    };
+  }
+
+  rpc ListApplicants(ListApplicantsRequest) returns (ListApplicantsResponse) {
+    option (playtesthub.v1.action) = ACTION_READ;
+    option (playtesthub.v1.resource) = "ADMIN:NAMESPACE:{namespace}:EXTEND:APPUI";
+    option (google.api.http) = {get: "/v1/admin/namespaces/{namespace}/playtests/{playtest_id}/applicants"};
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "List applicants for a playtest (admin; cursor pagination, page 50)"
+      description: "Order: createdAt DESC. Filters: status_filter (UNSPECIFIED → no filter), dm_failed_filter (true → only lastDmStatus='failed'). page_token is opaque; absent → start of stream. page_size 0 → server default (50)."
+      security: {
+        security_requirement: {
+          key: "Bearer"
+          value: {}
+        }
+      }
+    };
+  }
+
+  rpc ApproveApplicant(ApproveApplicantRequest) returns (ApproveApplicantResponse) {
+    option (playtesthub.v1.action) = ACTION_UPDATE;
+    option (playtesthub.v1.resource) = "ADMIN:NAMESPACE:{namespace}:EXTEND:APPUI";
+    option (google.api.http) = {
+      post: "/v1/admin/namespaces/{namespace}/applicants/{applicant_id}:approve"
+      body: "*"
+    };
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Approve a PENDING applicant (admin; reserve → fenced finalize per schema.md)"
+      description: "Re-approve on an already-APPROVED applicant returns the existing row (natural-key idempotency). Errors per docs/errors.md ApproveApplicant rows."
+      security: {
+        security_requirement: {
+          key: "Bearer"
+          value: {}
+        }
+      }
+    };
+  }
+
+  rpc RejectApplicant(RejectApplicantRequest) returns (RejectApplicantResponse) {
+    option (playtesthub.v1.action) = ACTION_UPDATE;
+    option (playtesthub.v1.resource) = "ADMIN:NAMESPACE:{namespace}:EXTEND:APPUI";
+    option (google.api.http) = {
+      post: "/v1/admin/namespaces/{namespace}/applicants/{applicant_id}:reject"
+      body: "*"
+    };
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Reject a PENDING applicant (admin; terminal)"
+      description: "Re-reject returns the existing row (natural-key idempotency). rejection_reason is admin-visible (max 500 chars per schema.md)."
+      security: {
+        security_requirement: {
+          key: "Bearer"
+          value: {}
+        }
+      }
+    };
+  }
+
+  rpc RetryDM(RetryDMRequest) returns (RetryDMResponse) {
+    option (playtesthub.v1.action) = ACTION_UPDATE;
+    option (playtesthub.v1.resource) = "ADMIN:NAMESPACE:{namespace}:EXTEND:APPUI";
+    option (google.api.http) = {
+      post: "/v1/admin/namespaces/{namespace}/applicants/{applicant_id}:retryDm"
+      body: "*"
+    };
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Re-send the approval DM for an applicant (admin; not idempotent)"
+      description: "No cooldown — double-click sends two DMs (PRD §5.4). Returns the updated Applicant row with refreshed DM fields."
+      security: {
+        security_requirement: {
+          key: "Bearer"
+          value: {}
+        }
+      }
+    };
+  }
+
+  rpc UploadCodes(UploadCodesRequest) returns (UploadCodesResponse) {
+    option (playtesthub.v1.action) = ACTION_CREATE;
+    option (playtesthub.v1.resource) = "ADMIN:NAMESPACE:{namespace}:EXTEND:APPUI";
+    option (google.api.http) = {
+      post: "/v1/admin/namespaces/{namespace}/playtests/{playtest_id}/codes:upload"
+      body: "*"
+    };
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Upload a CSV of STEAM_KEYS codes (admin; whole-file reject on any violation)"
+      description: "PRD §4.3: UTF-8, charset [A-Za-z0-9._-], 1–128 chars/code, file ≤10 MB, ≤50,000 codes, file-level + cross-row dedup. On any violation the response carries per-line rejection details and 0 codes are inserted."
+      security: {
+        security_requirement: {
+          key: "Bearer"
+          value: {}
+        }
+      }
+    };
+  }
+
+  rpc TopUpCodes(TopUpCodesRequest) returns (TopUpCodesResponse) {
+    option (playtesthub.v1.action) = ACTION_CREATE;
+    option (playtesthub.v1.resource) = "ADMIN:NAMESPACE:{namespace}:EXTEND:APPUI";
+    option (google.api.http) = {
+      post: "/v1/admin/namespaces/{namespace}/playtests/{playtest_id}/codes:topUp"
+      body: "*"
+    };
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Generate additional AGS_CAMPAIGN codes (admin; not idempotent)"
+      description: "Each call generates a fresh batch via the AGS Campaign API. Per docs/ags-failure-modes.md the call is not transactional; partial fulfillment commits the codes received. STEAM_KEYS playtests reject with FailedPrecondition."
+      security: {
+        security_requirement: {
+          key: "Bearer"
+          value: {}
+        }
+      }
+    };
+  }
+
+  rpc SyncFromAGS(SyncFromAGSRequest) returns (SyncFromAGSResponse) {
+    option (playtesthub.v1.action) = ACTION_UPDATE;
+    option (playtesthub.v1.resource) = "ADMIN:NAMESPACE:{namespace}:EXTEND:APPUI";
+    option (google.api.http) = {
+      post: "/v1/admin/namespaces/{namespace}/playtests/{playtest_id}/codes:syncFromAgs"
+      body: "*"
+    };
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Recover AGS_CAMPAIGN codes from the AGS side (admin; idempotent on UNIQUE(playtestId,value))"
+      description: "Fetch-only recovery for the case where AGS holds codes our DB never persisted. STEAM_KEYS playtests reject with FailedPrecondition."
+      security: {
+        security_requirement: {
+          key: "Bearer"
+          value: {}
+        }
+      }
+    };
+  }
+
+  rpc GetCodePool(GetCodePoolRequest) returns (GetCodePoolResponse) {
+    option (playtesthub.v1.action) = ACTION_READ;
+    option (playtesthub.v1.resource) = "ADMIN:NAMESPACE:{namespace}:EXTEND:APPUI";
+    option (google.api.http) = {get: "/v1/admin/namespaces/{namespace}/playtests/{playtest_id}/codes"};
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Inspect the code pool for a playtest (admin)"
+      description: "Returns aggregate counts plus the full code list including raw values — admin surfaces are exempt from the §6 log-redaction rule (PRD §5.7)."
+      security: {
+        security_requirement: {
+          key: "Bearer"
+          value: {}
+        }
+      }
+    };
+  }
 }
 
 // ---------------- enums ----------------
@@ -222,6 +407,16 @@ enum DmStatus {
   DM_STATUS_UNSPECIFIED = 0;
   DM_STATUS_SENT = 1;
   DM_STATUS_FAILED = 2;
+}
+
+// CodeState — per-code state machine for the Code pool (PRD §5.5,
+// schema.md §"Code table"). Pool-only grant (no external entitlement
+// in MVP).
+enum CodeState {
+  CODE_STATE_UNSPECIFIED = 0;
+  CODE_STATE_UNUSED = 1;
+  CODE_STATE_RESERVED = 2;
+  CODE_STATE_GRANTED = 3;
 }
 
 // ---------------- entities ----------------
@@ -302,6 +497,39 @@ message Applicant {
   google.protobuf.Timestamp last_dm_attempt_at = 12;
   optional string last_dm_error = 13;
   google.protobuf.Timestamp created_at = 14;
+}
+
+// NDAAcceptance — append-only acceptance row (schema.md §"NDA"). PK is
+// (user_id, playtest_id, nda_version_hash); a re-accept on the same
+// tuple is a no-op that returns the existing row.
+message NDAAcceptance {
+  string user_id = 1;
+  string playtest_id = 2;
+  string nda_version_hash = 3;
+  google.protobuf.Timestamp accepted_at = 4;
+}
+
+// Code — full admin-visible pool entity (schema.md §"Code table").
+// Player-facing surfaces (GetGrantedCode) return the bare code value
+// instead of the entity.
+message Code {
+  string id = 1;
+  string playtest_id = 2;
+  string value = 3;
+  CodeState state = 4;
+  optional string reserved_by = 5;
+  google.protobuf.Timestamp reserved_at = 6;
+  google.protobuf.Timestamp granted_at = 7;
+  google.protobuf.Timestamp created_at = 8;
+}
+
+// CodePoolStats — aggregate counts. The admin UI low-pool banner
+// (≤10% remaining) is computed off these.
+message CodePoolStats {
+  int32 total = 1;
+  int32 unused = 2;
+  int32 reserved = 3;
+  int32 granted = 4;
 }
 
 // ---------------- request / response messages ----------------
@@ -427,6 +655,127 @@ message ExchangeDiscordCodeResponse {
   int32 expires_in = 3;
   // Always "Bearer" today; carried verbatim for forward-compat.
   string token_type = 4;
+}
+
+// ---------------- M2 request / response messages ----------------
+
+message AcceptNDARequest {
+  string playtest_id = 1;
+}
+message AcceptNDAResponse {
+  NDAAcceptance acceptance = 1;
+}
+
+message GetGrantedCodeRequest {
+  string playtest_id = 1;
+}
+message GetGrantedCodeResponse {
+  // Raw redemption value. For STEAM_KEYS this is the Steam key; for
+  // AGS_CAMPAIGN it is the AGS-generated alphanumeric code. The player
+  // app renders model-specific instructions off distribution_model.
+  string value = 1;
+  DistributionModel distribution_model = 2;
+}
+
+message ListApplicantsRequest {
+  string namespace = 1;
+  string playtest_id = 2;
+  // UNSPECIFIED → no status filter.
+  ApplicantStatus status_filter = 3;
+  // true → only rows where last_dm_status='failed'.
+  bool dm_failed_filter = 4;
+  // Opaque cursor; absent → start of stream.
+  string page_token = 5;
+  // 0 → server default (50).
+  int32 page_size = 6;
+}
+message ListApplicantsResponse {
+  repeated Applicant applicants = 1;
+  string next_page_token = 2;
+}
+
+message ApproveApplicantRequest {
+  string namespace = 1;
+  string applicant_id = 2;
+}
+message ApproveApplicantResponse {
+  Applicant applicant = 1;
+}
+
+message RejectApplicantRequest {
+  string namespace = 1;
+  string applicant_id = 2;
+  // Admin-visible reason; max 500 chars (schema.md §"Applicant entity").
+  optional string rejection_reason = 3;
+}
+message RejectApplicantResponse {
+  Applicant applicant = 1;
+}
+
+message RetryDMRequest {
+  string namespace = 1;
+  string applicant_id = 2;
+}
+message RetryDMResponse {
+  Applicant applicant = 1;
+}
+
+message UploadCodesRequest {
+  string namespace = 1;
+  string playtest_id = 2;
+  // CSV file bytes. UTF-8, ≤10 MB. Server-side validation per PRD §4.3.
+  bytes csv_content = 3;
+}
+// UploadCodesRejection — one entry per offending CSV row when the
+// upload is rejected wholesale (PRD §4.3 / errors.md UploadCodes
+// "bounds / charset / duplicate violation"). line_number is 1-based.
+message UploadCodesRejection {
+  int32 line_number = 1;
+  string reason = 2;
+  // Echo of the offending value when relevant (e.g. duplicate). Empty
+  // for whole-file failures (non-UTF-8, file-size, row-count caps).
+  string value = 3;
+}
+message UploadCodesResponse {
+  // Number of codes inserted. 0 when rejections is non-empty (whole-
+  // file reject — no partial commits).
+  int32 inserted = 1;
+  repeated UploadCodesRejection rejections = 2;
+}
+
+message TopUpCodesRequest {
+  string namespace = 1;
+  string playtest_id = 2;
+  // 1–50,000 per call (PRD §4.6 / §5.1 bound mirrors initial_code_quantity).
+  int32 quantity = 3;
+}
+message TopUpCodesResponse {
+  CodePoolStats pool = 1;
+  // Codes actually inserted into the pool. May be < requested on
+  // partial fulfillment per docs/ags-failure-modes.md.
+  int32 added = 2;
+}
+
+message SyncFromAGSRequest {
+  string namespace = 1;
+  string playtest_id = 2;
+}
+message SyncFromAGSResponse {
+  CodePoolStats pool = 1;
+  // Net new rows persisted by this sync (deduped against existing
+  // UNIQUE(playtest_id, value) constraint).
+  int32 added = 2;
+}
+
+message GetCodePoolRequest {
+  string namespace = 1;
+  string playtest_id = 2;
+}
+message GetCodePoolResponse {
+  CodePoolStats stats = 1;
+  // Raw code values included — admin surfaces are exempt from the §6
+  // log-redaction rule (PRD §5.7).
+  repeated Code codes = 2;
 }
 
 // ---------------- swagger root ----------------

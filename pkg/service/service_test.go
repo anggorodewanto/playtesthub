@@ -7,10 +7,15 @@ import (
 )
 
 // TestServiceDescriptorMethods guards against accidental RPC removal
-// during future proto edits. If the M1 surface in PRD §4.7 shrinks
-// silently, this test fails.
+// during future proto edits. If the M1 + M2 surface in PRD §4.7
+// shrinks silently, this test fails. M2 RPCs are declared on the
+// service in M2 phase 1 (docs/STATUS.md) so codegen + admin/CLI work
+// can land before handlers do; the embedded
+// UnimplementedPlaytesthubServiceServer makes runtime calls return
+// gRPC Unimplemented until the gating phase implements each handler.
 func TestServiceDescriptorMethods(t *testing.T) {
 	want := map[string]bool{
+		// M1
 		"GetPublicPlaytest":        true,
 		"GetPlaytestForPlayer":     true,
 		"AdminGetPlaytest":         true,
@@ -22,6 +27,17 @@ func TestServiceDescriptorMethods(t *testing.T) {
 		"Signup":                   true,
 		"GetApplicantStatus":       true,
 		"ExchangeDiscordCode":      true,
+		// M2
+		"AcceptNDA":        true,
+		"GetGrantedCode":   true,
+		"ListApplicants":   true,
+		"ApproveApplicant": true,
+		"RejectApplicant":  true,
+		"RetryDM":          true,
+		"UploadCodes":      true,
+		"TopUpCodes":       true,
+		"SyncFromAGS":      true,
+		"GetCodePool":      true,
 	}
 
 	methods := pb.PlaytesthubService_ServiceDesc.Methods
