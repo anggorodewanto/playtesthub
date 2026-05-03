@@ -2,6 +2,8 @@ package repo
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -48,12 +50,35 @@ type Applicant struct {
 	CreatedAt       time.Time
 }
 
+// ApplicantPage carries one page of applicant rows + the opaque cursor
+// to the next page. NextPageToken is empty on the final page.
+type ApplicantPage struct {
+	Rows          []*Applicant
+	NextPageToken string
+}
+
+// ApplicantPageQuery is the filter + pagination input shared by the
+// ListPaged interface and its in-memory test fake. Limit ≤ 0 picks the
+// store-side default (50, matching PRD §6 Pagination).
+type ApplicantPageQuery struct {
+	PlaytestID   uuid.UUID
+	Status       string // "" → no filter
+	DMFailedOnly bool   // true → last_dm_status='failed'
+	PageToken    string // "" → start of stream
+	Limit        int    // ≤0 → 50
+}
+
 // ApplicantStore is the data access surface for applicant rows.
 type ApplicantStore interface {
 	Insert(ctx context.Context, a *Applicant) (*Applicant, error)
 	GetByID(ctx context.Context, id uuid.UUID) (*Applicant, error)
 	GetByPlaytestUser(ctx context.Context, playtestID, userID uuid.UUID) (*Applicant, error)
 	ListByPlaytest(ctx context.Context, playtestID uuid.UUID, status string) ([]*Applicant, error)
+	// ListPaged powers the admin applicants queue (PRD §5.4 / errors
+	// .md ListApplicants). Cursor pagination on (created_at DESC, id
+	// DESC) — stable across inserts because id is the secondary key.
+	// Returns ErrInvalidPageToken on a malformed token.
+	ListPaged(ctx context.Context, q ApplicantPageQuery) (*ApplicantPage, error)
 	UpdateStatus(ctx context.Context, a *Applicant) (*Applicant, error)
 	// ApproveCAS performs the PENDING → APPROVED transition with grant
 	// attribution (docs/schema.md §"Approve flow"). The Querier argument
@@ -145,6 +170,116 @@ func (s *PgApplicantStore) GetByPlaytestUser(ctx context.Context, playtestID, us
 		return nil, fmt.Errorf("fetching applicant by (playtest,user): %w", err)
 	}
 	return got, nil
+}
+
+// ListPagedDefaultLimit is the page size when the caller passes ≤0.
+// Matches PRD §6 Pagination.
+const ListPagedDefaultLimit = 50
+
+// ListPagedMaxLimit caps the per-page count callers can request, so a
+// hostile or buggy client cannot slurp the whole table in one call.
+const ListPagedMaxLimit = 200
+
+// ErrInvalidPageToken is surfaced by ListPaged when the opaque
+// page_token does not decode into a (createdAt, id) pair.
+var ErrInvalidPageToken = errors.New("repo: invalid page token")
+
+// ListPaged returns one page of applicants ordered by (created_at,
+// id) DESC, DESC. The opaque cursor encodes the last row's
+// (created_at, id) tuple; the next call's WHERE clause is a tuple
+// comparison against that cursor, which Postgres can satisfy from the
+// composite index (created_at DESC, id DESC) without a sort.
+func (s *PgApplicantStore) ListPaged(ctx context.Context, q ApplicantPageQuery) (*ApplicantPage, error) {
+	limit := q.Limit
+	if limit <= 0 {
+		limit = ListPagedDefaultLimit
+	}
+	if limit > ListPagedMaxLimit {
+		limit = ListPagedMaxLimit
+	}
+
+	cursor, err := decodeApplicantPageToken(q.PageToken)
+	if err != nil {
+		return nil, err
+	}
+
+	sql := `SELECT ` + applicantColumns + ` FROM applicant WHERE playtest_id = $1`
+	args := []any{q.PlaytestID}
+	idx := 2
+	if q.Status != "" {
+		sql += fmt.Sprintf(` AND status = $%d`, idx)
+		args = append(args, q.Status)
+		idx++
+	}
+	if q.DMFailedOnly {
+		sql += ` AND last_dm_status = 'failed'`
+	}
+	if cursor != nil {
+		sql += fmt.Sprintf(` AND (created_at, id) < ($%d, $%d)`, idx, idx+1)
+		args = append(args, cursor.CreatedAt, cursor.ID)
+		idx += 2
+	}
+	sql += fmt.Sprintf(` ORDER BY created_at DESC, id DESC LIMIT $%d`, idx)
+	args = append(args, limit+1)
+
+	rows, err := s.pool.Query(ctx, sql, args...)
+	if err != nil {
+		return nil, fmt.Errorf("listing applicants paged: %w", err)
+	}
+	defer rows.Close()
+
+	out := make([]*Applicant, 0, limit)
+	for rows.Next() {
+		a, scanErr := scanApplicant(rows)
+		if scanErr != nil {
+			return nil, fmt.Errorf("scanning applicant row: %w", scanErr)
+		}
+		out = append(out, a)
+	}
+	if rowsErr := rows.Err(); rowsErr != nil {
+		return nil, fmt.Errorf("iterating applicant rows: %w", rowsErr)
+	}
+
+	page := &ApplicantPage{}
+	if len(out) > limit {
+		last := out[limit-1]
+		page.Rows = out[:limit]
+		page.NextPageToken = encodeApplicantPageToken(applicantCursor{CreatedAt: last.CreatedAt, ID: last.ID})
+		return page, nil
+	}
+	page.Rows = out
+	return page, nil
+}
+
+// applicantCursor is the JSON-serialised opaque cursor exchanged with
+// clients via page_token. Field names are short to keep the
+// base64-encoded blob compact.
+type applicantCursor struct {
+	CreatedAt time.Time `json:"c"`
+	ID        uuid.UUID `json:"i"`
+}
+
+func encodeApplicantPageToken(c applicantCursor) string {
+	b, _ := json.Marshal(c)
+	return base64.RawURLEncoding.EncodeToString(b)
+}
+
+func decodeApplicantPageToken(token string) (*applicantCursor, error) {
+	if token == "" {
+		return nil, nil
+	}
+	raw, err := base64.RawURLEncoding.DecodeString(token)
+	if err != nil {
+		return nil, ErrInvalidPageToken
+	}
+	var c applicantCursor
+	if err := json.Unmarshal(raw, &c); err != nil {
+		return nil, ErrInvalidPageToken
+	}
+	if c.ID == uuid.Nil {
+		return nil, ErrInvalidPageToken
+	}
+	return &c, nil
 }
 
 // ListByPlaytest powers the admin applicants queue (PRD §5.4). An

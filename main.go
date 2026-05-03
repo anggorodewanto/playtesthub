@@ -32,9 +32,11 @@ import (
 	prometheusCollectors "github.com/prometheus/client_golang/prometheus/collectors"
 
 	"github.com/anggorodewanto/playtesthub/internal/bootapp"
+	"github.com/anggorodewanto/playtesthub/internal/reclaim"
 	"github.com/anggorodewanto/playtesthub/pkg/common"
 	"github.com/anggorodewanto/playtesthub/pkg/config"
 	"github.com/anggorodewanto/playtesthub/pkg/migrate"
+	"github.com/anggorodewanto/playtesthub/pkg/repo"
 )
 
 const (
@@ -195,11 +197,44 @@ func main() {
 	}()
 	logger.Info("app server started", "service", serviceName, "addr", server.Addr())
 
+	reclaimWorker := reclaim.New(reclaim.Config{
+		HolderID:          holderIDFromEnv(),
+		LeaseTTL:          time.Duration(cfg.LeaderLeaseTTLSeconds) * time.Second,
+		HeartbeatInterval: time.Duration(cfg.LeaderHeartbeatSeconds) * time.Second,
+		ReclaimInterval:   time.Duration(cfg.ReclaimIntervalSeconds) * time.Second,
+		ReservationTTL:    time.Duration(cfg.ReservationTTLSeconds) * time.Second,
+	}, repo.NewPgLeaderStore(dbPool), repo.NewPgCodeStore(dbPool), logger)
+	go func() {
+		if err := reclaimWorker.Run(ctx); err != nil {
+			logger.Error("reclaim worker stopped with error", "error", err)
+		}
+	}()
+	logger.Info("reclaim worker started",
+		"leaseHolder", holderIDFromEnv(),
+		"reclaimIntervalSeconds", cfg.ReclaimIntervalSeconds,
+		"leaseTtlSeconds", cfg.LeaderLeaseTTLSeconds)
+
 	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	<-ctx.Done()
 	logger.Info("signal received")
 	server.Stop()
+}
+
+// holderIDFromEnv returns a stable per-replica identifier for the
+// leader_lease.holder column. Production callers populate POD_NAME
+// (or HOSTNAME, depending on platform); a hostname fallback keeps the
+// elected leader visible in logs even when neither is set.
+func holderIDFromEnv() string {
+	for _, key := range []string{"POD_NAME", "HOSTNAME"} {
+		if v := os.Getenv(key); v != "" {
+			return v
+		}
+	}
+	if h, err := os.Hostname(); err == nil && h != "" {
+		return h
+	}
+	return "playtesthub"
 }
 
 func newGRPCGatewayHTTPServer(

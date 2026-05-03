@@ -56,6 +56,7 @@ type PlaytesthubServiceServer struct {
 	nda             repo.NDAAcceptanceStore
 	audit           repo.AuditLogStore
 	code            repo.CodeStore
+	txRunner        repo.TxRunner
 	discord         discord.HandleLookup
 	discordExchange DiscordExchangeProxy
 	namespace       string

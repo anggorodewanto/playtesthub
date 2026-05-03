@@ -316,6 +316,132 @@ func TestApplicantUpdateDMStatus_TruncatesUTF8At500Bytes(t *testing.T) {
 	}
 }
 
+// TestApplicantListPaged_PaginatesNewestFirstWithStableTiebreak walks
+// the cursor across the full set: first page → cursor → second page,
+// no overlaps, no gaps. Verifies the (created_at, id) DESC tuple
+// ordering used by the M2 ListApplicants RPC.
+func TestApplicantListPaged_PaginatesNewestFirstWithStableTiebreak(t *testing.T) {
+	truncateAll(t)
+	pt := seedPlaytest(t, "apl-paged")
+	store := repo.NewPgApplicantStore(testPool)
+	ctx := context.Background()
+
+	const total = 7
+	inserted := make([]uuid.UUID, 0, total)
+	for range total {
+		a, err := store.Insert(ctx, newApplicant(pt.ID, uuid.New()))
+		if err != nil {
+			t.Fatalf("seed: %v", err)
+		}
+		inserted = append(inserted, a.ID)
+		time.Sleep(2 * time.Millisecond)
+	}
+
+	page1, err := store.ListPaged(ctx, repo.ApplicantPageQuery{PlaytestID: pt.ID, Limit: 3})
+	if err != nil {
+		t.Fatalf("page1: %v", err)
+	}
+	if len(page1.Rows) != 3 || page1.NextPageToken == "" {
+		t.Fatalf("page1 len=%d token=%q, want 3 + non-empty", len(page1.Rows), page1.NextPageToken)
+	}
+
+	page2, err := store.ListPaged(ctx, repo.ApplicantPageQuery{PlaytestID: pt.ID, Limit: 3, PageToken: page1.NextPageToken})
+	if err != nil {
+		t.Fatalf("page2: %v", err)
+	}
+	if len(page2.Rows) != 3 || page2.NextPageToken == "" {
+		t.Fatalf("page2 len=%d token=%q, want 3 + non-empty", len(page2.Rows), page2.NextPageToken)
+	}
+
+	page3, err := store.ListPaged(ctx, repo.ApplicantPageQuery{PlaytestID: pt.ID, Limit: 3, PageToken: page2.NextPageToken})
+	if err != nil {
+		t.Fatalf("page3: %v", err)
+	}
+	if len(page3.Rows) != 1 || page3.NextPageToken != "" {
+		t.Errorf("page3 len=%d token=%q, want 1 + empty", len(page3.Rows), page3.NextPageToken)
+	}
+
+	// Newest-first: page1[0] is the last seeded applicant.
+	if page1.Rows[0].ID != inserted[total-1] {
+		t.Errorf("DESC ordering: page1[0]=%v want %v", page1.Rows[0].ID, inserted[total-1])
+	}
+
+	// No overlaps + no gaps across pages.
+	seen := map[uuid.UUID]bool{}
+	for _, p := range []*repo.ApplicantPage{page1, page2, page3} {
+		for _, r := range p.Rows {
+			if seen[r.ID] {
+				t.Errorf("duplicate row id across pages: %v", r.ID)
+			}
+			seen[r.ID] = true
+		}
+	}
+	if len(seen) != total {
+		t.Errorf("total rows across pages = %d, want %d", len(seen), total)
+	}
+}
+
+func TestApplicantListPaged_StatusAndDMFailedFilters(t *testing.T) {
+	truncateAll(t)
+	pt := seedPlaytest(t, "apl-paged-filters")
+	store := repo.NewPgApplicantStore(testPool)
+	ctx := context.Background()
+
+	pending, err := store.Insert(ctx, newApplicant(pt.ID, uuid.New()))
+	if err != nil {
+		t.Fatalf("seed pending: %v", err)
+	}
+	approved, err := store.Insert(ctx, newApplicant(pt.ID, uuid.New()))
+	if err != nil {
+		t.Fatalf("seed approved: %v", err)
+	}
+	approved.Status = repo.ApplicantStatusApproved
+	if _, err := store.UpdateStatus(ctx, approved); err != nil {
+		t.Fatalf("approve: %v", err)
+	}
+	failedDM := "failed"
+	if _, err := store.UpdateDMStatus(ctx, approved.ID, failedDM, time.Now().UTC(), nil); err != nil {
+		t.Fatalf("dm-fail: %v", err)
+	}
+	_ = pending // unused; only counted via the filter result
+
+	approvedPage, err := store.ListPaged(ctx, repo.ApplicantPageQuery{
+		PlaytestID: pt.ID,
+		Status:     repo.ApplicantStatusApproved,
+	})
+	if err != nil {
+		t.Fatalf("approved page: %v", err)
+	}
+	if len(approvedPage.Rows) != 1 || approvedPage.Rows[0].ID != approved.ID {
+		t.Errorf("status filter: got %d rows", len(approvedPage.Rows))
+	}
+
+	dmFailedPage, err := store.ListPaged(ctx, repo.ApplicantPageQuery{
+		PlaytestID:   pt.ID,
+		DMFailedOnly: true,
+	})
+	if err != nil {
+		t.Fatalf("dm-failed page: %v", err)
+	}
+	if len(dmFailedPage.Rows) != 1 || dmFailedPage.Rows[0].ID != approved.ID {
+		t.Errorf("dm-failed filter: got %d rows", len(dmFailedPage.Rows))
+	}
+}
+
+func TestApplicantListPaged_BadPageToken_ReturnsErrInvalidPageToken(t *testing.T) {
+	truncateAll(t)
+	pt := seedPlaytest(t, "apl-paged-badtoken")
+	store := repo.NewPgApplicantStore(testPool)
+
+	_, err := store.ListPaged(context.Background(), repo.ApplicantPageQuery{
+		PlaytestID: pt.ID,
+		PageToken:  "this-is-not-base64!",
+	})
+	if !errors.Is(err, repo.ErrInvalidPageToken) {
+		t.Errorf("got %v, want ErrInvalidPageToken", err)
+	}
+}
+
 func TestApplicantUpdateStatus_RoundTrip(t *testing.T) {
 	truncateAll(t)
 	pt := seedPlaytest(t, "apl-upd")

@@ -13,16 +13,25 @@ import (
 	"github.com/anggorodewanto/playtesthub/pkg/repo"
 )
 
-// fakeCodeStore is the M2-phase-5 in-memory CodeStore used by the
-// UploadCodes / GetCodePool unit tests. Mirrors only the surface the
-// handlers exercise — the approve-flow methods (Reserve, FencedFinalize,
-// Reclaim) are present as stubs so the interface is satisfied.
+// fakeCodeStore is the M2-phase-5/6 in-memory CodeStore. Covers the
+// upload surface (UploadCodes / GetCodePool) and — from phase 6 — the
+// approve-flow trio Reserve / FencedFinalize / Reclaim. The fake does
+// not actually use the supplied Querier; tests that need real
+// transactional semantics use the testcontainers-postgres harness in
+// pkg/repo. The fake's job is to make every service-layer code path
+// reachable.
 type fakeCodeStore struct {
 	rows         []*repo.Code
 	uploadCalls  int
 	uploadErr    error
 	listErr      error
 	uploadValues []string
+
+	// Approve-flow knobs (phase 6).
+	reserveErr           error // when set, Reserve returns this verbatim
+	finalizeRowsOverride *int64
+	reclaimReleased      int64
+	reclaimErr           error
 }
 
 func (f *fakeCodeStore) BulkInsert(_ context.Context, playtestID uuid.UUID, values []string) (int, error) {
@@ -111,16 +120,65 @@ func (f *fakeCodeStore) UploadAtomic(_ context.Context, playtestID uuid.UUID, va
 	return len(values), nil, nil
 }
 
-func (f *fakeCodeStore) Reserve(_ context.Context, _ repo.Querier, _, _ uuid.UUID) (*repo.Code, error) {
+// Reserve flips the oldest UNUSED row for the playtest to RESERVED,
+// stamping reserved_by and reserved_at. Returns ErrPoolEmpty when no
+// UNUSED rows remain — same sentinel the real PgCodeStore raises.
+func (f *fakeCodeStore) Reserve(_ context.Context, _ repo.Querier, playtestID, userID uuid.UUID) (*repo.Code, error) {
+	if f.reserveErr != nil {
+		return nil, f.reserveErr
+	}
+	for _, r := range f.rows {
+		if r.PlaytestID != playtestID {
+			continue
+		}
+		if r.State != repo.CodeStateUnused {
+			continue
+		}
+		now := time.Now()
+		r.State = repo.CodeStateReserved
+		r.ReservedBy = &userID
+		r.ReservedAt = &now
+		clone := *r
+		return &clone, nil
+	}
 	return nil, repo.ErrPoolEmpty
 }
 
-func (f *fakeCodeStore) FencedFinalize(_ context.Context, _ repo.Querier, _, _ uuid.UUID, _ time.Time) (int64, error) {
+// FencedFinalize matches the canonical schema.md fenced UPDATE: a row
+// flips RESERVED → GRANTED only if the (codeID, userID, reservedAt)
+// triple still matches the stored row. The override knob lets tests
+// force the 0-row case explicitly without crafting a reclaim race.
+func (f *fakeCodeStore) FencedFinalize(_ context.Context, _ repo.Querier, codeID, userID uuid.UUID, originalReservedAt time.Time) (int64, error) {
+	if f.finalizeRowsOverride != nil {
+		return *f.finalizeRowsOverride, nil
+	}
+	for _, r := range f.rows {
+		if r.ID != codeID || r.State != repo.CodeStateReserved {
+			continue
+		}
+		if r.ReservedBy == nil || *r.ReservedBy != userID {
+			continue
+		}
+		if r.ReservedAt == nil || !r.ReservedAt.Equal(originalReservedAt) {
+			continue
+		}
+		now := time.Now()
+		r.State = repo.CodeStateGranted
+		r.GrantedAt = &now
+		return 1, nil
+	}
 	return 0, nil
 }
 
+// Reclaim is a stub returning the configured count; phase 6 only
+// exercises it through the reclaim worker tests, which use the real
+// repo.LeaderStore + this fake CodeStore so the count plumbing reaches
+// the log line under assertion.
 func (f *fakeCodeStore) Reclaim(_ context.Context, _ time.Duration) (int64, error) {
-	return 0, nil
+	if f.reclaimErr != nil {
+		return 0, f.reclaimErr
+	}
+	return f.reclaimReleased, nil
 }
 
 // codeTestRig bundles the test server + every fake the upload flow uses

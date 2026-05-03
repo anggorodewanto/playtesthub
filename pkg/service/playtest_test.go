@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -187,6 +188,82 @@ func (f *fakeApplicantStore) ListByPlaytest(_ context.Context, playtestID uuid.U
 		out = append(out, &clone)
 	}
 	return out, nil
+}
+
+// ListPaged mirrors the SQL implementation: order by created_at DESC,
+// id DESC, slice on the opaque cursor. Tests rarely build cursors by
+// hand; the M2-phase-6 ListApplicants tests round-trip through the
+// fake's encode/decode pair so a regression in the cursor format trips
+// here as well as in the integration suite.
+func (f *fakeApplicantStore) ListPaged(_ context.Context, q repo.ApplicantPageQuery) (*repo.ApplicantPage, error) {
+	limit := q.Limit
+	if limit <= 0 {
+		limit = repo.ListPagedDefaultLimit
+	}
+	if limit > repo.ListPagedMaxLimit {
+		limit = repo.ListPagedMaxLimit
+	}
+
+	filtered := make([]*repo.Applicant, 0, len(f.rows))
+	for _, a := range f.rows {
+		if a.PlaytestID != q.PlaytestID {
+			continue
+		}
+		if q.Status != "" && a.Status != q.Status {
+			continue
+		}
+		if q.DMFailedOnly && (a.LastDMStatus == nil || *a.LastDMStatus != "failed") {
+			continue
+		}
+		clone := *a
+		filtered = append(filtered, &clone)
+	}
+	sort.Slice(filtered, func(i, j int) bool {
+		if !filtered[i].CreatedAt.Equal(filtered[j].CreatedAt) {
+			return filtered[i].CreatedAt.After(filtered[j].CreatedAt)
+		}
+		return bytesGreater(filtered[i].ID[:], filtered[j].ID[:])
+	})
+	if q.PageToken != "" {
+		cur, err := repo.DecodeApplicantPageTokenForTest(q.PageToken)
+		if err != nil {
+			return nil, err
+		}
+		cut := -1
+		for idx, a := range filtered {
+			if a.CreatedAt.Equal(cur.CreatedAt) && a.ID == cur.ID {
+				cut = idx
+				break
+			}
+			if a.CreatedAt.Before(cur.CreatedAt) {
+				cut = idx - 1
+				break
+			}
+		}
+		if cut == -1 {
+			cut = len(filtered) - 1
+		}
+		filtered = filtered[cut+1:]
+	}
+
+	page := &repo.ApplicantPage{}
+	if len(filtered) > limit {
+		page.Rows = filtered[:limit]
+		last := page.Rows[limit-1]
+		page.NextPageToken = repo.EncodeApplicantPageTokenForTest(last.CreatedAt, last.ID)
+		return page, nil
+	}
+	page.Rows = filtered
+	return page, nil
+}
+
+func bytesGreater(a, b []byte) bool {
+	for i := range a {
+		if a[i] != b[i] {
+			return a[i] > b[i]
+		}
+	}
+	return false
 }
 
 func (f *fakeApplicantStore) UpdateStatus(_ context.Context, a *repo.Applicant) (*repo.Applicant, error) {

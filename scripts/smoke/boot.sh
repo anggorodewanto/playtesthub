@@ -99,6 +99,10 @@ AGS_IAM_CLIENT_SECRET="smoke-client-secret" \
 AGS_BASE_URL="https://ags.smoke.invalid" \
 AGS_NAMESPACE="smoke" \
 PLUGIN_GRPC_SERVER_AUTH_ENABLED=false \
+LEADER_HEARTBEAT_SECONDS=1 \
+LEADER_LEASE_TTL_SECONDS=5 \
+RECLAIM_INTERVAL_SECONDS=1 \
+RESERVATION_TTL_SECONDS=5 \
     setsid go run . >/tmp/playtesthub-smoke.log 2>&1 &
 APP_PID=$!
 
@@ -139,19 +143,20 @@ for m in "${EXPECTED_METHODS[@]}"; do
 done
 
 log "remaining M2 RPCs still return Unimplemented"
-# M2 phases 4 + 5 implement AcceptNDA, UploadCodes, and GetCodePool;
-# the remaining 7 M2 RPCs still ride the embedded
+# Phases 4–6 implement AcceptNDA, UploadCodes, GetCodePool, and the
+# four approve-flow RPCs (ApproveApplicant, RejectApplicant,
+# ListApplicants, GetGrantedCode). The remaining 4 M2 RPCs (RetryDM,
+# TopUpCodes, SyncFromAGS) still ride the embedded
 # UnimplementedPlaytesthubServiceServer. Probe one over the native
 # gRPC port (no auth interceptor when AUTH_ENABLED=false) to confirm
 # the runtime gating still distinguishes shipped from pending
-# handlers. GetGrantedCode is GET-shaped, takes only a playtest_id,
-# and is in a later phase to ship.
+# handlers. RetryDM is the canary — it lands in M2 phase 7.
 unimpl_status=$(grpcurl -plaintext \
-    -d '{"playtest_id":"00000000-0000-0000-0000-000000000000"}' \
+    -d '{"namespace":"smoke","applicant_id":"00000000-0000-0000-0000-000000000000"}' \
     "localhost:$APP_PORT_GRPC" \
-    playtesthub.v1.PlaytesthubService/GetGrantedCode 2>&1 || true)
+    playtesthub.v1.PlaytesthubService/RetryDM 2>&1 || true)
 grep -q "Unimplemented" <<<"$unimpl_status" \
-    || { echo "$unimpl_status" >&2; fail "expected Unimplemented from GetGrantedCode (still pending in M2)"; }
+    || { echo "$unimpl_status" >&2; fail "expected Unimplemented from RetryDM (still pending in M2)"; }
 
 log "AcceptNDA reaches the handler (no longer Unimplemented)"
 # Phase 4: AcceptNDA must surface its own validation, not the generic
@@ -258,6 +263,99 @@ pool_code=$(curl -s -o /dev/null -w '%{http_code}' \
     "http://localhost:$APP_PORT_HTTP$BASE_PATH/v1/admin/namespaces/smoke/playtests/00000000-0000-0000-0000-000000000000/codes")
 [[ "$pool_code" == "401" ]] \
     || { tail -30 /tmp/playtesthub-smoke.log >&2; fail "expected 401 Unauthenticated from GetCodePool gateway path, got $pool_code"; }
+
+log "admin ApproveApplicant reaches the handler (no longer Unimplemented)"
+approve_status=$(grpcurl -plaintext \
+    -d '{"namespace":"smoke","applicant_id":"00000000-0000-0000-0000-000000000000"}' \
+    "localhost:$APP_PORT_GRPC" \
+    playtesthub.v1.PlaytesthubService/ApproveApplicant 2>&1 || true)
+if grep -q "Unimplemented" <<<"$approve_status"; then
+    echo "$approve_status" >&2
+    fail "ApproveApplicant still Unimplemented — phase 6 wiring did not land"
+fi
+grep -q "Unauthenticated" <<<"$approve_status" \
+    || { echo "$approve_status" >&2; fail "expected Unauthenticated from ApproveApplicant (auth disabled, handler reached)"; }
+
+log "admin RejectApplicant reaches the handler (no longer Unimplemented)"
+reject_status=$(grpcurl -plaintext \
+    -d '{"namespace":"smoke","applicant_id":"00000000-0000-0000-0000-000000000000"}' \
+    "localhost:$APP_PORT_GRPC" \
+    playtesthub.v1.PlaytesthubService/RejectApplicant 2>&1 || true)
+if grep -q "Unimplemented" <<<"$reject_status"; then
+    echo "$reject_status" >&2
+    fail "RejectApplicant still Unimplemented — phase 6 wiring did not land"
+fi
+grep -q "Unauthenticated" <<<"$reject_status" \
+    || { echo "$reject_status" >&2; fail "expected Unauthenticated from RejectApplicant (auth disabled, handler reached)"; }
+
+log "admin ListApplicants reaches the handler (no longer Unimplemented)"
+list_status=$(grpcurl -plaintext \
+    -d '{"namespace":"smoke","playtest_id":"00000000-0000-0000-0000-000000000000"}' \
+    "localhost:$APP_PORT_GRPC" \
+    playtesthub.v1.PlaytesthubService/ListApplicants 2>&1 || true)
+if grep -q "Unimplemented" <<<"$list_status"; then
+    echo "$list_status" >&2
+    fail "ListApplicants still Unimplemented — phase 6 wiring did not land"
+fi
+grep -q "Unauthenticated" <<<"$list_status" \
+    || { echo "$list_status" >&2; fail "expected Unauthenticated from ListApplicants (auth disabled, handler reached)"; }
+
+log "player GetGrantedCode reaches the handler (no longer Unimplemented)"
+granted_status=$(grpcurl -plaintext \
+    -d '{"playtest_id":"00000000-0000-0000-0000-000000000000"}' \
+    "localhost:$APP_PORT_GRPC" \
+    playtesthub.v1.PlaytesthubService/GetGrantedCode 2>&1 || true)
+if grep -q "Unimplemented" <<<"$granted_status"; then
+    echo "$granted_status" >&2
+    fail "GetGrantedCode still Unimplemented — phase 6 wiring did not land"
+fi
+grep -q "Unauthenticated" <<<"$granted_status" \
+    || { echo "$granted_status" >&2; fail "expected Unauthenticated from GetGrantedCode (auth disabled, handler reached)"; }
+
+log "admin ApproveApplicant reaches the handler over the gateway (expect 401 Unauthenticated)"
+approve_code=$(curl -s -o /dev/null -w '%{http_code}' \
+    -H 'Content-Type: application/json' \
+    -X POST -d '{}' \
+    "http://localhost:$APP_PORT_HTTP$BASE_PATH/v1/admin/namespaces/smoke/applicants/00000000-0000-0000-0000-000000000000:approve")
+[[ "$approve_code" == "401" ]] \
+    || { tail -30 /tmp/playtesthub-smoke.log >&2; fail "expected 401 Unauthenticated from ApproveApplicant gateway path, got $approve_code"; }
+
+log "admin RejectApplicant reaches the handler over the gateway (expect 401 Unauthenticated)"
+reject_code=$(curl -s -o /dev/null -w '%{http_code}' \
+    -H 'Content-Type: application/json' \
+    -X POST -d '{}' \
+    "http://localhost:$APP_PORT_HTTP$BASE_PATH/v1/admin/namespaces/smoke/applicants/00000000-0000-0000-0000-000000000000:reject")
+[[ "$reject_code" == "401" ]] \
+    || { tail -30 /tmp/playtesthub-smoke.log >&2; fail "expected 401 Unauthenticated from RejectApplicant gateway path, got $reject_code"; }
+
+log "admin ListApplicants reaches the handler over the gateway (expect 401 Unauthenticated)"
+list_code=$(curl -s -o /dev/null -w '%{http_code}' \
+    "http://localhost:$APP_PORT_HTTP$BASE_PATH/v1/admin/namespaces/smoke/playtests/00000000-0000-0000-0000-000000000000/applicants")
+[[ "$list_code" == "401" ]] \
+    || { tail -30 /tmp/playtesthub-smoke.log >&2; fail "expected 401 Unauthenticated from ListApplicants gateway path, got $list_code"; }
+
+log "player GetGrantedCode reaches the handler over the gateway (expect 401 Unauthenticated)"
+granted_code=$(curl -s -o /dev/null -w '%{http_code}' \
+    "http://localhost:$APP_PORT_HTTP$BASE_PATH/v1/player/playtests/00000000-0000-0000-0000-000000000000/grantedCode")
+[[ "$granted_code" == "401" ]] \
+    || { tail -30 /tmp/playtesthub-smoke.log >&2; fail "expected 401 Unauthenticated from GetGrantedCode gateway path, got $granted_code"; }
+
+log "reclaim worker emitted at least one reclaim_tick log line"
+# M2 phase 6 starts the reclaim worker as a background goroutine. It
+# tries to acquire the leader lease on boot and ticks at the
+# heartbeat interval (default 10s). Wait up to 12s for the first tick
+# to land in the log file. A missing tick means the worker did not
+# start, did not acquire the lease, or its log line shape regressed.
+reclaim_ok=""
+for _ in {1..24}; do
+    if grep -q '"event":"reclaim_tick"' /tmp/playtesthub-smoke.log; then
+        reclaim_ok=1
+        break
+    fi
+    sleep 0.5
+done
+[[ -n "$reclaim_ok" ]] \
+    || { tail -50 /tmp/playtesthub-smoke.log >&2; fail "reclaim worker never emitted a reclaim_tick log line"; }
 
 log "player AcceptNDA reaches the handler over the gateway (expect 401 Unauthenticated)"
 # M2 phase 4 wires the gateway path POST /v1/player/playtests/{id}:acceptNda.
