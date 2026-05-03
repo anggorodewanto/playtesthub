@@ -221,9 +221,11 @@ func buildPlaytesthubServer(cfg *config.Config, dbPool *pgxpool.Pool, httpClient
 	applicantStore := repo.NewPgApplicantStore(dbPool)
 	ndaStore := repo.NewPgNDAAcceptanceStore(dbPool)
 	auditStore := repo.NewPgAuditLogStore(dbPool)
+	codeStore := repo.NewPgCodeStore(dbPool)
 	svcServer := service.NewPlaytesthubServiceServer(playtestStore, applicantStore, cfg.AGSNamespace).
 		WithNDAStore(ndaStore).
-		WithAuditLogStore(auditStore)
+		WithAuditLogStore(auditStore).
+		WithCodeStore(codeStore)
 	if botClient := discord.NewBotClient(cfg.DiscordBotToken); botClient != nil {
 		svcServer = svcServer.WithDiscordLookup(botClient)
 	}

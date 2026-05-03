@@ -3018,7 +3018,12 @@ type UploadCodesRequest struct {
 	Namespace  string                 `protobuf:"bytes,1,opt,name=namespace,proto3" json:"namespace,omitempty"`
 	PlaytestId string                 `protobuf:"bytes,2,opt,name=playtest_id,json=playtestId,proto3" json:"playtest_id,omitempty"`
 	// CSV file bytes. UTF-8, ≤10 MB. Server-side validation per PRD §4.3.
-	CsvContent    []byte `protobuf:"bytes,3,opt,name=csv_content,json=csvContent,proto3" json:"csv_content,omitempty"`
+	CsvContent []byte `protobuf:"bytes,3,opt,name=csv_content,json=csvContent,proto3" json:"csv_content,omitempty"`
+	// Original filename echoed into the code.upload / code.upload_rejected
+	// audit rows (schema.md §"AuditLog — `action` enum"). Optional —
+	// server treats absent as "" and the audit row records the empty
+	// string.
+	Filename      string `protobuf:"bytes,4,opt,name=filename,proto3" json:"filename,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3072,6 +3077,13 @@ func (x *UploadCodesRequest) GetCsvContent() []byte {
 		return x.CsvContent
 	}
 	return nil
+}
+
+func (x *UploadCodesRequest) GetFilename() string {
+	if x != nil {
+		return x.Filename
+	}
+	return ""
 }
 
 // UploadCodesRejection — one entry per offending CSV row when the
@@ -3755,13 +3767,14 @@ const file_playtesthub_v1_playtesthub_proto_rawDesc = "" +
 	"\tnamespace\x18\x01 \x01(\tR\tnamespace\x12!\n" +
 	"\fapplicant_id\x18\x02 \x01(\tR\vapplicantId\"J\n" +
 	"\x0fRetryDMResponse\x127\n" +
-	"\tapplicant\x18\x01 \x01(\v2\x19.playtesthub.v1.ApplicantR\tapplicant\"t\n" +
+	"\tapplicant\x18\x01 \x01(\v2\x19.playtesthub.v1.ApplicantR\tapplicant\"\x90\x01\n" +
 	"\x12UploadCodesRequest\x12\x1c\n" +
 	"\tnamespace\x18\x01 \x01(\tR\tnamespace\x12\x1f\n" +
 	"\vplaytest_id\x18\x02 \x01(\tR\n" +
 	"playtestId\x12\x1f\n" +
 	"\vcsv_content\x18\x03 \x01(\fR\n" +
-	"csvContent\"e\n" +
+	"csvContent\x12\x1a\n" +
+	"\bfilename\x18\x04 \x01(\tR\bfilename\"e\n" +
 	"\x14UploadCodesRejection\x12\x1f\n" +
 	"\vline_number\x18\x01 \x01(\x05R\n" +
 	"lineNumber\x12\x16\n" +

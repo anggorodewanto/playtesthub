@@ -33,6 +33,12 @@ const (
 	applicantStatusRejected = "REJECTED"
 )
 
+// Playtest.distributionModel TEXT values (migration 0001 / PRD §5.1).
+const (
+	distModelSteamKeys   = "STEAM_KEYS"
+	distModelAGSCampaign = "AGS_CAMPAIGN"
+)
+
 // PlaytesthubServiceServer is the gRPC handler for the playtesthub.v1
 // service. Stores are mocked in pkg/service/*_test.go; the production
 // wiring in main.go passes Postgres-backed implementations.
@@ -49,6 +55,7 @@ type PlaytesthubServiceServer struct {
 	applicant       repo.ApplicantStore
 	nda             repo.NDAAcceptanceStore
 	audit           repo.AuditLogStore
+	code            repo.CodeStore
 	discord         discord.HandleLookup
 	discordExchange DiscordExchangeProxy
 	namespace       string
@@ -168,7 +175,7 @@ func (s *PlaytesthubServiceServer) CreatePlaytest(ctx context.Context, req *pb.C
 		NDARequired:           req.GetNdaRequired(),
 		NDAText:               req.GetNdaText(),
 		CurrentNDAVersionHash: ndaHash,
-		DistributionModel:     "STEAM_KEYS",
+		DistributionModel:     distModelSteamKeys,
 	}
 
 	got, err := s.playtest.Create(ctx, p)
@@ -571,9 +578,9 @@ func statusStringToEnum(s string) pb.PlaytestStatus {
 
 func distModelStringToEnum(s string) pb.DistributionModel {
 	switch s {
-	case "STEAM_KEYS":
+	case distModelSteamKeys:
 		return pb.DistributionModel_DISTRIBUTION_MODEL_STEAM_KEYS
-	case "AGS_CAMPAIGN":
+	case distModelAGSCampaign:
 		return pb.DistributionModel_DISTRIBUTION_MODEL_AGS_CAMPAIGN
 	}
 	return pb.DistributionModel_DISTRIBUTION_MODEL_UNSPECIFIED

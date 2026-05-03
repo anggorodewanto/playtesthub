@@ -139,12 +139,13 @@ for m in "${EXPECTED_METHODS[@]}"; do
 done
 
 log "remaining M2 RPCs still return Unimplemented"
-# M2 phase 4 implements AcceptNDA; the remaining 9 M2 RPCs still ride
-# the embedded UnimplementedPlaytesthubServiceServer. Probe one over
-# the native gRPC port (no auth interceptor when AUTH_ENABLED=false)
-# to confirm the runtime gating still distinguishes shipped from
-# pending handlers. GetGrantedCode is GET-shaped, takes only a
-# playtest_id, and is in the next phase to ship.
+# M2 phases 4 + 5 implement AcceptNDA, UploadCodes, and GetCodePool;
+# the remaining 7 M2 RPCs still ride the embedded
+# UnimplementedPlaytesthubServiceServer. Probe one over the native
+# gRPC port (no auth interceptor when AUTH_ENABLED=false) to confirm
+# the runtime gating still distinguishes shipped from pending
+# handlers. GetGrantedCode is GET-shaped, takes only a playtest_id,
+# and is in a later phase to ship.
 unimpl_status=$(grpcurl -plaintext \
     -d '{"playtest_id":"00000000-0000-0000-0000-000000000000"}' \
     "localhost:$APP_PORT_GRPC" \
@@ -210,6 +211,53 @@ code=$(curl -s -o /dev/null -w '%{http_code}' \
     "http://localhost:$APP_PORT_HTTP$BASE_PATH/v1/player/playtests/smoke-test/applicant")
 [[ "$code" == "401" ]] \
     || { tail -30 /tmp/playtesthub-smoke.log >&2; fail "expected 401 Unauthenticated from GetApplicantStatus, got $code"; }
+
+log "admin UploadCodes reaches the handler (no longer Unimplemented)"
+# Phase 5: UploadCodes must run its handler. With auth disabled the
+# auth interceptor does not attach an actor, so the handler short-
+# circuits on requireActor with Unauthenticated — that is the proof
+# the handler ran (vs. embedded Unimplemented).
+upload_status=$(grpcurl -plaintext \
+    -d '{"namespace":"smoke","playtest_id":"00000000-0000-0000-0000-000000000000","csv_content":""}' \
+    "localhost:$APP_PORT_GRPC" \
+    playtesthub.v1.PlaytesthubService/UploadCodes 2>&1 || true)
+if grep -q "Unimplemented" <<<"$upload_status"; then
+    echo "$upload_status" >&2
+    fail "UploadCodes still Unimplemented — phase 5 wiring did not land"
+fi
+grep -q "Unauthenticated" <<<"$upload_status" \
+    || { echo "$upload_status" >&2; fail "expected Unauthenticated from UploadCodes (auth disabled, handler reached)"; }
+
+log "admin GetCodePool reaches the handler (no longer Unimplemented)"
+pool_status=$(grpcurl -plaintext \
+    -d '{"namespace":"smoke","playtest_id":"00000000-0000-0000-0000-000000000000"}' \
+    "localhost:$APP_PORT_GRPC" \
+    playtesthub.v1.PlaytesthubService/GetCodePool 2>&1 || true)
+if grep -q "Unimplemented" <<<"$pool_status"; then
+    echo "$pool_status" >&2
+    fail "GetCodePool still Unimplemented — phase 5 wiring did not land"
+fi
+grep -q "Unauthenticated" <<<"$pool_status" \
+    || { echo "$pool_status" >&2; fail "expected Unauthenticated from GetCodePool (auth disabled, handler reached)"; }
+
+log "admin UploadCodes reaches the handler over the gateway (expect 401 Unauthenticated)"
+# Phase 5 wires the gateway path POST /v1/admin/.../codes:upload.
+# The auth interceptor → handler short-circuit gives 401, distinct
+# from a 501 Unimplemented response that would mean phase 5 wiring
+# did not land.
+upload_code=$(curl -s -o /dev/null -w '%{http_code}' \
+    -H 'Content-Type: application/json' \
+    -X POST \
+    -d '{"csv_content":""}' \
+    "http://localhost:$APP_PORT_HTTP$BASE_PATH/v1/admin/namespaces/smoke/playtests/00000000-0000-0000-0000-000000000000/codes:upload")
+[[ "$upload_code" == "401" ]] \
+    || { tail -30 /tmp/playtesthub-smoke.log >&2; fail "expected 401 Unauthenticated from UploadCodes gateway path, got $upload_code"; }
+
+log "admin GetCodePool reaches the handler over the gateway (expect 401 Unauthenticated)"
+pool_code=$(curl -s -o /dev/null -w '%{http_code}' \
+    "http://localhost:$APP_PORT_HTTP$BASE_PATH/v1/admin/namespaces/smoke/playtests/00000000-0000-0000-0000-000000000000/codes")
+[[ "$pool_code" == "401" ]] \
+    || { tail -30 /tmp/playtesthub-smoke.log >&2; fail "expected 401 Unauthenticated from GetCodePool gateway path, got $pool_code"; }
 
 log "player AcceptNDA reaches the handler over the gateway (expect 401 Unauthenticated)"
 # M2 phase 4 wires the gateway path POST /v1/player/playtests/{id}:acceptNda.

@@ -261,6 +261,122 @@ func TestCodeReclaim_ReleasesStaleReservations(t *testing.T) {
 	}
 }
 
+// UploadAtomic happy-path: empty pool, fresh values insert via
+// CopyFrom under the advisory lock, dups slice is nil.
+func TestCodeUploadAtomic_HappyPath(t *testing.T) {
+	truncateAll(t)
+	pt := seedPlaytest(t, "code-upload-happy")
+	store := repo.NewPgCodeStore(testPool)
+	ctx := context.Background()
+
+	values := []string{"K1", "K2", "K3"}
+	inserted, dups, err := store.UploadAtomic(ctx, pt.ID, values)
+	if err != nil {
+		t.Fatalf("UploadAtomic: %v", err)
+	}
+	if inserted != len(values) {
+		t.Errorf("inserted = %d, want %d", inserted, len(values))
+	}
+	if len(dups) != 0 {
+		t.Errorf("dups = %v, want empty", dups)
+	}
+
+	counts, err := store.CountByState(ctx, pt.ID)
+	if err != nil {
+		t.Fatalf("CountByState: %v", err)
+	}
+	if counts[repo.CodeStateUnused] != len(values) {
+		t.Errorf("UNUSED count = %d, want %d", counts[repo.CodeStateUnused], len(values))
+	}
+}
+
+// PRD §4.3 whole-file-reject: any DB-side dup means zero rows insert
+// AND every colliding existing value is returned. Service maps these
+// back to CSV line numbers for the per-line response.
+func TestCodeUploadAtomic_DedupAgainstDBRejectsWholeFile(t *testing.T) {
+	truncateAll(t)
+	pt := seedPlaytest(t, "code-upload-dedup")
+	store := repo.NewPgCodeStore(testPool)
+	ctx := context.Background()
+
+	if _, err := store.BulkInsert(ctx, pt.ID, []string{"OLD-1", "OLD-2"}); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	inserted, dups, err := store.UploadAtomic(ctx, pt.ID, []string{"NEW-A", "OLD-1", "NEW-B", "OLD-2"})
+	if err != nil {
+		t.Fatalf("UploadAtomic: %v", err)
+	}
+	if inserted != 0 {
+		t.Errorf("inserted = %d, want 0 (whole-file reject)", inserted)
+	}
+	got := map[string]bool{}
+	for _, d := range dups {
+		got[d] = true
+	}
+	if !got["OLD-1"] || !got["OLD-2"] {
+		t.Errorf("dups = %v, want both OLD-1 and OLD-2", dups)
+	}
+	if got["NEW-A"] || got["NEW-B"] {
+		t.Errorf("dups leaked non-existing values: %v", dups)
+	}
+	// Pool size unchanged.
+	counts, err := store.CountByState(ctx, pt.ID)
+	if err != nil {
+		t.Fatalf("CountByState: %v", err)
+	}
+	if counts[repo.CodeStateUnused] != 2 {
+		t.Errorf("UNUSED post-reject = %d, want 2 (originals only)", counts[repo.CodeStateUnused])
+	}
+}
+
+func TestCodeUploadAtomic_EmptyValuesShortCircuits(t *testing.T) {
+	truncateAll(t)
+	pt := seedPlaytest(t, "code-upload-empty")
+	store := repo.NewPgCodeStore(testPool)
+
+	inserted, dups, err := store.UploadAtomic(context.Background(), pt.ID, nil)
+	if err != nil {
+		t.Fatalf("UploadAtomic empty: %v", err)
+	}
+	if inserted != 0 || len(dups) != 0 {
+		t.Errorf("empty values: inserted=%d dups=%v, want 0/empty", inserted, dups)
+	}
+}
+
+// ListByPlaytest returns every row in created_at ASC order. Power-of
+// the admin GetCodePool view (PRD §5.7 page 4 — raw values surfaced).
+func TestCodeListByPlaytest_OrdersByCreatedAt(t *testing.T) {
+	truncateAll(t)
+	pt := seedPlaytest(t, "code-list")
+	store := repo.NewPgCodeStore(testPool)
+	ctx := context.Background()
+
+	if _, err := store.BulkInsert(ctx, pt.ID, []string{"A", "B", "C"}); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	got, err := store.ListByPlaytest(ctx, pt.ID)
+	if err != nil {
+		t.Fatalf("ListByPlaytest: %v", err)
+	}
+	if len(got) != 3 {
+		t.Fatalf("rows = %d, want 3", len(got))
+	}
+	// Two playtests don't bleed: another playtest's rows must not show.
+	other := seedPlaytest(t, "code-list-other")
+	if _, err := store.BulkInsert(ctx, other.ID, []string{"X"}); err != nil {
+		t.Fatalf("seed other: %v", err)
+	}
+	got, err = store.ListByPlaytest(ctx, pt.ID)
+	if err != nil {
+		t.Fatalf("ListByPlaytest re-run: %v", err)
+	}
+	if len(got) != 3 {
+		t.Errorf("rows after seeding other playtest = %d, want 3 (scoped per playtest)", len(got))
+	}
+}
+
 func TestCodeBulkInsert_StateEnumRejection(t *testing.T) {
 	// The table-level CHECK constraint forbids unknown state values.
 	// CopyFrom always writes UNUSED (the default), so we exercise the

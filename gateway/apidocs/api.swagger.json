@@ -1109,6 +1109,10 @@
           "type": "string",
           "format": "byte",
           "description": "CSV file bytes. UTF-8, ≤10 MB. Server-side validation per PRD §4.3."
+        },
+        "filename": {
+          "type": "string",
+          "description": "Original filename echoed into the code.upload / code.upload_rejected\naudit rows (schema.md §\"AuditLog — `action` enum\"). Optional —\nserver treats absent as \"\" and the audit row records the empty\nstring."
         }
       }
     },

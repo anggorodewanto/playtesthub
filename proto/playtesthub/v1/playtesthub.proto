@@ -725,6 +725,11 @@ message UploadCodesRequest {
   string playtest_id = 2;
   // CSV file bytes. UTF-8, ≤10 MB. Server-side validation per PRD §4.3.
   bytes csv_content = 3;
+  // Original filename echoed into the code.upload / code.upload_rejected
+  // audit rows (schema.md §"AuditLog — `action` enum"). Optional —
+  // server treats absent as "" and the audit row records the empty
+  // string.
+  string filename = 4;
 }
 // UploadCodesRejection — one entry per offending CSV row when the
 // upload is rejected wholesale (PRD §4.3 / errors.md UploadCodes
