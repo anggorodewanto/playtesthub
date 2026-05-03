@@ -143,20 +143,18 @@ for m in "${EXPECTED_METHODS[@]}"; do
 done
 
 log "remaining M2 RPCs still return Unimplemented"
-# Phases 4–6 implement AcceptNDA, UploadCodes, GetCodePool, and the
-# four approve-flow RPCs (ApproveApplicant, RejectApplicant,
-# ListApplicants, GetGrantedCode). The remaining 4 M2 RPCs (RetryDM,
-# TopUpCodes, SyncFromAGS) still ride the embedded
-# UnimplementedPlaytesthubServiceServer. Probe one over the native
-# gRPC port (no auth interceptor when AUTH_ENABLED=false) to confirm
-# the runtime gating still distinguishes shipped from pending
-# handlers. RetryDM is the canary — it lands in M2 phase 7.
+# Phases 4–7 implement AcceptNDA, UploadCodes, GetCodePool, the four
+# approve-flow RPCs (ApproveApplicant, RejectApplicant,
+# ListApplicants, GetGrantedCode), and RetryDM. The remaining 3 M2
+# RPCs (TopUpCodes, SyncFromAGS) still ride the embedded
+# UnimplementedPlaytesthubServiceServer. TopUpCodes is the new canary
+# — it lands in M2 phase 9.
 unimpl_status=$(grpcurl -plaintext \
-    -d '{"namespace":"smoke","applicant_id":"00000000-0000-0000-0000-000000000000"}' \
+    -d '{"namespace":"smoke","playtest_id":"00000000-0000-0000-0000-000000000000","quantity":1}' \
     "localhost:$APP_PORT_GRPC" \
-    playtesthub.v1.PlaytesthubService/RetryDM 2>&1 || true)
+    playtesthub.v1.PlaytesthubService/TopUpCodes 2>&1 || true)
 grep -q "Unimplemented" <<<"$unimpl_status" \
-    || { echo "$unimpl_status" >&2; fail "expected Unimplemented from RetryDM (still pending in M2)"; }
+    || { echo "$unimpl_status" >&2; fail "expected Unimplemented from TopUpCodes (still pending in M2)"; }
 
 log "AcceptNDA reaches the handler (no longer Unimplemented)"
 # Phase 4: AcceptNDA must surface its own validation, not the generic
@@ -339,6 +337,38 @@ granted_code=$(curl -s -o /dev/null -w '%{http_code}' \
     "http://localhost:$APP_PORT_HTTP$BASE_PATH/v1/player/playtests/00000000-0000-0000-0000-000000000000/grantedCode")
 [[ "$granted_code" == "401" ]] \
     || { tail -30 /tmp/playtesthub-smoke.log >&2; fail "expected 401 Unauthenticated from GetGrantedCode gateway path, got $granted_code"; }
+
+log "admin RetryDM reaches the handler (no longer Unimplemented)"
+# Phase 7: RetryDM must surface its own validation, not the generic
+# Unimplemented. With auth disabled the auth interceptor does not
+# attach an actor, so the handler short-circuits on requireActor with
+# Unauthenticated.
+retrydm_status=$(grpcurl -plaintext \
+    -d '{"namespace":"smoke","applicant_id":"00000000-0000-0000-0000-000000000000"}' \
+    "localhost:$APP_PORT_GRPC" \
+    playtesthub.v1.PlaytesthubService/RetryDM 2>&1 || true)
+if grep -q "Unimplemented" <<<"$retrydm_status"; then
+    echo "$retrydm_status" >&2
+    fail "RetryDM still Unimplemented — phase 7 wiring did not land"
+fi
+grep -q "Unauthenticated" <<<"$retrydm_status" \
+    || { echo "$retrydm_status" >&2; fail "expected Unauthenticated from RetryDM (auth disabled, handler reached)"; }
+
+log "admin RetryDM reaches the handler over the gateway (expect 401 Unauthenticated)"
+retrydm_code=$(curl -s -o /dev/null -w '%{http_code}' \
+    -H 'Content-Type: application/json' \
+    -X POST -d '{}' \
+    "http://localhost:$APP_PORT_HTTP$BASE_PATH/v1/admin/namespaces/smoke/applicants/00000000-0000-0000-0000-000000000000:retryDm")
+[[ "$retrydm_code" == "401" ]] \
+    || { tail -30 /tmp/playtesthub-smoke.log >&2; fail "expected 401 Unauthenticated from RetryDM gateway path, got $retrydm_code"; }
+
+log "dm queue worker emitted the boot log line"
+# Phase 7: bootapp constructs the dm queue, main.go runs the restart
+# sweep + worker. The boot log line is emitted unconditionally; a
+# missing line means the worker did not start (regression in main.go
+# wiring) or the log shape regressed.
+grep -q '"event":"dm_queue_started"' /tmp/playtesthub-smoke.log \
+    || { tail -50 /tmp/playtesthub-smoke.log >&2; fail "dm queue worker never emitted dm_queue_started log line"; }
 
 log "reclaim worker emitted at least one reclaim_tick log line"
 # M2 phase 6 starts the reclaim worker as a background goroutine. It

@@ -34,6 +34,7 @@ type Config struct {
 	AGSCodeBatchSize       int
 	DMTimeoutSeconds       int
 	DMDrainRatePerSec      int
+	DMQueueMaxDepth        int
 	DBMaxConnections       int
 
 	// Inherited from the template / operational tuning. Not PRD-specified
@@ -108,6 +109,9 @@ func Load() (*Config, error) {
 		return nil, err
 	}
 	if cfg.DMDrainRatePerSec, err = getInt("DM_DRAIN_RATE_PER_SEC", 5); err != nil {
+		return nil, err
+	}
+	if cfg.DMQueueMaxDepth, err = getInt("DM_QUEUE_MAX_DEPTH", 10000); err != nil {
 		return nil, err
 	}
 	if cfg.DBMaxConnections, err = getInt("DB_MAX_CONNECTIONS", 10); err != nil {

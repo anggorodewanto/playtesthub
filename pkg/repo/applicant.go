@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 	"unicode/utf8"
 
@@ -69,6 +70,12 @@ type ApplicantPageQuery struct {
 }
 
 // ApplicantStore is the data access surface for applicant rows.
+//
+// data-access surface; splitting it just to satisfy the 10-method cap
+// would scatter related methods across multiple interfaces and force
+// every caller to compose them.
+//
+//nolint:interfacebloat // single source of truth for the applicant
 type ApplicantStore interface {
 	Insert(ctx context.Context, a *Applicant) (*Applicant, error)
 	GetByID(ctx context.Context, id uuid.UUID) (*Applicant, error)
@@ -102,6 +109,12 @@ type ApplicantStore interface {
 	// re-accept after an NDA edit advances the stored hash). Powers the
 	// PRD §5.3 NdaReacceptRequired derived state.
 	SetNDAVersionHash(ctx context.Context, applicantID uuid.UUID, hash string) (*Applicant, error)
+	// ListLostDMOnRestart returns every APPROVED applicant in the
+	// namespace whose last_dm_status is NULL or 'pending' — the
+	// dm-queue.md "Restart behavior" idempotency guard. Rows already at
+	// 'failed' are deliberately excluded so the original error reason
+	// (e.g. dm_queue_overflow) is preserved across restarts.
+	ListLostDMOnRestart(ctx context.Context, namespace string) ([]*Applicant, error)
 }
 
 type PgApplicantStore struct {
@@ -421,6 +434,65 @@ func (s *PgApplicantStore) UpdateDMStatus(ctx context.Context, applicantID uuid.
 		return nil, fmt.Errorf("updating applicant dm status: %w", classifyPgError(err))
 	}
 	return got, nil
+}
+
+// ListLostDMOnRestart returns every APPROVED applicant in the
+// namespace whose last_dm_status is NULL or 'pending'. The JOIN onto
+// playtest scopes the sweep to one AGS namespace so a shared DB does
+// not bleed sweeps across instances. Soft-deleted playtests are
+// excluded — their applicants stay at whatever state they were in,
+// since the playtest is no longer admin-visible.
+func (s *PgApplicantStore) ListLostDMOnRestart(ctx context.Context, namespace string) ([]*Applicant, error) {
+	sql := `
+		SELECT ` + applicantColumnsPrefixed("a") + `
+		  FROM applicant a
+		  JOIN playtest p ON p.id = a.playtest_id
+		 WHERE p.namespace = $1
+		   AND p.deleted_at IS NULL
+		   AND a.status = 'APPROVED'
+		   AND (a.last_dm_status IS NULL OR a.last_dm_status = 'pending')`
+
+	rows, err := s.pool.Query(ctx, sql, namespace)
+	if err != nil {
+		return nil, fmt.Errorf("listing lost-on-restart applicants: %w", err)
+	}
+	defer rows.Close()
+
+	out := make([]*Applicant, 0)
+	for rows.Next() {
+		a, scanErr := scanApplicant(rows)
+		if scanErr != nil {
+			return nil, fmt.Errorf("scanning applicant row: %w", scanErr)
+		}
+		out = append(out, a)
+	}
+	if rowsErr := rows.Err(); rowsErr != nil {
+		return nil, fmt.Errorf("iterating applicant rows: %w", rowsErr)
+	}
+	return out, nil
+}
+
+// applicantColumnsPrefixed renders the applicant column list aliased
+// to a table abbreviation so JOIN queries can disambiguate `id` /
+// `playtest_id` against the joined table. The constant applicantColumns
+// is unprefixed because every other applicant query is single-table.
+func applicantColumnsPrefixed(alias string) string {
+	cols := []string{
+		"id", "playtest_id", "user_id", "discord_handle", "platforms",
+		"nda_version_hash", "status", "granted_code_id", "approved_at",
+		"rejection_reason", "last_dm_status", "last_dm_attempt_at",
+		"last_dm_error", "created_at",
+	}
+	var b strings.Builder
+	for i, c := range cols {
+		if i > 0 {
+			b.WriteString(", ")
+		}
+		b.WriteString(alias)
+		b.WriteByte('.')
+		b.WriteString(c)
+	}
+	return b.String()
 }
 
 // SetNDAVersionHash updates only the nda_version_hash column. Returns

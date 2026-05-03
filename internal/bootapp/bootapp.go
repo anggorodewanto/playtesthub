@@ -36,6 +36,7 @@ import (
 	"github.com/anggorodewanto/playtesthub/pkg/common"
 	"github.com/anggorodewanto/playtesthub/pkg/config"
 	"github.com/anggorodewanto/playtesthub/pkg/discord"
+	"github.com/anggorodewanto/playtesthub/pkg/dmqueue"
 	pb "github.com/anggorodewanto/playtesthub/pkg/pb/playtesthub/v1"
 	"github.com/anggorodewanto/playtesthub/pkg/repo"
 	"github.com/anggorodewanto/playtesthub/pkg/service"
@@ -72,6 +73,11 @@ type Server struct {
 	GRPC     *grpc.Server
 	listener net.Listener
 	logger   *slog.Logger
+
+	// DMQueue is the bounded in-memory DM queue (PRD §5.4 + dm-queue.md).
+	// Exposed so main.go can run the worker + restart sweep with a
+	// shared instance; the e2e suite's bootapp constructions ignore it.
+	DMQueue *dmqueue.Queue
 }
 
 // New constructs a Server from opts. It does not Serve; the caller
@@ -126,7 +132,8 @@ func New(ctx context.Context, opts Options) (*Server, error) {
 		grpc.ChainStreamInterceptor(streamInterceptors...),
 	)
 
-	pb.RegisterPlaytesthubServiceServer(grpcSrv, buildPlaytesthubServer(opts.Config, opts.DBPool, httpClient))
+	svcServer, dmQueue := buildPlaytesthubServer(opts.Config, opts.DBPool, httpClient, logger)
+	pb.RegisterPlaytesthubServiceServer(grpcSrv, svcServer)
 	reflection.Register(grpcSrv)
 	grpc_health_v1.RegisterHealthServer(grpcSrv, health.NewServer())
 	prometheusGrpc.Register(grpcSrv)
@@ -135,6 +142,7 @@ func New(ctx context.Context, opts Options) (*Server, error) {
 		GRPC:     grpcSrv,
 		listener: opts.Listener,
 		logger:   logger,
+		DMQueue:  dmQueue,
 	}, nil
 }
 
@@ -216,18 +224,26 @@ func buildOAuthService(cfg *config.Config) (iam.OAuth20Service, repository.Confi
 	}, configRepo
 }
 
-func buildPlaytesthubServer(cfg *config.Config, dbPool *pgxpool.Pool, httpClient *http.Client) *service.PlaytesthubServiceServer {
+func buildPlaytesthubServer(cfg *config.Config, dbPool *pgxpool.Pool, httpClient *http.Client, logger *slog.Logger) (*service.PlaytesthubServiceServer, *dmqueue.Queue) {
 	playtestStore := repo.NewPgPlaytestStore(dbPool)
 	applicantStore := repo.NewPgApplicantStore(dbPool)
 	ndaStore := repo.NewPgNDAAcceptanceStore(dbPool)
 	auditStore := repo.NewPgAuditLogStore(dbPool)
 	codeStore := repo.NewPgCodeStore(dbPool)
 	txRunner := repo.NewPgTxRunner(dbPool)
+
+	dmQueue := dmqueue.New(dmqueue.Config{
+		MaxDepth:        cfg.DMQueueMaxDepth,
+		DrainRatePerSec: cfg.DMDrainRatePerSec,
+		Namespace:       cfg.AGSNamespace,
+	}, dmqueue.SenderFunc(noopDMSender), applicantStore, auditStore, logger)
+
 	svcServer := service.NewPlaytesthubServiceServer(playtestStore, applicantStore, cfg.AGSNamespace).
 		WithNDAStore(ndaStore).
 		WithAuditLogStore(auditStore).
 		WithCodeStore(codeStore).
-		WithTxRunner(txRunner)
+		WithTxRunner(txRunner).
+		WithDMQueue(dmQueue)
 	if botClient := discord.NewBotClient(cfg.DiscordBotToken); botClient != nil {
 		svcServer = svcServer.WithDiscordLookup(botClient)
 	}
@@ -236,5 +252,13 @@ func buildPlaytesthubServer(cfg *config.Config, dbPool *pgxpool.Pool, httpClient
 		ClientID:     cfg.AGSIAMClientID,
 		ClientSecret: cfg.AGSIAMClientSecret,
 		HTTPClient:   httpClient,
-	})
+	}), dmQueue
 }
+
+// noopDMSender is the placeholder Sender wired in M2 phase 7. It
+// returns nil (success) so the queue + worker + audit/marking pipeline
+// is exercised end-to-end without making outbound Discord calls. The
+// real Discord DM client lands in M3 (PRD §M3 — "Discord DM
+// notification on approval"); swapping it in is a one-line change at
+// this construction site.
+func noopDMSender(_ context.Context, _, _ string) error { return nil }

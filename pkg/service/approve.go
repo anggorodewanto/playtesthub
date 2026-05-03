@@ -69,6 +69,18 @@ func (s *PlaytesthubServiceServer) ApproveApplicant(ctx context.Context, req *pb
 			return nil, status.Errorf(codes.Internal, "appending applicant.approve audit: %v", auditErr)
 		}
 	}
+
+	// Enqueue the welcome DM. Auto-send (manual=false) so the worker
+	// does not write applicant.dm_sent on success — that audit row is
+	// reserved for RetryDM per PRD §5.4. Queue overflow surfaces inside
+	// dmqueue.Enqueue as a synchronous markFailed (lastDmStatus='failed',
+	// reason=dm_queue_overflow) — we ignore the returned error here so
+	// the approve RPC stays non-blocking on DM behaviour, matching the
+	// "approval RPC returns immediately" rule from dm-queue.md.
+	if s.dmQueue != nil {
+		_ = s.dmQueue.Enqueue(ctx, buildDMJob(updated, playtest, false))
+	}
+
 	return &pb.ApproveApplicantResponse{Applicant: adminApplicantToProto(updated)}, nil
 }
 

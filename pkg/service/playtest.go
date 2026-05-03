@@ -59,6 +59,7 @@ type PlaytesthubServiceServer struct {
 	txRunner        repo.TxRunner
 	discord         discord.HandleLookup
 	discordExchange DiscordExchangeProxy
+	dmQueue         DMEnqueuer
 	namespace       string
 }
 

@@ -351,6 +351,25 @@ func (f *fakeApplicantStore) SetNDAVersionHash(_ context.Context, applicantID uu
 	return nil, repo.ErrNotFound
 }
 
+// ListLostDMOnRestart filters approved applicants whose last_dm_status
+// is unset or "pending" — the dm-queue.md startup-sweep contract. The
+// fake ignores the namespace argument because tests scope by playtest;
+// the SQL implementation does the namespace JOIN.
+func (f *fakeApplicantStore) ListLostDMOnRestart(_ context.Context, _ string) ([]*repo.Applicant, error) {
+	out := make([]*repo.Applicant, 0)
+	for _, a := range f.rows {
+		if a.Status != applicantStatusApproved {
+			continue
+		}
+		if a.LastDMStatus != nil && *a.LastDMStatus != "pending" {
+			continue
+		}
+		clone := *a
+		out = append(out, &clone)
+	}
+	return out, nil
+}
+
 // ---------------- test helpers ----------------------------------------------
 
 const testNamespace = "playtesthub-test"

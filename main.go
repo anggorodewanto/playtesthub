@@ -214,6 +214,25 @@ func main() {
 		"reclaimIntervalSeconds", cfg.ReclaimIntervalSeconds,
 		"leaseTtlSeconds", cfg.LeaderLeaseTTLSeconds)
 
+	if server.DMQueue != nil {
+		// Restart sweep runs once before the worker so any APPROVED row
+		// that was awaiting a DM at last shutdown surfaces as
+		// last_dm_status=failed (lost_on_restart) before the worker
+		// starts draining new approves. Sweep is best-effort: a DB error
+		// here logs WARN but does not block boot, since the next
+		// approve still enqueues normally.
+		if affected, err := server.DMQueue.Sweep(ctx); err != nil {
+			logger.Warn("dm queue restart sweep failed", "error", err)
+		} else {
+			logger.Info("dm queue restart sweep complete", "affected", affected)
+		}
+		go server.DMQueue.Run(ctx)
+		logger.Info("dm queue worker started",
+			"event", "dm_queue_started",
+			"maxDepth", cfg.DMQueueMaxDepth,
+			"drainRatePerSec", cfg.DMDrainRatePerSec)
+	}
+
 	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	<-ctx.Done()
