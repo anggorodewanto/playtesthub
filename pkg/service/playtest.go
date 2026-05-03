@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
@@ -10,6 +11,7 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/anggorodewanto/playtesthub/pkg/ags"
 	"github.com/anggorodewanto/playtesthub/pkg/discord"
 	iampkg "github.com/anggorodewanto/playtesthub/pkg/iam"
 	pb "github.com/anggorodewanto/playtesthub/pkg/pb/playtesthub/v1"
@@ -51,16 +53,19 @@ const (
 type PlaytesthubServiceServer struct {
 	pb.UnimplementedPlaytesthubServiceServer
 
-	playtest        repo.PlaytestStore
-	applicant       repo.ApplicantStore
-	nda             repo.NDAAcceptanceStore
-	audit           repo.AuditLogStore
-	code            repo.CodeStore
-	txRunner        repo.TxRunner
-	discord         discord.HandleLookup
-	discordExchange DiscordExchangeProxy
-	dmQueue         DMEnqueuer
-	namespace       string
+	playtest         repo.PlaytestStore
+	applicant        repo.ApplicantStore
+	nda              repo.NDAAcceptanceStore
+	audit            repo.AuditLogStore
+	code             repo.CodeStore
+	txRunner         repo.TxRunner
+	discord          discord.HandleLookup
+	discordExchange  DiscordExchangeProxy
+	dmQueue          DMEnqueuer
+	agsClient        ags.Client
+	agsCodeBatchSize int
+	logger           *slog.Logger
+	namespace        string
 }
 
 // NewPlaytesthubServiceServer wires a service with real repositories.
@@ -119,17 +124,23 @@ func (s *PlaytesthubServiceServer) CreatePlaytest(ctx context.Context, req *pb.C
 	if err := s.checkNamespace(req.GetNamespace()); err != nil {
 		return nil, err
 	}
-	if req.GetDistributionModel() == pb.DistributionModel_DISTRIBUTION_MODEL_AGS_CAMPAIGN {
-		return nil, status.Error(codes.Unimplemented, "distribution_model=AGS_CAMPAIGN lands in M2")
-	}
-	if req.GetDistributionModel() != pb.DistributionModel_DISTRIBUTION_MODEL_STEAM_KEYS {
+	if req.GetDistributionModel() != pb.DistributionModel_DISTRIBUTION_MODEL_STEAM_KEYS &&
+		req.GetDistributionModel() != pb.DistributionModel_DISTRIBUTION_MODEL_AGS_CAMPAIGN {
 		return nil, status.Error(codes.InvalidArgument, "distribution_model is required")
 	}
 	// STEAM_KEYS sources codes from admin CSV upload (M2), not AGS Campaign
 	// generation — initialCodeQuantity has no meaning here and silently
 	// dropping it hides client bugs. PRD §5.1 / §4.6.
-	if req.InitialCodeQuantity != nil {
+	if req.GetDistributionModel() == pb.DistributionModel_DISTRIBUTION_MODEL_STEAM_KEYS && req.InitialCodeQuantity != nil {
 		return nil, status.Error(codes.InvalidArgument, "initial_code_quantity must not be set for STEAM_KEYS (only AGS_CAMPAIGN uses it; PRD §5.1)")
+	}
+	var initialQty int32
+	if req.GetDistributionModel() == pb.DistributionModel_DISTRIBUTION_MODEL_AGS_CAMPAIGN {
+		q, err := validateAGSCampaignRequest(req)
+		if err != nil {
+			return nil, err
+		}
+		initialQty = q
 	}
 	if err := validateSlug(req.GetSlug()); err != nil {
 		return nil, err
@@ -164,6 +175,10 @@ func (s *PlaytesthubServiceServer) CreatePlaytest(ctx context.Context, req *pb.C
 	}
 
 	ndaHash := hashNDA(req.GetNdaText())
+	distModel := distModelSteamKeys
+	if req.GetDistributionModel() == pb.DistributionModel_DISTRIBUTION_MODEL_AGS_CAMPAIGN {
+		distModel = distModelAGSCampaign
+	}
 	p := &repo.Playtest{
 		Namespace:             s.namespace,
 		Slug:                  req.GetSlug(),
@@ -177,7 +192,12 @@ func (s *PlaytesthubServiceServer) CreatePlaytest(ctx context.Context, req *pb.C
 		NDARequired:           req.GetNdaRequired(),
 		NDAText:               req.GetNdaText(),
 		CurrentNDAVersionHash: ndaHash,
-		DistributionModel:     distModelSteamKeys,
+		DistributionModel:     distModel,
+	}
+
+	if distModel == distModelAGSCampaign {
+		p.InitialCodeQuantity = &initialQty
+		return s.createAGSCampaignPlaytest(ctx, p, initialQty)
 	}
 
 	got, err := s.playtest.Create(ctx, p)

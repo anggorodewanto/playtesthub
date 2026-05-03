@@ -50,6 +50,10 @@ func (f *fakePlaytestStore) Create(_ context.Context, p *repo.Playtest) (*repo.P
 	return &clone, nil
 }
 
+func (f *fakePlaytestStore) CreateTx(ctx context.Context, _ repo.Querier, p *repo.Playtest) (*repo.Playtest, error) {
+	return f.Create(ctx, p)
+}
+
 func (f *fakePlaytestStore) GetByID(_ context.Context, namespace string, id uuid.UUID) (*repo.Playtest, error) {
 	for _, r := range f.rows {
 		if r.Namespace == namespace && r.ID == id {
@@ -442,13 +446,13 @@ func TestCreatePlaytest_HappyPath(t *testing.T) {
 	}
 }
 
-func TestCreatePlaytest_AGS_CAMPAIGN_ReturnsUnimplemented(t *testing.T) {
+func TestCreatePlaytest_AGS_CAMPAIGN_MissingInitialQty_InvalidArgument(t *testing.T) {
 	svr, _, _ := newTestServer()
 	req := validCreateRequest("ags-slug")
 	req.DistributionModel = pb.DistributionModel_DISTRIBUTION_MODEL_AGS_CAMPAIGN
 	_, err := svr.CreatePlaytest(authCtx(uuid.New()), req)
-	requireStatus(t, err, codes.Unimplemented)
-	requireMsgContains(t, err, "AGS_CAMPAIGN")
+	requireStatus(t, err, codes.InvalidArgument)
+	requireMsgContains(t, err, "initial_code_quantity")
 }
 
 func TestCreatePlaytest_UnspecifiedDistributionModel_InvalidArgument(t *testing.T) {

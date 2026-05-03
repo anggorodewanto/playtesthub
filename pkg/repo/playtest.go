@@ -45,6 +45,11 @@ type Playtest struct {
 // PgPlaytestStore is the only production implementation.
 type PlaytestStore interface {
 	Create(ctx context.Context, p *Playtest) (*Playtest, error)
+	// CreateTx is the tx-bound variant used by the AGS_CAMPAIGN
+	// auto-provision flow (PRD §4.6 step 2 — playtest insert + AGS
+	// code insert share one tx so AGS partial failures roll the
+	// playtest row back).
+	CreateTx(ctx context.Context, q Querier, p *Playtest) (*Playtest, error)
 	GetByID(ctx context.Context, namespace string, id uuid.UUID) (*Playtest, error)
 	GetBySlug(ctx context.Context, namespace, slug string) (*Playtest, error)
 	List(ctx context.Context, namespace string, includeDeleted bool) ([]*Playtest, error)
@@ -73,6 +78,13 @@ const playtestColumns = `
 // fields; id, created_at, and updated_at are assigned by Postgres. The
 // fully populated row (including DB-assigned values) is returned.
 func (s *PgPlaytestStore) Create(ctx context.Context, p *Playtest) (*Playtest, error) {
+	return s.CreateTx(ctx, s.pool, p)
+}
+
+// CreateTx is identical to Create but accepts a caller-supplied
+// Querier so the INSERT can share a tx with downstream code inserts
+// (AGS_CAMPAIGN auto-provision; PRD §4.6 step 2).
+func (s *PgPlaytestStore) CreateTx(ctx context.Context, q Querier, p *Playtest) (*Playtest, error) {
 	const sql = `
 		INSERT INTO playtest (
 			namespace, slug, title, description, banner_image_url, platforms,
@@ -83,7 +95,7 @@ func (s *PgPlaytestStore) Create(ctx context.Context, p *Playtest) (*Playtest, e
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
 		RETURNING ` + playtestColumns
 
-	row := s.pool.QueryRow(ctx, sql,
+	row := q.QueryRow(ctx, sql,
 		p.Namespace,
 		p.Slug,
 		p.Title,

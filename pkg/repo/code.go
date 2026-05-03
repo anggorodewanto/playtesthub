@@ -39,10 +39,21 @@ type Code struct {
 // reserve / finalize / reclaim trio lands in M2 phase 3 to support
 // the approve flow (PRD §4.1 step 6 + docs/schema.md §"Approve flow")
 // and the reclaim worker (PRD §5.5).
+// CodeStore exposes more than 10 methods because the inventory + grant
+// pipeline naturally splits CSV/AGS upload, count/get/list reads, the
+// reserve/finalize/reclaim approve trio, and the tx-aware AGS_CAMPAIGN
+// insert variant. Splitting solely to satisfy interfacebloat would
+// scatter related accessors and force every caller to compose stores.
+//
+//nolint:interfacebloat
 type CodeStore interface {
 	BulkInsert(ctx context.Context, playtestID uuid.UUID, values []string) (int, error)
 	BulkInsertCSV(ctx context.Context, playtestID uuid.UUID, values []string) (int, error)
 	BulkInsertGenerated(ctx context.Context, playtestID uuid.UUID, values []string) (int, error)
+	// BulkInsertGeneratedTx is the tx-bound variant used by the
+	// AGS_CAMPAIGN initial-create flow (PRD §4.6 step 3 — code rows
+	// share a tx with the playtest insert).
+	BulkInsertGeneratedTx(ctx context.Context, q Querier, playtestID uuid.UUID, values []string) (int, error)
 	CountByState(ctx context.Context, playtestID uuid.UUID) (map[string]int, error)
 	GetByID(ctx context.Context, id uuid.UUID) (*Code, error)
 	// ListByPlaytest returns every Code row for a playtest ordered by
@@ -170,6 +181,32 @@ func (s *PgCodeStore) BulkInsertCSV(ctx context.Context, playtestID uuid.UUID, v
 // lives at the service layer.
 func (s *PgCodeStore) BulkInsertGenerated(ctx context.Context, playtestID uuid.UUID, values []string) (int, error) {
 	return s.BulkInsert(ctx, playtestID, values)
+}
+
+// BulkInsertGeneratedTx is the tx-aware AGS_CAMPAIGN insert path.
+// pgx.Tx satisfies pgx.CopyFromSource consumers, so CopyFrom works
+// inside the supplied tx without per-row INSERTs.
+func (s *PgCodeStore) BulkInsertGeneratedTx(ctx context.Context, q Querier, playtestID uuid.UUID, values []string) (int, error) {
+	if len(values) == 0 {
+		return 0, nil
+	}
+	tx, ok := q.(pgx.Tx)
+	if !ok {
+		return 0, fmt.Errorf("BulkInsertGeneratedTx: querier is not a pgx.Tx (got %T)", q)
+	}
+	rows := make([][]any, len(values))
+	for i, v := range values {
+		rows[i] = []any{playtestID, v}
+	}
+	copied, err := tx.CopyFrom(ctx,
+		pgx.Identifier{"code"},
+		[]string{"playtest_id", "value"},
+		pgx.CopyFromRows(rows),
+	)
+	if err != nil {
+		return 0, fmt.Errorf("bulk inserting codes (tx): %w", classifyPgError(err))
+	}
+	return int(copied), nil
 }
 
 const codeColumns = `id, playtest_id, value, state, reserved_by, reserved_at, granted_at, created_at`

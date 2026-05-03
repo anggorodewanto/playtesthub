@@ -55,6 +55,10 @@ func (f *fakeCodeStore) BulkInsertGenerated(ctx context.Context, playtestID uuid
 	return f.BulkInsert(ctx, playtestID, values)
 }
 
+func (f *fakeCodeStore) BulkInsertGeneratedTx(ctx context.Context, _ repo.Querier, playtestID uuid.UUID, values []string) (int, error) {
+	return f.BulkInsert(ctx, playtestID, values)
+}
+
 func (f *fakeCodeStore) CountByState(_ context.Context, playtestID uuid.UUID) (map[string]int, error) {
 	out := map[string]int{}
 	for _, r := range f.rows {

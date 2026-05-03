@@ -33,6 +33,7 @@ import (
 	"google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/reflection"
 
+	"github.com/anggorodewanto/playtesthub/pkg/ags"
 	"github.com/anggorodewanto/playtesthub/pkg/common"
 	"github.com/anggorodewanto/playtesthub/pkg/config"
 	"github.com/anggorodewanto/playtesthub/pkg/discord"
@@ -238,12 +239,23 @@ func buildPlaytesthubServer(cfg *config.Config, dbPool *pgxpool.Pool, httpClient
 		Namespace:       cfg.AGSNamespace,
 	}, dmqueue.SenderFunc(noopDMSender), applicantStore, auditStore, logger)
 
+	// AGS_CAMPAIGN initial-create wires through pkg/ags (M2 phase 8).
+	// Production wires the SDK-backed adapter once a live ISC namespace
+	// is available (phase 8.1 per docs/ags-failure-modes.md M2 sub-cap
+	// go/no-go matrix); until then bootapp wires the in-memory MemClient
+	// so the boot path + smoke harness exercise the full code path
+	// without an outbound AGS round-trip.
+	agsClient := ags.NewMemClient()
+
 	svcServer := service.NewPlaytesthubServiceServer(playtestStore, applicantStore, cfg.AGSNamespace).
 		WithNDAStore(ndaStore).
 		WithAuditLogStore(auditStore).
 		WithCodeStore(codeStore).
 		WithTxRunner(txRunner).
-		WithDMQueue(dmQueue)
+		WithDMQueue(dmQueue).
+		WithAGSClient(agsClient).
+		WithAGSCodeBatchSize(cfg.AGSCodeBatchSize).
+		WithLogger(logger)
 	if botClient := discord.NewBotClient(cfg.DiscordBotToken); botClient != nil {
 		svcServer = svcServer.WithDiscordLookup(botClient)
 	}

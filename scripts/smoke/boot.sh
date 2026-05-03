@@ -143,12 +143,12 @@ for m in "${EXPECTED_METHODS[@]}"; do
 done
 
 log "remaining M2 RPCs still return Unimplemented"
-# Phases 4–7 implement AcceptNDA, UploadCodes, GetCodePool, the four
+# Phases 4–8 implement AcceptNDA, UploadCodes, GetCodePool, the four
 # approve-flow RPCs (ApproveApplicant, RejectApplicant,
-# ListApplicants, GetGrantedCode), and RetryDM. The remaining 3 M2
-# RPCs (TopUpCodes, SyncFromAGS) still ride the embedded
-# UnimplementedPlaytesthubServiceServer. TopUpCodes is the new canary
-# — it lands in M2 phase 9.
+# ListApplicants, GetGrantedCode), RetryDM, and the AGS_CAMPAIGN
+# branch of CreatePlaytest. The remaining 2 M2 RPCs (TopUpCodes,
+# SyncFromAGS) still ride the embedded UnimplementedPlaytesthubService
+# Server. TopUpCodes is the canary — it lands in M2 phase 9.
 unimpl_status=$(grpcurl -plaintext \
     -d '{"namespace":"smoke","playtest_id":"00000000-0000-0000-0000-000000000000","quantity":1}' \
     "localhost:$APP_PORT_GRPC" \
@@ -413,5 +413,20 @@ curl -s -o /dev/null \
 if grep -q "$NDA_MARKER" /tmp/playtesthub-smoke.log; then
     fail "NDA text marker leaked into logs — PRD §6 violation"
 fi
+
+log "admin CreatePlaytest AGS_CAMPAIGN reaches the handler over the gateway (expect 401 Unauthenticated)"
+# M2 phase 8: the AGS_CAMPAIGN branch of CreatePlaytest used to short-
+# circuit on Unimplemented. With phase 8 it must now run the auth
+# interceptor → handler chain like every other admin RPC. Auth disabled
+# means the interceptor short-circuits with 401 before the handler runs,
+# but a regression that re-enabled the M1 Unimplemented stub would
+# instead return 501.
+ags_create_code=$(curl -s -o /dev/null -w '%{http_code}' \
+    -H 'Content-Type: application/json' \
+    -X POST \
+    -d '{"slug":"ags-smoke","title":"t","distribution_model":"DISTRIBUTION_MODEL_AGS_CAMPAIGN","initial_code_quantity":10}' \
+    "http://localhost:$APP_PORT_HTTP$BASE_PATH/v1/admin/namespaces/smoke/playtests")
+[[ "$ags_create_code" == "401" ]] \
+    || { tail -30 /tmp/playtesthub-smoke.log >&2; fail "expected 401 Unauthenticated from CreatePlaytest AGS_CAMPAIGN gateway path, got $ags_create_code (regression: M1 Unimplemented stub may have returned, or auth bypass)"; }
 
 log "PASS"

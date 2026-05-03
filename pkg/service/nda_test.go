@@ -93,6 +93,18 @@ func (f *fakeAuditLogStore) ListByPlaytest(_ context.Context, playtestID uuid.UU
 	return out, nil
 }
 
+// countAction returns the number of captured rows whose action equals
+// the supplied value. Test helper for AGS_CAMPAIGN audit assertions.
+func (f *fakeAuditLogStore) countAction(action string) int {
+	n := 0
+	for _, r := range f.rows {
+		if r.Action == action {
+			n++
+		}
+	}
+	return n
+}
+
 // ndaTestRig bundles the test server with every fake store the M2 NDA
 // flow exercises, so call sites don't have to spell out unused returns
 // in tuple-destructure form (golangci-lint dogsled threshold).
