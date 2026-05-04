@@ -8,25 +8,41 @@ import {
   Form,
   Input,
   InputNumber,
+  Modal,
   Popconfirm,
   Radio,
   Select,
+  Space,
   Spin,
+  Statistic,
   Table,
   Tag,
-  Tooltip,
   Typography,
+  Upload,
   message
 } from 'antd'
+import type { UploadFile } from 'antd/es/upload/interface'
 import dayjs, { type Dayjs } from 'dayjs'
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Route, Routes, useNavigate, useParams } from 'react-router'
+import type { V1Applicant } from './playtesthubapi/generated-definitions/V1Applicant'
+import type { V1Code } from './playtesthubapi/generated-definitions/V1Code'
+import type { V1CodePoolStats } from './playtesthubapi/generated-definitions/V1CodePoolStats'
 import type { V1Playtest } from './playtesthubapi/generated-definitions/V1Playtest'
+import type { V1UploadCodesRejection } from './playtesthubapi/generated-definitions/V1UploadCodesRejection'
 import {
   Key_PlaytesthubServiceAdmin,
+  usePlaytesthubServiceAdminApi_CreateApplicant_ByApplicantIdApproveMutation,
+  usePlaytesthubServiceAdminApi_CreateApplicant_ByApplicantIdRejectMutation,
+  usePlaytesthubServiceAdminApi_CreateApplicant_ByApplicantIdRetryDmMutation,
+  usePlaytesthubServiceAdminApi_CreateCodesSyncFromAg_ByPlaytestIdMutation,
+  usePlaytesthubServiceAdminApi_CreateCodesTopUp_ByPlaytestIdMutation,
+  usePlaytesthubServiceAdminApi_CreateCodesUpload_ByPlaytestIdMutation,
   usePlaytesthubServiceAdminApi_CreatePlaytestMutation,
   usePlaytesthubServiceAdminApi_CreatePlaytest_ByPlaytestIdTransitionStatuMutation,
   usePlaytesthubServiceAdminApi_DeletePlaytest_ByPlaytestIdMutation,
+  usePlaytesthubServiceAdminApi_GetApplicants_ByPlaytestId,
+  usePlaytesthubServiceAdminApi_GetCodes_ByPlaytestId,
   usePlaytesthubServiceAdminApi_GetPlaytest_ByPlaytestId,
   usePlaytesthubServiceAdminApi_GetPlaytests,
   usePlaytesthubServiceAdminApi_PatchPlaytest_ByPlaytestIdMutation
@@ -58,6 +74,8 @@ export function FederatedElement() {
         <Route path="/" index element={<PlaytestsListPage />} />
         <Route path="new" element={<PlaytestCreatePage />} />
         <Route path=":playtestId/edit" element={<PlaytestEditPage />} />
+        <Route path=":playtestId/applicants" element={<ApplicantsPage />} />
+        <Route path=":playtestId/codes" element={<CodePoolPage />} />
       </Routes>
     </div>
   )
@@ -117,9 +135,15 @@ function PlaytestsListPage() {
         const isDraft = row.status === 'PLAYTEST_STATUS_DRAFT'
         const isOpen = row.status === 'PLAYTEST_STATUS_OPEN'
         return (
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <Button size="small" onClick={() => navigate(`${row.id}/edit`)}>
               Edit
+            </Button>
+            <Button size="small" onClick={() => navigate(`${row.id}/applicants`)}>
+              Applicants
+            </Button>
+            <Button size="small" onClick={() => navigate(`${row.id}/codes`)}>
+              Codes
             </Button>
             {isDraft && (
               <Popconfirm
@@ -308,11 +332,7 @@ function PlaytestCreatePage() {
         <Form.Item label="Distribution model" name="distributionModel" rules={[{ required: true }]}>
           <Radio.Group>
             <Radio value="DISTRIBUTION_MODEL_STEAM_KEYS">Steam keys</Radio>
-            <Tooltip title="AGS Campaign ships in M2 (PRD §10).">
-              <Radio value="DISTRIBUTION_MODEL_AGS_CAMPAIGN" disabled>
-                AGS Campaign <Tag>M2</Tag>
-              </Radio>
-            </Tooltip>
+            <Radio value="DISTRIBUTION_MODEL_AGS_CAMPAIGN">AGS Campaign</Radio>
           </Radio.Group>
         </Form.Item>
         <Form.Item
@@ -463,3 +483,483 @@ function PlaytestEditPage() {
   )
 }
 
+const APPLICANT_STATUS_TAG: Record<string, { text: string; color: string }> = {
+  APPLICANT_STATUS_PENDING: { text: 'Pending', color: 'gold' },
+  APPLICANT_STATUS_APPROVED: { text: 'Approved', color: 'green' },
+  APPLICANT_STATUS_REJECTED: { text: 'Rejected', color: 'red' }
+}
+
+const DM_STATUS_TAG: Record<string, { text: string; color: string }> = {
+  DM_STATUS_PENDING: { text: 'Pending', color: 'default' },
+  DM_STATUS_SENT: { text: 'Sent', color: 'green' },
+  DM_STATUS_FAILED: { text: 'Failed', color: 'red' }
+}
+
+const POOL_LOW_RATIO = 0.1
+
+function isPoolLow(stats: V1CodePoolStats | null | undefined): boolean {
+  const total = stats?.total ?? 0
+  const unused = stats?.unused ?? 0
+  if (total <= 0) return false
+  return unused / total <= POOL_LOW_RATIO
+}
+
+function LowPoolBanner({ stats }: { stats: V1CodePoolStats | null | undefined }) {
+  if (!isPoolLow(stats)) return null
+  return (
+    <Alert
+      type="warning"
+      showIcon
+      message="Code pool is low"
+      description={`Only ${stats?.unused ?? 0} of ${stats?.total ?? 0} codes remain unused. Top up before approving more applicants.`}
+      style={{ marginBottom: 16 }}
+    />
+  )
+}
+
+function ApplicantsPage() {
+  const { sdk } = useAppUIContext()
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const { playtestId = '' } = useParams()
+
+  const [statusFilter, setStatusFilter] = useState<string>('APPLICANT_STATUS_UNSPECIFIED')
+  const [dmFailedOnly, setDmFailedOnly] = useState(false)
+  const [rejectTarget, setRejectTarget] = useState<V1Applicant | null>(null)
+  const [rejectReason, setRejectReason] = useState('')
+
+  const playtestQuery = usePlaytesthubServiceAdminApi_GetPlaytest_ByPlaytestId(
+    sdk,
+    { playtestId },
+    { enabled: !!playtestId }
+  )
+
+  const applicantsQuery = usePlaytesthubServiceAdminApi_GetApplicants_ByPlaytestId(
+    sdk,
+    {
+      playtestId,
+      queryParams: {
+        statusFilter: statusFilter as
+          | 'APPLICANT_STATUS_UNSPECIFIED'
+          | 'APPLICANT_STATUS_PENDING'
+          | 'APPLICANT_STATUS_APPROVED'
+          | 'APPLICANT_STATUS_REJECTED',
+        dmFailedFilter: dmFailedOnly
+      }
+    },
+    { enabled: !!playtestId }
+  )
+
+  const codesQuery = usePlaytesthubServiceAdminApi_GetCodes_ByPlaytestId(
+    sdk,
+    { playtestId },
+    { enabled: !!playtestId }
+  )
+
+  const invalidateApplicants = () => {
+    queryClient.invalidateQueries({ queryKey: [Key_PlaytesthubServiceAdmin.Applicants_ByPlaytestId] })
+    queryClient.invalidateQueries({ queryKey: [Key_PlaytesthubServiceAdmin.Codes_ByPlaytestId] })
+  }
+
+  const approveMutation = usePlaytesthubServiceAdminApi_CreateApplicant_ByApplicantIdApproveMutation(sdk, {
+    onSuccess: () => {
+      message.success('Applicant approved')
+      invalidateApplicants()
+    },
+    onError: err => message.error(err.response?.data?.errorMessage ?? 'Failed to approve')
+  })
+
+  const rejectMutation = usePlaytesthubServiceAdminApi_CreateApplicant_ByApplicantIdRejectMutation(sdk, {
+    onSuccess: () => {
+      message.success('Applicant rejected')
+      setRejectTarget(null)
+      setRejectReason('')
+      invalidateApplicants()
+    },
+    onError: err => message.error(err.response?.data?.errorMessage ?? 'Failed to reject')
+  })
+
+  const retryDmMutation = usePlaytesthubServiceAdminApi_CreateApplicant_ByApplicantIdRetryDmMutation(sdk, {
+    onSuccess: () => {
+      message.success('Retry DM enqueued')
+      invalidateApplicants()
+    },
+    onError: err => message.error(err.response?.data?.errorMessage ?? 'Failed to retry DM')
+  })
+
+  const playtest = playtestQuery.data?.playtest as V1Playtest | undefined
+  const applicants = (applicantsQuery.data?.applicants ?? []) as V1Applicant[]
+  const stats = codesQuery.data?.stats
+
+  const columns = [
+    { title: 'Discord', dataIndex: 'discordHandle', key: 'discordHandle', render: (v: string | null | undefined) => v ?? '—' },
+    {
+      title: 'Platforms',
+      dataIndex: 'platforms',
+      key: 'platforms',
+      render: (v: string[] | null | undefined) => (v ?? []).map(p => p.replace('PLATFORM_', '').toLowerCase()).join(', ') || '—'
+    },
+    {
+      title: 'Status',
+      dataIndex: 'status',
+      key: 'status',
+      render: (v: string | null | undefined) => {
+        const info = APPLICANT_STATUS_TAG[v ?? ''] ?? { text: v ?? '—', color: 'default' }
+        return <Tag color={info.color}>{info.text}</Tag>
+      }
+    },
+    {
+      title: 'DM',
+      dataIndex: 'lastDmStatus',
+      key: 'lastDmStatus',
+      render: (v: string | null | undefined, row: V1Applicant) => {
+        if (!v) return <Tag>—</Tag>
+        const info = DM_STATUS_TAG[v] ?? { text: v, color: 'default' }
+        return (
+          <Tag color={info.color} title={row.lastDmError ?? undefined}>
+            {info.text}
+          </Tag>
+        )
+      }
+    },
+    {
+      title: 'Created',
+      dataIndex: 'createdAt',
+      key: 'createdAt',
+      render: (v: string | null | undefined) => (v ? dayjs(v).format('YYYY-MM-DD HH:mm') : '—')
+    },
+    {
+      title: 'Actions',
+      key: 'actions',
+      render: (_: unknown, row: V1Applicant) => {
+        const isPending = row.status === 'APPLICANT_STATUS_PENDING'
+        const canRetryDm = row.status === 'APPLICANT_STATUS_APPROVED' && row.lastDmStatus === 'DM_STATUS_FAILED'
+        return (
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <Popconfirm
+              title="Approve this applicant?"
+              description="A code will be reserved and granted from the pool."
+              okText="Approve"
+              disabled={!isPending}
+              onConfirm={() => approveMutation.mutate({ applicantId: row.id ?? '', data: {} })}>
+              <Button size="small" type="primary" disabled={!isPending}>
+                Approve
+              </Button>
+            </Popconfirm>
+            <Button size="small" danger disabled={!isPending} onClick={() => setRejectTarget(row)}>
+              Reject
+            </Button>
+            {canRetryDm && (
+              <Button size="small" onClick={() => retryDmMutation.mutate({ applicantId: row.id ?? '', data: {} })}>
+                Retry DM
+              </Button>
+            )}
+          </div>
+        )
+      }
+    }
+  ]
+
+  return (
+    <>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <div>
+          <Typography.Title level={2} style={{ margin: 0 }}>
+            Applicants
+          </Typography.Title>
+          <Typography.Text type="secondary">
+            {playtest?.title ? `${playtest.title} (${playtest.slug})` : 'Loading playtest…'}
+          </Typography.Text>
+        </div>
+        <Space>
+          <Button onClick={() => navigate('/')}>Back</Button>
+          <Button onClick={() => applicantsQuery.refetch()}>Refresh</Button>
+        </Space>
+      </div>
+
+      <LowPoolBanner stats={stats} />
+
+      <Space style={{ marginBottom: 16 }} wrap>
+        <Select
+          aria-label="Status filter"
+          value={statusFilter}
+          onChange={setStatusFilter}
+          style={{ width: 200 }}
+          options={[
+            { value: 'APPLICANT_STATUS_UNSPECIFIED', label: 'All statuses' },
+            { value: 'APPLICANT_STATUS_PENDING', label: 'Pending' },
+            { value: 'APPLICANT_STATUS_APPROVED', label: 'Approved' },
+            { value: 'APPLICANT_STATUS_REJECTED', label: 'Rejected' }
+          ]}
+        />
+        <Checkbox checked={dmFailedOnly} onChange={e => setDmFailedOnly(e.target.checked)}>
+          DM failed only
+        </Checkbox>
+      </Space>
+
+      {applicantsQuery.isLoading && <Spin description="Loading applicants..." />}
+      {applicantsQuery.error && (
+        <Alert
+          type="error"
+          message="Failed to load applicants."
+          action={
+            <Button size="small" onClick={() => applicantsQuery.refetch()}>
+              Retry
+            </Button>
+          }
+        />
+      )}
+      {!applicantsQuery.isLoading && !applicantsQuery.error && (
+        <Table<V1Applicant>
+          rowKey={row => row.id ?? ''}
+          dataSource={applicants}
+          columns={columns}
+          pagination={{ pageSize: 50 }}
+        />
+      )}
+
+      <Modal
+        title="Reject applicant"
+        open={!!rejectTarget}
+        onCancel={() => {
+          setRejectTarget(null)
+          setRejectReason('')
+        }}
+        onOk={() =>
+          rejectTarget &&
+          rejectMutation.mutate({
+            applicantId: rejectTarget.id ?? '',
+            data: { rejectionReason: rejectReason.trim() || undefined }
+          })
+        }
+        okText="Reject"
+        okButtonProps={{ danger: true, loading: rejectMutation.isPending }}>
+        <Typography.Paragraph>
+          Reject <strong>{rejectTarget?.discordHandle ?? rejectTarget?.userId ?? 'applicant'}</strong>? This is terminal — they cannot be re-approved.
+        </Typography.Paragraph>
+        <Form.Item label="Reason (optional)" style={{ marginBottom: 0 }}>
+          <Input.TextArea
+            rows={3}
+            value={rejectReason}
+            maxLength={500}
+            onChange={e => setRejectReason(e.target.value)}
+            placeholder="Stored on the applicant row for your future reference. Not shown to the player."
+          />
+        </Form.Item>
+      </Modal>
+    </>
+  )
+}
+
+const CODE_STATE_TAG: Record<string, { text: string; color: string }> = {
+  CODE_STATE_UNUSED: { text: 'Unused', color: 'default' },
+  CODE_STATE_RESERVED: { text: 'Reserved', color: 'gold' },
+  CODE_STATE_GRANTED: { text: 'Granted', color: 'green' }
+}
+
+function CodePoolPage() {
+  const { sdk } = useAppUIContext()
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const { playtestId = '' } = useParams()
+
+  const [csvText, setCsvText] = useState('')
+  const [csvFilename, setCsvFilename] = useState('')
+  const [topUpQty, setTopUpQty] = useState<number | null>(100)
+  const [rejections, setRejections] = useState<V1UploadCodesRejection[]>([])
+
+  const playtestQuery = usePlaytesthubServiceAdminApi_GetPlaytest_ByPlaytestId(
+    sdk,
+    { playtestId },
+    { enabled: !!playtestId }
+  )
+  const codesQuery = usePlaytesthubServiceAdminApi_GetCodes_ByPlaytestId(sdk, { playtestId }, { enabled: !!playtestId })
+
+  const invalidateCodes = () => queryClient.invalidateQueries({ queryKey: [Key_PlaytesthubServiceAdmin.Codes_ByPlaytestId] })
+
+  const uploadMutation = usePlaytesthubServiceAdminApi_CreateCodesUpload_ByPlaytestIdMutation(sdk, {
+    onSuccess: response => {
+      const r = (response.rejections ?? []) as V1UploadCodesRejection[]
+      setRejections(r)
+      if (r.length === 0) {
+        message.success(`Inserted ${response.inserted ?? 0} codes`)
+        setCsvText('')
+        setCsvFilename('')
+      } else {
+        message.warning(`Upload rejected: ${r.length} invalid line${r.length === 1 ? '' : 's'}`)
+      }
+      invalidateCodes()
+    },
+    onError: err => message.error(err.response?.data?.errorMessage ?? 'Failed to upload codes')
+  })
+
+  const topUpMutation = usePlaytesthubServiceAdminApi_CreateCodesTopUp_ByPlaytestIdMutation(sdk, {
+    onSuccess: response => {
+      message.success(`Generated ${response.added ?? 0} new codes`)
+      invalidateCodes()
+    },
+    onError: err => message.error(err.response?.data?.errorMessage ?? 'Failed to top up')
+  })
+
+  const syncMutation = usePlaytesthubServiceAdminApi_CreateCodesSyncFromAg_ByPlaytestIdMutation(sdk, {
+    onSuccess: response => {
+      message.success(`Synced ${response.added ?? 0} new codes from AGS`)
+      invalidateCodes()
+    },
+    onError: err => message.error(err.response?.data?.errorMessage ?? 'Failed to sync from AGS')
+  })
+
+  const playtest = playtestQuery.data?.playtest as V1Playtest | undefined
+  const stats = codesQuery.data?.stats
+  const codes = (codesQuery.data?.codes ?? []) as V1Code[]
+  const isAGS = playtest?.distributionModel === 'DISTRIBUTION_MODEL_AGS_CAMPAIGN'
+
+  const handleFileChosen = (file: UploadFile) => {
+    const blob = file.originFileObj as Blob | undefined
+    if (!blob) return false
+    const reader = new FileReader()
+    reader.onload = () => {
+      setCsvText(typeof reader.result === 'string' ? reader.result : '')
+      setCsvFilename(file.name ?? '')
+      setRejections([])
+    }
+    reader.readAsText(blob)
+    return false
+  }
+
+  const codeColumns = [
+    { title: 'Value', dataIndex: 'value', key: 'value', render: (v: string | null | undefined) => v ?? '—' },
+    {
+      title: 'State',
+      dataIndex: 'state',
+      key: 'state',
+      render: (v: string | null | undefined) => {
+        const info = CODE_STATE_TAG[v ?? ''] ?? { text: v ?? '—', color: 'default' }
+        return <Tag color={info.color}>{info.text}</Tag>
+      }
+    },
+    {
+      title: 'Created',
+      dataIndex: 'createdAt',
+      key: 'createdAt',
+      render: (v: string | null | undefined) => (v ? dayjs(v).format('YYYY-MM-DD HH:mm') : '—')
+    }
+  ]
+
+  return (
+    <>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <div>
+          <Typography.Title level={2} style={{ margin: 0 }}>
+            Code pool
+          </Typography.Title>
+          <Typography.Text type="secondary">
+            {playtest?.title ? `${playtest.title} (${playtest.slug})` : 'Loading playtest…'}
+            {playtest && (
+              <>
+                {' · '}
+                <code>{playtest.distributionModel}</code>
+              </>
+            )}
+          </Typography.Text>
+        </div>
+        <Space>
+          <Button onClick={() => navigate('/')}>Back</Button>
+          <Button onClick={() => codesQuery.refetch()}>Refresh</Button>
+        </Space>
+      </div>
+
+      <LowPoolBanner stats={stats} />
+
+      <div style={{ display: 'flex', gap: 24, marginBottom: 24, flexWrap: 'wrap' }}>
+        <Statistic title="Total" value={stats?.total ?? 0} />
+        <Statistic title="Unused" value={stats?.unused ?? 0} />
+        <Statistic title="Reserved" value={stats?.reserved ?? 0} />
+        <Statistic title="Granted" value={stats?.granted ?? 0} />
+      </div>
+
+      {!isAGS && (
+        <div style={{ marginBottom: 24 }}>
+          <Typography.Title level={4}>Upload Steam keys</Typography.Title>
+          <Typography.Paragraph type="secondary">
+            One code per line. UTF-8, max 10 MB, max 50,000 lines, charset <code>[A-Za-z0-9._-]</code>, length 1–128. Any
+            invalid line rejects the whole file.
+          </Typography.Paragraph>
+          <Upload accept=".csv,.txt,text/plain,text/csv" beforeUpload={() => false} onChange={info => handleFileChosen(info.file)} maxCount={1} showUploadList={false}>
+            <Button>Choose file</Button>
+          </Upload>
+          {csvFilename && (
+            <Typography.Paragraph style={{ marginTop: 8 }}>
+              Selected: <code>{csvFilename}</code>
+            </Typography.Paragraph>
+          )}
+          <Button
+            type="primary"
+            disabled={!csvText}
+            loading={uploadMutation.isPending}
+            style={{ marginTop: 8 }}
+            onClick={() => uploadMutation.mutate({ playtestId, data: { csvContent: csvText, filename: csvFilename || undefined } })}>
+            Upload
+          </Button>
+          {rejections.length > 0 && (
+            <Alert
+              type="error"
+              style={{ marginTop: 12 }}
+              message={`Upload rejected — ${rejections.length} invalid line${rejections.length === 1 ? '' : 's'}`}
+              description={
+                <ul style={{ margin: 0, paddingLeft: 20 }}>
+                  {rejections.slice(0, 50).map((rej, i) => (
+                    <li key={i}>
+                      Line {rej.lineNumber}: {rej.reason}
+                      {rej.value ? ` — ${rej.value}` : ''}
+                    </li>
+                  ))}
+                  {rejections.length > 50 && <li>…and {rejections.length - 50} more.</li>}
+                </ul>
+              }
+            />
+          )}
+        </div>
+      )}
+
+      {isAGS && (
+        <div style={{ marginBottom: 24 }}>
+          <Typography.Title level={4}>Generate / sync AGS Campaign codes</Typography.Title>
+          <Typography.Paragraph type="secondary">
+            Top-up calls AGS to generate fresh codes. Sync re-fetches from AGS to recover from a previous failure (idempotent).
+          </Typography.Paragraph>
+          <Space>
+            <InputNumber min={1} max={50000} value={topUpQty} onChange={v => setTopUpQty(typeof v === 'number' ? v : null)} />
+            <Button
+              type="primary"
+              disabled={!topUpQty || topUpQty < 1}
+              loading={topUpMutation.isPending}
+              onClick={() => topUpQty && topUpMutation.mutate({ playtestId, data: { quantity: topUpQty } })}>
+              Generate more codes
+            </Button>
+            <Button loading={syncMutation.isPending} onClick={() => syncMutation.mutate({ playtestId, data: {} })}>
+              Sync from AGS
+            </Button>
+          </Space>
+        </div>
+      )}
+
+      <Typography.Title level={4}>Codes</Typography.Title>
+      {codesQuery.isLoading && <Spin description="Loading codes..." />}
+      {codesQuery.error && (
+        <Alert
+          type="error"
+          message="Failed to load codes."
+          action={
+            <Button size="small" onClick={() => codesQuery.refetch()}>
+              Retry
+            </Button>
+          }
+        />
+      )}
+      {!codesQuery.isLoading && !codesQuery.error && (
+        <Table<V1Code> rowKey={row => row.id ?? ''} dataSource={codes} columns={codeColumns} pagination={{ pageSize: 50 }} />
+      )}
+    </>
+  )
+}
