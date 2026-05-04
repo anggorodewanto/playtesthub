@@ -65,12 +65,12 @@ Smoke check:
 
 ### Reproduce the golden flow
 
-The `pth` CLI is the canonical end-to-end harness — same surface a human or AI uses to drive the system, and the same path the e2e test exercises. The composite command **`pth flow golden-m1`** runs the entire M1 golden flow (admin creates playtest → publishes → player signs up → applicant lands `PENDING`) and emits one NDJSON line per step.
+The `pth` CLI is the canonical end-to-end harness — same surface a human or AI uses to drive the system, and the same path the e2e test exercises. The composite command **`pth flow golden-m2`** runs the entire M2 golden flow (admin creates an NDA-required STEAM_KEYS playtest → publishes → player signs up → accepts the NDA → admin uploads keys → admin approves → player retrieves the granted code) and emits one NDJSON line per step.
 
 ```bash
 go build -o pth ./cmd/pth
 
-# Profile A — admin (used to create + publish the playtest).
+# Profile A — admin (used to create + publish the playtest, upload keys, approve).
 export PTH_AGS_BASE_URL=https://your-namespace.gamingservices.accelbyte.io
 export PTH_IAM_CLIENT_ID=<confidential-iam-client-id>
 export PTH_IAM_CLIENT_SECRET=<confidential-iam-client-secret>
@@ -84,20 +84,24 @@ read -r USER_ID USERNAME PASSWORD < <(./pth user create --json | jq -r '[.userId
 echo "$PASSWORD" | ./pth --profile "player-$USER_ID" user login-as \
   --user-id "$USER_ID" --username "$USERNAME" --password-stdin
 
-# Drive the golden flow.
-./pth flow golden-m1 \
+# Drive the golden flow. --codes-count synthesises a STEAM key for the upload step;
+# pass --codes-file <path> to supply a real CSV instead.
+./pth flow golden-m2 \
   --slug "demo-$(date +%s)" \
   --admin-profile admin \
   --player-profile "player-$USER_ID"
 ```
 
-Expected output — four NDJSON lines, all `status=OK`:
+Expected output — seven NDJSON lines, all `status=OK`:
 
 ```json
-{"step":"create-playtest","status":"OK","response":{"playtest":{"id":"…","slug":"demo-1714...","status":"PLAYTEST_STATUS_DRAFT"}}}
+{"step":"create-playtest","status":"OK","response":{"playtest":{"id":"…","status":"PLAYTEST_STATUS_DRAFT","nda_required":true}}}
 {"step":"transition-open","status":"OK","response":{"playtest":{"status":"PLAYTEST_STATUS_OPEN"}}}
-{"step":"signup","status":"OK","response":{"applicant":{"status":"APPLICANT_STATUS_PENDING"}}}
-{"step":"assert-pending","status":"OK","response":{"applicant":{"status":"APPLICANT_STATUS_PENDING"}}}
+{"step":"signup","status":"OK","response":{"applicant":{"id":"…","status":"APPLICANT_STATUS_PENDING"}}}
+{"step":"accept-nda","status":"OK","response":{"acceptance":{"nda_version_hash":"…"}}}
+{"step":"upload-codes","status":"OK","response":{"accepted":1,"rejected":0}}
+{"step":"approve","status":"OK","response":{"applicant":{"status":"APPLICANT_STATUS_APPROVED"}}}
+{"step":"get-code","status":"OK","response":{"value":"GOLDEN-M2-DEMO-…","distribution_model":"DISTRIBUTION_MODEL_STEAM_KEYS"}}
 ```
 
 Tear down:
@@ -107,7 +111,7 @@ Tear down:
 ./pth user delete --user-id "$USER_ID" --yes
 ```
 
-The test under [`e2e/golden_m1_test.go`](e2e/golden_m1_test.go) wraps the same sequence behind `go test ./e2e/...` for CI / operator verification — see [`docs/cli.md` §7.4](docs/cli.md).
+The tests under [`e2e/golden_m1_test.go`](e2e/golden_m1_test.go) and [`e2e/golden_m2_test.go`](e2e/golden_m2_test.go) wrap the same sequences behind `go test ./e2e/...` for CI / operator verification — see [`docs/cli.md` §7.4](docs/cli.md).
 
 ## Architecture at a glance
 
@@ -136,7 +140,7 @@ golangci-lint run
 buf lint
 ./proto.sh && git diff --exit-code      # proto stubs in sync
 ./scripts/smoke/boot.sh                 # backend boots + RPCs reach handlers
-./pth flow golden-m1 ...                # canonical e2e (once env is configured)
+./pth flow golden-m2 ...                # canonical e2e (once env is configured)
 
 # Frontend
 ( cd player && npm test && npm run build )
