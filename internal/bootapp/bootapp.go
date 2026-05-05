@@ -249,22 +249,22 @@ func buildPlaytesthubServer(cfg *config.Config, dbPool *pgxpool.Pool, httpClient
 	}, dmqueue.SenderFunc(noopDMSender), applicantStore, auditStore, logger)
 
 	// AGS_CAMPAIGN initial-create wires through pkg/ags. The SDK-backed
-	// adapter (phase 8.1) is enabled only when AGS_STORE_ID is set;
-	// otherwise we fall back to the in-memory MemClient so dev/e2e
-	// boots without a live AGS namespace continue to exercise the full
-	// AGS_CAMPAIGN code path with no outbound calls. AuthEnabled is a
-	// secondary gate: SDK calls without an inbound auth surface would
-	// be misleading in tests.
+	// adapter (phase 8.1) is enabled when AuthEnabled is true; AGS_STORE_ID
+	// is now optional (M2 phase 16: Bootstrap auto-discovers / auto-creates
+	// the store, category, and currency on first AGS_CAMPAIGN create).
+	// MemClient remains the fallback for dev/e2e boots with auth disabled
+	// so the full AGS_CAMPAIGN code path runs without outbound calls.
 	var agsClient ags.Client
 	var platformLogin func() error
-	if cfg.AuthEnabled && cfg.AGSStoreID != "" {
+	if cfg.AuthEnabled {
 		platformConfigRepo := ags.NewPlatformConfigRepository(cfg.AGSBaseURL, cfg.AGSIAMClientID, cfg.AGSIAMClientSecret)
 		platformClient := factory.NewPlatformClient(platformConfigRepo)
 		// One TokenRepository instance is shared between the OAuth
 		// service that runs LoginClient (seeded by Server.PlatformLogin)
-		// and the Item / Campaign services that consume the token on
-		// each outbound AGS call. The SDK auto-refreshes via
-		// RefreshTokenImpl per the same pattern as buildOAuthService.
+		// and the Item / Campaign / Store / Category / Currency services
+		// that consume the token on each outbound AGS call. The SDK
+		// auto-refreshes via RefreshTokenImpl per the same pattern as
+		// buildOAuthService.
 		tokenRepo := sdkAuth.DefaultTokenRepositoryImpl()
 		refreshRepo := &sdkAuth.RefreshTokenImpl{RefreshRate: 0.8, AutoRefresh: true}
 		oauthSvc := iam.OAuth20Service{
@@ -283,6 +283,21 @@ func buildPlaytesthubServer(cfg *config.Config, dbPool *pgxpool.Pool, httpClient
 			ConfigRepository: platformConfigRepo,
 			TokenRepository:  tokenRepo,
 		}
+		storeSvc := &platform.StoreService{
+			Client:           platformClient,
+			ConfigRepository: platformConfigRepo,
+			TokenRepository:  tokenRepo,
+		}
+		categorySvc := &platform.CategoryService{
+			Client:           platformClient,
+			ConfigRepository: platformConfigRepo,
+			TokenRepository:  tokenRepo,
+		}
+		currencySvc := &platform.CurrencyService{
+			Client:           platformClient,
+			ConfigRepository: platformConfigRepo,
+			TokenRepository:  tokenRepo,
+		}
 		platformLogin = func() error {
 			id := cfg.AGSIAMClientID
 			secret := cfg.AGSIAMClientSecret
@@ -293,6 +308,9 @@ func buildPlaytesthubServer(cfg *config.Config, dbPool *pgxpool.Pool, httpClient
 			StoreID:     cfg.AGSStoreID,
 			ItemSvc:     ags.NewPlatformItemService(itemSvc),
 			CampaignSvc: ags.NewPlatformCampaignService(campaignSvc),
+			StoreSvc:    ags.NewPlatformStoreService(storeSvc),
+			CategorySvc: ags.NewPlatformCategoryService(categorySvc),
+			CurrencySvc: ags.NewPlatformCurrencyService(currencySvc),
 			// SDK's auto-refresh goroutine is process-global (sync.Once)
 			// and the inbound auth surface claims it first, leaving the
 			// platform-side token un-refreshed. SDKClient compensates by
@@ -300,15 +318,20 @@ func buildPlaytesthubServer(cfg *config.Config, dbPool *pgxpool.Pool, httpClient
 			Login: platformLogin,
 			// Region pricing — AGS rejects CreateItem without a fully
 			// formed RegionData entry for the store's defaultRegion.
-			// See docs/engineering.md "AGS namespace prerequisites".
+			// Bootstrap auto-discovers / auto-creates a VIRTUAL currency
+			// when AGS_REGION_CURRENCY_CODE is unset.
 			RegionCurrencyCode: cfg.AGSRegionCurrencyCode,
 			RegionCurrencyType: cfg.AGSRegionCurrencyType,
 			RegionCode:         cfg.AGSRegionCode,
 		})
-		logger.Info("ags client: SDK-backed", "namespace", cfg.AGSNamespace, "storeId", cfg.AGSStoreID)
+		storeIDLog := cfg.AGSStoreID
+		if storeIDLog == "" {
+			storeIDLog = "(auto-discover via Bootstrap)"
+		}
+		logger.Info("ags client: SDK-backed", "namespace", cfg.AGSNamespace, "storeId", storeIDLog)
 	} else {
 		agsClient = ags.NewMemClient()
-		logger.Info("ags client: in-memory (set AGS_STORE_ID and enable auth to use the live SDK adapter)")
+		logger.Info("ags client: in-memory (enable auth to use the live SDK adapter)")
 	}
 
 	svcServer := service.NewPlaytesthubServiceServer(playtestStore, applicantStore, cfg.AGSNamespace).

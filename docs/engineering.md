@@ -273,20 +273,22 @@ If a test needs a time source, inject a `clock.Clock` (use `benbjohnson/clock` o
 - `make lint-proto` → `buf lint` against the `proto/` tree.
 - `make test` → unit + integration; assumes Docker is running.
 - `make lint` → `golangci-lint run`.
-- **Optional `AGS_STORE_ID`** (M2 phase 8.1): when set on a deployment with `PLUGIN_GRPC_SERVER_AUTH_ENABLED=true`, bootapp wires the SDK-backed AGS adapter (`pkg/ags.SDKClient`) and `CreatePlaytest` provisions a real Item + Campaign + codes in the named store; otherwise bootapp falls back to `pkg/ags.MemClient`. Without `AGS_STORE_ID`, AGS_CAMPAIGN playtests show codes in the playtesthub admin UI but no Item / Campaign / store entries appear in the AGS Admin Portal. The boot-time log line `ags client: SDK-backed` vs `ags client: in-memory` confirms which branch is live.
+- **SDK adapter activation** (M2 phase 8.1): when `PLUGIN_GRPC_SERVER_AUTH_ENABLED=true`, bootapp wires the SDK-backed AGS adapter (`pkg/ags.SDKClient`) and `CreatePlaytest` provisions a real Item + Campaign + codes; with auth disabled, bootapp falls back to `pkg/ags.MemClient` so dev/e2e boots stay offline. The boot-time log line `ags client: SDK-backed` vs `ags client: in-memory` confirms which branch is live. `AGS_STORE_ID` is **optional** — phase 16 lazily auto-discovers / auto-creates a store on the first AGS_CAMPAIGN create.
 
-#### AGS namespace prerequisites (one-time per namespace)
+#### AGS namespace prerequisites (auto-bootstrapped, M2 phase 16)
 
-The SDK-backed adapter assumes four pieces of state already exist in the AGS namespace pointed at by `AGS_NAMESPACE` / `AGS_STORE_ID`. Without them, `CreatePlaytest` for `AGS_CAMPAIGN` fails on the first AGS round-trip with a non-obvious error code. Provision once via `POST /platform/admin/...` (or the AGS Admin Portal) before the first AGS_CAMPAIGN create.
+`pkg/ags.SDKClient.Bootstrap` runs once per process before the first `AGS_CAMPAIGN` `CreatePlaytest` and lazily provisions every prereq listed below. Each step treats HTTP 409 conflict as success, so a racing operator manually pre-creating the same resource is a no-op. STEAM_KEYS playtests skip Bootstrap entirely (no AGS dependencies).
 
-| Resource | Why it's needed | How to create |
+| Resource | Auto-bootstrap behavior | Operator override |
 | --- | --- | --- |
-| **Store** | All Items live under a Store; `AGS_STORE_ID` names it. | `POST /platform/admin/namespaces/{namespace}/stores` with body `{"title":"…","supportedRegions":["US"],"defaultRegion":"US","supportedLanguages":["en"],"defaultLanguage":"en"}` → save the returned `storeId`. |
-| **Category `/playtesthub`** | `SDKClient.CreateItem` hardcodes `categoryPath:"/playtesthub"` so playtest items stay isolated from any other store inventory. AGS rejects items targeting a missing category with HTTP 404 errorCode `30241` "Category [/playtesthub] does not exist". | `POST /platform/admin/namespaces/{namespace}/categories?storeId=<storeId>` with body `{"categoryPath":"/playtesthub","localizationDisplayNames":{"en":"Playtesthub"}}`. |
-| **Currency** (any VIRTUAL coin works) | AGS rejects `CreateItem` with HTTP 400 errorCode `30022` "Default region [<region>] is required" unless RegionData has a fully-formed entry (currencyCode + currencyType + price) for the store's defaultRegion — even for non-purchasable CODE items. | `POST /platform/admin/namespaces/{namespace}/currencies` with body `{"currencyCode":"COIN","currencySymbol":"C","currencyType":"VIRTUAL","decimals":0,"localizationDescriptions":{"en":"…"}}`. Most ISC namespaces already have a `COIN` currency from earlier setup; check `GET /platform/admin/namespaces/{namespace}/currencies` first. |
-| **Env vars on the deployed app** | Tell SDKClient which currency / region to put in `RegionData`. | `AGS_REGION_CURRENCY_CODE=COIN` (or whatever exists in the namespace), optional `AGS_REGION_CURRENCY_TYPE=VIRTUAL`, optional `AGS_REGION_CODE=US`. When `AGS_REGION_CURRENCY_CODE` is unset, SDKClient omits RegionData and the call relies on AGS not enforcing the requirement — works against some namespaces but not the standard ISC ones. |
+| **Store** | `ListStores` first; reuses any existing store. Empty namespace → `CreateStore` with `title="playtesthub"`, `defaultRegion=US`, `defaultLanguage=en`. Resolved id is cached on the SDKClient. | Set `AGS_STORE_ID` to pin a specific store (skips discovery). |
+| **Category `/playtesthub`** | `GetCategory` first; 404 → `CreateCategory` with `localizationDisplayNames["en"]="Playtesthub"`. | None — the path is hardcoded in `SDKClient.CreateItem` so item rows stay isolated. |
+| **Currency** (for `RegionData`) | `ListCurrencies` first; reuses any existing `VIRTUAL` entry. No VIRTUAL → `CreateCurrency` with `currencyCode="PTHCOIN"`, `currencyType=VIRTUAL`, `decimals=0`. | Set `AGS_REGION_CURRENCY_CODE` (and optionally `AGS_REGION_CURRENCY_TYPE`, default `VIRTUAL`) to pin a specific currency. |
+| **Region** | Hardcoded to `US` unless overridden. | `AGS_REGION_CODE` overrides the RegionData key. |
 
-Verify in this order: store exists → category exists → currency exists → env vars are set on the deployment → bounce the app. The first AGS_CAMPAIGN playtest create after this surfaces a real Item + Campaign + codes under `Commerce → Items` and `Engagement → Campaigns` in the Admin Portal.
+Bootstrap failure surfaces as a mapped gRPC status on the in-flight `CreatePlaytest`; the next `CreatePlaytest` retries Bootstrap (a transient AGS hiccup at boot does not wedge subsequent creates until restart). Successful Bootstrap emits `event=ags_bootstrap_ok`; failures emit `event=ags_bootstrap_failed` at WARN with the underlying error.
+
+The legacy four-step pre-deploy walkthrough is no longer required, but operators who want explicit control can still pre-create resources via `POST /platform/admin/namespaces/{namespace}/{stores|categories|currencies}` and pin them via the env-var overrides above.
 
 #### AGS_CAMPAIGN provisioning sequence + SDK gotchas
 

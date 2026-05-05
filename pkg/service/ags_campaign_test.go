@@ -55,6 +55,61 @@ func agsCampaignRequest(slug string, qty int32) *pb.CreatePlaytestRequest {
 	return req
 }
 
+// Phase 16: AGS_CAMPAIGN runs Bootstrap before the first CreateCampaign,
+// and the call is gated by sync so subsequent AGS_CAMPAIGN creates skip
+// the prereq round-trip. Bootstrap success is recorded only after a
+// successful invocation; a failed first attempt retries on the next
+// create.
+func TestCreatePlaytest_AGSCampaign_RunsBootstrapOncePerProcess(t *testing.T) {
+	rig := withAGSStores(t)
+	if _, err := rig.svr.CreatePlaytest(authCtx(uuid.New()), agsCampaignRequest("ags-bootstrap-1", 2)); err != nil {
+		t.Fatalf("first CreatePlaytest: %v", err)
+	}
+	if got := rig.agsClient.BootstrapCallCount(); got != 1 {
+		t.Fatalf("Bootstrap call count after first AGS_CAMPAIGN create = %d, want 1", got)
+	}
+	if _, err := rig.svr.CreatePlaytest(authCtx(uuid.New()), agsCampaignRequest("ags-bootstrap-2", 2)); err != nil {
+		t.Fatalf("second CreatePlaytest: %v", err)
+	}
+	if got := rig.agsClient.BootstrapCallCount(); got != 1 {
+		t.Fatalf("Bootstrap call count after second AGS_CAMPAIGN create = %d, want 1 (sync.Once)", got)
+	}
+}
+
+// STEAM_KEYS playtests must not touch AGS Bootstrap — they have no AGS
+// dependencies (PRD §4.6 / docs/STATUS.md M2 phase 16).
+func TestCreatePlaytest_SteamKeys_SkipsBootstrap(t *testing.T) {
+	rig := withAGSStores(t)
+	if _, err := rig.svr.CreatePlaytest(authCtx(uuid.New()), validCreateRequest("steam-skip")); err != nil {
+		t.Fatalf("STEAM_KEYS CreatePlaytest: %v", err)
+	}
+	if got := rig.agsClient.BootstrapCallCount(); got != 0 {
+		t.Fatalf("Bootstrap call count after STEAM_KEYS create = %d, want 0", got)
+	}
+}
+
+// Bootstrap failure surfaces as a mapped gRPC status and is retried on
+// the next AGS_CAMPAIGN create — a transient failure does not wedge
+// every subsequent create until process restart.
+func TestCreatePlaytest_AGSCampaign_BootstrapFailureRetries(t *testing.T) {
+	rig := withAGSStores(t)
+	rig.agsClient.BootstrapErr = []error{ags.ErrUnavailable}
+
+	_, err := rig.svr.CreatePlaytest(authCtx(uuid.New()), agsCampaignRequest("ags-boot-fail", 2))
+	if err == nil {
+		t.Fatal("expected bootstrap failure to surface")
+	}
+	requireStatus(t, err, codes.Unavailable)
+
+	// Second create succeeds — the failure was not cached.
+	if _, err := rig.svr.CreatePlaytest(authCtx(uuid.New()), agsCampaignRequest("ags-boot-retry", 2)); err != nil {
+		t.Fatalf("retry CreatePlaytest: %v", err)
+	}
+	if got := rig.agsClient.BootstrapCallCount(); got != 2 {
+		t.Fatalf("Bootstrap call count = %d, want 2 (initial fail + successful retry)", got)
+	}
+}
+
 func TestCreatePlaytest_AGSCampaign_HappyPath_GeneratesCodes(t *testing.T) {
 	rig := withAGSStores(t)
 	resp, err := rig.svr.CreatePlaytest(authCtx(uuid.New()), agsCampaignRequest("ags-happy", 5))
@@ -230,6 +285,11 @@ func (e stubHTTPErr) HTTPStatus() int { return e.code }
 type partialFulfillClient struct {
 	cap int
 	mem *ags.MemClient
+}
+
+func (p *partialFulfillClient) Bootstrap(ctx context.Context, params ags.BootstrapParams) error {
+	p.ensure()
+	return p.mem.Bootstrap(ctx, params)
 }
 
 func (p *partialFulfillClient) CreateItem(ctx context.Context, spec ags.ItemSpec) (string, error) {

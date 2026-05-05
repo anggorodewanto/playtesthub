@@ -29,6 +29,21 @@ import (
 // caller must pass through the value returned by CreateCampaign rather
 // than reusing the raw name.
 type Client interface {
+	// Bootstrap ensures the namespace prerequisites required by
+	// CreateItem exist (PRD §4.6 / docs/engineering.md "AGS namespace
+	// prerequisites"): a Store, a `/playtesthub` Category in that
+	// store, and a currency the CreateItem RegionData entry can
+	// reference. Idempotent — every step treats "already exists"
+	// (HTTP 409 / errorCode 30201/30207/etc.) as success and resolves
+	// the existing resource id instead.
+	//
+	// Bootstrap mutates the client's resolved store / currency state
+	// when no values were supplied at construction; subsequent
+	// CreateItem calls use those resolved values. Service callers run
+	// Bootstrap once per process lifetime (sync.Once gate) before the
+	// first CreateCampaign of an AGS_CAMPAIGN playtest.
+	Bootstrap(ctx context.Context, params BootstrapParams) error
+
 	// CreateItem provisions an ENTITLEMENT-type Item under the
 	// configured namespace and returns the AGS-assigned item id
 	// (PRD §4.6 step 2a). spec.BoothName must equal the
@@ -107,4 +122,32 @@ type CodeBatchResult struct {
 	// fulfillment surfaces deterministically.
 	Requested int
 	Codes     []string
+}
+
+// BootstrapParams seeds the resources Bootstrap will create when they
+// are missing. Existing resources are reused regardless of these values
+// — only first-time provisioning consumes them.
+type BootstrapParams struct {
+	// StoreTitle names the store created when no store exists in the
+	// namespace and the SDKClient was constructed without an explicit
+	// StoreID. AGS rejects titles outside the documented charset
+	// (alphanumeric + ',.- + space, max 127); callers should pass a
+	// safe value like "playtesthub".
+	StoreTitle string
+	// DefaultRegion is the store's defaultRegion (also used as the
+	// region key inside CreateItem RegionData). Defaults to "US".
+	DefaultRegion string
+	// DefaultLanguage is the store's defaultLanguage. Defaults to "en".
+	DefaultLanguage string
+	// CategoryPath names the category Bootstrap ensures exists in the
+	// resolved store. Hardcoded to "/playtesthub" by the service layer
+	// to match SDKClient.CreateItem's CategoryPath.
+	CategoryPath string
+	// FallbackCurrencyCode names the currency Bootstrap creates when
+	// no VIRTUAL currency exists in the namespace and the SDKClient was
+	// constructed without an explicit RegionCurrencyCode.
+	FallbackCurrencyCode string
+	// FallbackCurrencyType is "VIRTUAL" or "REAL". Defaults to "VIRTUAL"
+	// since playtest items are non-purchasable.
+	FallbackCurrencyType string
 }

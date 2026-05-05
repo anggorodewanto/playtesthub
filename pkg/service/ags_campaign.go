@@ -91,6 +91,16 @@ func (s *PlaytesthubServiceServer) createAGSCampaignPlaytest(ctx context.Context
 	agsCtx, cancel := context.WithTimeout(ctx, agsInitialCreateTimeout)
 	defer cancel()
 
+	// Phase 16: ensure namespace prerequisites (store + category +
+	// currency) exist before the first CreateCampaign of any
+	// AGS_CAMPAIGN playtest. Bootstrap is idempotent and runs at most
+	// once per process after a successful invocation; a failed bootstrap
+	// is retried on the next AGS_CAMPAIGN create attempt.
+	if err := s.ensureAGSBootstrap(agsCtx); err != nil {
+		s.recordCampaignCreateFailed(ctx, draft, err, false, false)
+		return nil, mapAGSError(err)
+	}
+
 	// AGS validates a CODE-type Item's BoothName at create time. AGS
 	// auto-derives the campaign's boothName as "C_<name>" (or similar)
 	// and returns it on CreateCampaign. So provisioning is:
@@ -166,6 +176,45 @@ func (s *PlaytesthubServiceServer) createAGSCampaignPlaytest(ctx context.Context
 	}
 
 	return &pb.CreatePlaytestResponse{Playtest: playtestToProto(inserted)}, nil
+}
+
+// ensureAGSBootstrap runs AGS namespace bootstrap once per process. The
+// underlying client.Bootstrap is idempotent (each step treats 409 as
+// success), so even if a concurrent AGS_CAMPAIGN create slipped past
+// this gate the duplicate work would not corrupt state — the gate just
+// avoids the extra round-trips. A failed bootstrap is logged at WARN
+// with a step-naming `error` field; the caller surfaces a mapped gRPC
+// status.
+func (s *PlaytesthubServiceServer) ensureAGSBootstrap(ctx context.Context) error {
+	s.agsBootstrap.mu.Lock()
+	defer s.agsBootstrap.mu.Unlock()
+	if s.agsBootstrap.done {
+		return nil
+	}
+	params := ags.BootstrapParams{
+		StoreTitle:           "playtesthub",
+		DefaultRegion:        "US",
+		DefaultLanguage:      "en",
+		CategoryPath:         "/playtesthub",
+		FallbackCurrencyCode: "PTHCOIN",
+		FallbackCurrencyType: "VIRTUAL",
+	}
+	if err := s.agsClient.Bootstrap(ctx, params); err != nil {
+		s.loggerOrDefault().Warn(
+			"ags namespace bootstrap failed",
+			"event", "ags_bootstrap_failed",
+			"namespace", s.namespace,
+			"error", err.Error(),
+		)
+		return err
+	}
+	s.agsBootstrap.done = true
+	s.loggerOrDefault().Info(
+		"ags namespace bootstrap ok",
+		"event", "ags_bootstrap_ok",
+		"namespace", s.namespace,
+	)
+	return nil
 }
 
 // agsCreateItem provisions an ENTITLEMENT-type Item derived from the

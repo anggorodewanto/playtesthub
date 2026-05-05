@@ -10,9 +10,13 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/AccelByte/accelbyte-go-sdk/platform-sdk/pkg/platformclient/campaign"
+	"github.com/AccelByte/accelbyte-go-sdk/platform-sdk/pkg/platformclient/category"
+	"github.com/AccelByte/accelbyte-go-sdk/platform-sdk/pkg/platformclient/currency"
 	"github.com/AccelByte/accelbyte-go-sdk/platform-sdk/pkg/platformclient/item"
+	"github.com/AccelByte/accelbyte-go-sdk/platform-sdk/pkg/platformclient/store"
 	"github.com/AccelByte/accelbyte-go-sdk/platform-sdk/pkg/platformclientmodels"
 	"github.com/AccelByte/accelbyte-go-sdk/services-api/pkg/repository"
 	"github.com/AccelByte/accelbyte-go-sdk/services-api/pkg/service/platform"
@@ -38,22 +42,32 @@ import (
 // returns HTTP 401 triggers Login() and one retry. Login is supplied by
 // bootapp via SDKClientOptions.Login (closes over the same OAuth20Service
 // and TokenRepository the platform service uses).
+// currencyTypeVirtual is AGS's "non-real-money" currency type. Playtest
+// items are non-purchasable so the RegionData entry uses VIRTUAL even
+// when the existing currency happens to be REAL — except Bootstrap
+// reuses an existing REAL currency only as a last resort, preferring a
+// VIRTUAL match.
+const currencyTypeVirtual = "VIRTUAL"
+
 type SDKClient struct {
 	namespace string
-	storeID   string
 
-	// regionCurrencyCode names a currency that exists in `namespace`
-	// (typically VIRTUAL). When non-empty, CreateItem builds a
-	// fully-formed RegionData entry for `regionCode` so AGS's "Default
-	// region required" validation passes. When empty, RegionData is
-	// omitted and the call relies on AGS not enforcing the requirement
-	// for this namespace / store.
+	// mu guards storeID + regionCurrencyCode + regionCurrencyType +
+	// regionCode. Bootstrap mutates these after auto-discovery; every
+	// outbound call reads them under the same mutex so a Bootstrap
+	// racing a CreateItem can't see a torn pair (e.g. resolved storeID
+	// without resolved currency).
+	mu                 sync.RWMutex
+	storeID            string
 	regionCurrencyCode string
 	regionCurrencyType string
 	regionCode         string
 
 	itemSvc     ItemService
 	campaignSvc CampaignService
+	storeSvc    StoreService
+	categorySvc CategoryService
+	currencySvc CurrencyService
 	login       func() error
 }
 
@@ -75,12 +89,44 @@ type CampaignService interface {
 	QueryCodesShort(input *campaign.QueryCodesParams) (*platformclientmodels.CodeInfoPagingSlicedResult, error)
 }
 
+// StoreService is the subset of platform.StoreService SDKClient.Bootstrap
+// depends on (list + create). Implementations adapt the SDK service.
+type StoreService interface {
+	ListStoresShort(input *store.ListStoresParams) ([]*platformclientmodels.StoreInfo, error)
+	CreateStoreShort(input *store.CreateStoreParams) (*platformclientmodels.StoreInfo, error)
+}
+
+// CategoryService is the subset of platform.CategoryService Bootstrap
+// depends on (get + create). GetCategory's 404 is the "create me" signal.
+type CategoryService interface {
+	GetCategoryShort(input *category.GetCategoryParams) (*platformclientmodels.FullCategoryInfo, error)
+	CreateCategoryShort(input *category.CreateCategoryParams) (*platformclientmodels.FullCategoryInfo, error)
+}
+
+// CurrencyService is the subset of platform.CurrencyService Bootstrap
+// depends on (list + create). Bootstrap prefers any existing VIRTUAL
+// currency and only creates the fallback when none exist.
+type CurrencyService interface {
+	ListCurrenciesShort(input *currency.ListCurrenciesParams) ([]*platformclientmodels.CurrencyInfo, error)
+	CreateCurrencyShort(input *currency.CreateCurrencyParams) (*platformclientmodels.CurrencyInfo, error)
+}
+
 // SDKClientOptions configures a fresh SDKClient.
 type SDKClientOptions struct {
-	Namespace   string
+	Namespace string
+	// StoreID is optional. When empty, Bootstrap discovers an existing
+	// store by title (or creates one); subsequent CreateItem calls use
+	// the resolved id. Operators who want explicit control can still
+	// set this from AGS_STORE_ID.
 	StoreID     string
 	ItemSvc     ItemService
 	CampaignSvc CampaignService
+	// StoreSvc / CategorySvc / CurrencySvc are required by Bootstrap.
+	// They may be nil at construction time; calls that need them
+	// surface ClientError(500) so wiring regressions fail loudly.
+	StoreSvc    StoreService
+	CategorySvc CategoryService
+	CurrencySvc CurrencyService
 	// Login re-runs the client-credentials grant and stores the new
 	// token in the same TokenRepository the Item/Campaign services
 	// consume. Optional — when nil, 401 responses surface as ClientError
@@ -89,22 +135,22 @@ type SDKClientOptions struct {
 	// RegionCurrencyCode / RegionCurrencyType / RegionCode populate the
 	// RegionData entry CreateItem sends so AGS's "Default region
 	// required" validation passes (errorCode 30022). When
-	// RegionCurrencyCode is empty, CreateItem omits RegionData entirely.
+	// RegionCurrencyCode is empty, Bootstrap auto-detects an existing
+	// VIRTUAL currency (or creates the fallback) and stores the
+	// resolved value here; CreateItem then includes RegionData.
 	// See docs/engineering.md "AGS namespace prerequisites".
 	RegionCurrencyCode string
 	RegionCurrencyType string
 	RegionCode         string
 }
 
-// NewSDKClient constructs an SDKClient. Namespace and StoreID are
-// required; missing either is a programmer error and panics — bootapp
-// is expected to gate construction on a non-empty AGSStoreID.
+// NewSDKClient constructs an SDKClient. Only Namespace is required; a
+// missing namespace is a programmer error and panics. StoreID and
+// RegionCurrencyCode are auto-resolved by Bootstrap when left empty
+// (see docs/STATUS.md M2 phase 16).
 func NewSDKClient(opts SDKClientOptions) *SDKClient {
 	if opts.Namespace == "" {
 		panic("ags.NewSDKClient: Namespace is required")
-	}
-	if opts.StoreID == "" {
-		panic("ags.NewSDKClient: StoreID is required")
 	}
 	regionCode := opts.RegionCode
 	if regionCode == "" {
@@ -112,13 +158,16 @@ func NewSDKClient(opts SDKClientOptions) *SDKClient {
 	}
 	regionCurrencyType := opts.RegionCurrencyType
 	if regionCurrencyType == "" {
-		regionCurrencyType = "VIRTUAL"
+		regionCurrencyType = currencyTypeVirtual
 	}
 	return &SDKClient{
 		namespace:          opts.Namespace,
 		storeID:            opts.StoreID,
 		itemSvc:            opts.ItemSvc,
 		campaignSvc:        opts.CampaignSvc,
+		storeSvc:           opts.StoreSvc,
+		categorySvc:        opts.CategorySvc,
+		currencySvc:        opts.CurrencySvc,
 		login:              opts.Login,
 		regionCurrencyCode: opts.RegionCurrencyCode,
 		regionCurrencyType: regionCurrencyType,
@@ -137,6 +186,24 @@ func NewPlatformItemService(svc *platform.ItemService) ItemService {
 // into the narrower CampaignService interface.
 func NewPlatformCampaignService(svc *platform.CampaignService) CampaignService {
 	return &platformCampaignService{svc: svc}
+}
+
+// NewPlatformStoreService adapts the SDK's *platform.StoreService into
+// the narrower StoreService interface required by Bootstrap.
+func NewPlatformStoreService(svc *platform.StoreService) StoreService {
+	return &platformStoreService{svc: svc}
+}
+
+// NewPlatformCategoryService adapts the SDK's *platform.CategoryService
+// into the narrower CategoryService interface.
+func NewPlatformCategoryService(svc *platform.CategoryService) CategoryService {
+	return &platformCategoryService{svc: svc}
+}
+
+// NewPlatformCurrencyService adapts the SDK's *platform.CurrencyService
+// into the narrower CurrencyService interface.
+func NewPlatformCurrencyService(svc *platform.CurrencyService) CurrencyService {
+	return &platformCurrencyService{svc: svc}
 }
 
 type platformItemService struct{ svc *platform.ItemService }
@@ -171,6 +238,36 @@ func (p *platformCampaignService) QueryCodesShort(input *campaign.QueryCodesPara
 	return p.svc.QueryCodesShort(input)
 }
 
+type platformStoreService struct{ svc *platform.StoreService }
+
+func (p *platformStoreService) ListStoresShort(input *store.ListStoresParams) ([]*platformclientmodels.StoreInfo, error) {
+	return p.svc.ListStoresShort(input)
+}
+
+func (p *platformStoreService) CreateStoreShort(input *store.CreateStoreParams) (*platformclientmodels.StoreInfo, error) {
+	return p.svc.CreateStoreShort(input)
+}
+
+type platformCategoryService struct{ svc *platform.CategoryService }
+
+func (p *platformCategoryService) GetCategoryShort(input *category.GetCategoryParams) (*platformclientmodels.FullCategoryInfo, error) {
+	return p.svc.GetCategoryShort(input)
+}
+
+func (p *platformCategoryService) CreateCategoryShort(input *category.CreateCategoryParams) (*platformclientmodels.FullCategoryInfo, error) {
+	return p.svc.CreateCategoryShort(input)
+}
+
+type platformCurrencyService struct{ svc *platform.CurrencyService }
+
+func (p *platformCurrencyService) ListCurrenciesShort(input *currency.ListCurrenciesParams) ([]*platformclientmodels.CurrencyInfo, error) {
+	return p.svc.ListCurrenciesShort(input)
+}
+
+func (p *platformCurrencyService) CreateCurrencyShort(input *currency.CreateCurrencyParams) (*platformclientmodels.CurrencyInfo, error) {
+	return p.svc.CreateCurrencyShort(input)
+}
+
 // CreateItem provisions a CODE-type, DURABLE Item in the configured
 // store. Items are non-listable / non-purchasable — they exist only as
 // the redeem target for the campaign codes (PRD §4.6 step 2a).
@@ -183,6 +280,12 @@ func (p *platformCampaignService) QueryCodesShort(input *campaign.QueryCodesPara
 func (c *SDKClient) CreateItem(ctx context.Context, spec ItemSpec) (string, error) {
 	if spec.BoothName == "" {
 		return "", &ClientError{StatusCode: 500, Op: "CreateItem", Message: "ItemSpec.BoothName is required (AGS returns it as CreatedCampaign.BoothName)"}
+	}
+	c.mu.RLock()
+	storeID := c.storeID
+	c.mu.RUnlock()
+	if storeID == "" {
+		return "", &ClientError{StatusCode: 500, Op: "CreateItem", Message: "store id is unresolved — Bootstrap must run before CreateItem"}
 	}
 	body := &platformclientmodels.ItemCreate{
 		Name:            ptrString(spec.Name),
@@ -201,7 +304,7 @@ func (c *SDKClient) CreateItem(ctx context.Context, spec ItemSpec) (string, erro
 	params := &item.CreateItemParams{
 		Body:      body,
 		Namespace: c.namespace,
-		StoreID:   c.storeID,
+		StoreID:   storeID,
 	}
 	params = params.WithContext(ctx)
 
@@ -384,11 +487,14 @@ func (c *SDKClient) FetchCodes(ctx context.Context, campaignID string) ([]string
 // MemClient idempotency and the cleanup matrix's best-effort intent
 // (docs/ags-failure-modes.md cleanup matrix).
 func (c *SDKClient) DeleteItem(ctx context.Context, itemID string) error {
+	c.mu.RLock()
+	storeID := c.storeID
+	c.mu.RUnlock()
 	force := true
 	params := &item.DeleteItemParams{
 		ItemID:    itemID,
 		Namespace: c.namespace,
-		StoreID:   &c.storeID,
+		StoreID:   &storeID,
 		Force:     &force,
 	}
 	params = params.WithContext(ctx)
@@ -442,6 +548,213 @@ func (c *SDKClient) DeleteCampaign(ctx context.Context, campaignID string) error
 		return err
 	}
 	return nil
+}
+
+// Bootstrap ensures the namespace prerequisites (store + `/playtesthub`
+// category + currency for RegionData) exist before AGS_CAMPAIGN
+// provisioning. Each step treats HTTP 409 conflict as success: another
+// process raced us to the same resource, which is the desired outcome.
+//
+// Resolution rules:
+//   - Store: when SDKClient.storeID is empty, ListStores is consulted
+//     and the first match (by namespace order) is reused. Empty list →
+//     CreateStore using params.StoreTitle / DefaultRegion / DefaultLanguage.
+//   - Category: GetCategory `/playtesthub`; 404 triggers CreateCategory
+//     with `localizationDisplayNames["en"]="Playtesthub"`.
+//   - Currency: when SDKClient.regionCurrencyCode is empty, ListCurrencies
+//     is consulted and the first VIRTUAL entry wins. Empty (or no VIRTUAL)
+//     → CreateCurrency using params.FallbackCurrencyCode.
+//
+// On success, the resolved storeID + currency code/type are written to
+// SDKClient state under c.mu so subsequent CreateItem calls see the
+// fresh values.
+func (c *SDKClient) Bootstrap(ctx context.Context, params BootstrapParams) error {
+	if c.storeSvc == nil || c.categorySvc == nil || c.currencySvc == nil {
+		return &ClientError{StatusCode: 500, Op: "Bootstrap", Message: "store/category/currency SDK services not wired"}
+	}
+
+	defaultRegion := params.DefaultRegion
+	if defaultRegion == "" {
+		c.mu.RLock()
+		defaultRegion = c.regionCode
+		c.mu.RUnlock()
+	}
+	if defaultRegion == "" {
+		defaultRegion = "US"
+	}
+	defaultLanguage := params.DefaultLanguage
+	if defaultLanguage == "" {
+		defaultLanguage = "en"
+	}
+	categoryPath := params.CategoryPath
+	if categoryPath == "" {
+		categoryPath = "/playtesthub"
+	}
+	storeTitle := params.StoreTitle
+	if storeTitle == "" {
+		storeTitle = "playtesthub"
+	}
+
+	storeID, err := c.bootstrapStore(ctx, storeTitle, defaultRegion, defaultLanguage)
+	if err != nil {
+		return fmt.Errorf("bootstrap store: %w", err)
+	}
+	if err := c.bootstrapCategory(ctx, storeID, categoryPath); err != nil {
+		return fmt.Errorf("bootstrap category: %w", err)
+	}
+	currencyCode, currencyType, err := c.bootstrapCurrency(ctx, params.FallbackCurrencyCode, params.FallbackCurrencyType)
+	if err != nil {
+		return fmt.Errorf("bootstrap currency: %w", err)
+	}
+
+	c.mu.Lock()
+	c.storeID = storeID
+	if c.regionCurrencyCode == "" {
+		c.regionCurrencyCode = currencyCode
+		if currencyType != "" {
+			c.regionCurrencyType = currencyType
+		}
+	}
+	c.mu.Unlock()
+	return nil
+}
+
+func (c *SDKClient) bootstrapStore(ctx context.Context, title, defaultRegion, defaultLanguage string) (string, error) {
+	c.mu.RLock()
+	preset := c.storeID
+	c.mu.RUnlock()
+	if preset != "" {
+		return preset, nil
+	}
+
+	listParams := (&store.ListStoresParams{Namespace: c.namespace}).WithContext(ctx)
+	stores, err := callWithRelogin(c, "ListStores", func() ([]*platformclientmodels.StoreInfo, error) {
+		return c.storeSvc.ListStoresShort(listParams)
+	})
+	if err != nil {
+		return "", err
+	}
+	for _, s := range stores {
+		if s != nil && s.StoreID != nil && *s.StoreID != "" {
+			return *s.StoreID, nil
+		}
+	}
+
+	body := &platformclientmodels.StoreCreate{
+		Title:              ptrString(title),
+		DefaultRegion:      defaultRegion,
+		DefaultLanguage:    defaultLanguage,
+		SupportedRegions:   []string{defaultRegion},
+		SupportedLanguages: []string{defaultLanguage},
+	}
+	createParams := (&store.CreateStoreParams{Body: body, Namespace: c.namespace}).WithContext(ctx)
+	created, err := callWithRelogin(c, "CreateStore", func() (*platformclientmodels.StoreInfo, error) {
+		return c.storeSvc.CreateStoreShort(createParams)
+	})
+	if err == nil && created != nil && created.StoreID != nil {
+		return *created.StoreID, nil
+	}
+	if err != nil && !isConflict(err) {
+		return "", err
+	}
+	// 409 (or empty body): re-list to pick up the existing store.
+	stores, listErr := callWithRelogin(c, "ListStores", func() ([]*platformclientmodels.StoreInfo, error) {
+		return c.storeSvc.ListStoresShort(listParams)
+	})
+	if listErr != nil {
+		return "", listErr
+	}
+	for _, s := range stores {
+		if s != nil && s.StoreID != nil && *s.StoreID != "" {
+			return *s.StoreID, nil
+		}
+	}
+	return "", &ClientError{StatusCode: 500, Op: "Bootstrap", Message: "store creation conflicted but ListStores returned empty"}
+}
+
+func (c *SDKClient) bootstrapCategory(ctx context.Context, storeID, categoryPath string) error {
+	getParams := (&category.GetCategoryParams{
+		CategoryPath: categoryPath,
+		Namespace:    c.namespace,
+		StoreID:      &storeID,
+	}).WithContext(ctx)
+	_, err := callWithRelogin(c, "GetCategory", func() (*platformclientmodels.FullCategoryInfo, error) {
+		return c.categorySvc.GetCategoryShort(getParams)
+	})
+	if err == nil {
+		return nil
+	}
+	if !isNotFound(err) {
+		return err
+	}
+	body := &platformclientmodels.CategoryCreate{
+		CategoryPath:             ptrString(categoryPath),
+		LocalizationDisplayNames: map[string]string{"en": "Playtesthub"},
+	}
+	createParams := (&category.CreateCategoryParams{
+		Body:      body,
+		Namespace: c.namespace,
+		StoreID:   storeID,
+	}).WithContext(ctx)
+	if _, err := callWithRelogin(c, "CreateCategory", func() (*platformclientmodels.FullCategoryInfo, error) {
+		return c.categorySvc.CreateCategoryShort(createParams)
+	}); err != nil && !isConflict(err) {
+		return err
+	}
+	return nil
+}
+
+func (c *SDKClient) bootstrapCurrency(ctx context.Context, fallbackCode, fallbackType string) (string, string, error) {
+	c.mu.RLock()
+	preset := c.regionCurrencyCode
+	presetType := c.regionCurrencyType
+	c.mu.RUnlock()
+	if preset != "" {
+		return preset, presetType, nil
+	}
+
+	listParams := (&currency.ListCurrenciesParams{Namespace: c.namespace}).WithContext(ctx)
+	existing, err := callWithRelogin(c, "ListCurrencies", func() ([]*platformclientmodels.CurrencyInfo, error) {
+		return c.currencySvc.ListCurrenciesShort(listParams)
+	})
+	if err != nil {
+		return "", "", err
+	}
+	for _, cur := range existing {
+		if cur == nil || cur.CurrencyCode == nil || *cur.CurrencyCode == "" {
+			continue
+		}
+		curType := ""
+		if cur.CurrencyType != nil {
+			curType = *cur.CurrencyType
+		}
+		// Prefer VIRTUAL — it matches the playtest item's non-purchasable
+		// nature and avoids surprising operators with REAL pricing.
+		if curType == currencyTypeVirtual {
+			return *cur.CurrencyCode, curType, nil
+		}
+	}
+	// No VIRTUAL existed; fall through to creating one.
+	if fallbackCode == "" {
+		fallbackCode = "PTH_VIRTUAL"
+	}
+	if fallbackType == "" {
+		fallbackType = currencyTypeVirtual
+	}
+	body := &platformclientmodels.CurrencyCreate{
+		CurrencyCode:             ptrString(fallbackCode),
+		CurrencyType:             fallbackType,
+		CurrencySymbol:           "P",
+		Decimals:                 0,
+		LocalizationDescriptions: map[string]string{"en": "playtesthub virtual currency (auto-provisioned)"},
+	}
+	createParams := (&currency.CreateCurrencyParams{Body: body, Namespace: c.namespace}).WithContext(ctx)
+	if _, err := callWithRelogin(c, "CreateCurrency", func() (*platformclientmodels.CurrencyInfo, error) {
+		return c.currencySvc.CreateCurrencyShort(createParams)
+	}); err != nil && !isConflict(err) {
+		return "", "", err
+	}
+	return fallbackCode, fallbackType, nil
 }
 
 func (c *SDKClient) queryCodesByBatchName(ctx context.Context, campaignID, batchName string) ([]string, error) {
@@ -560,6 +873,23 @@ func isNotFound(err error) bool {
 	return false
 }
 
+// isConflict reports whether err carries HTTP 409. Bootstrap treats
+// conflict as success: the resource being created already exists, which
+// is exactly what we wanted. The conflict body's errorCode (e.g. 30174
+// for stores, 30271 for categories, 36171 for currencies) is consumed as
+// the success signal.
+func isConflict(err error) bool {
+	var se *sdkError
+	if errors.As(err, &se) {
+		return se.status == http.StatusConflict
+	}
+	var ce *ClientError
+	if errors.As(err, &ce) {
+		return ce.StatusCode == http.StatusConflict
+	}
+	return false
+}
+
 // isUnauthorized reports whether err carries HTTP 401. The platform-side
 // TokenRepository never auto-refreshes (see SDKClient docs), so 401 is
 // the only signal we have that the token has expired and re-login is
@@ -637,15 +967,20 @@ func ptrInt32(v int32) *int32    { return &v }
 // a zero-priced item using the configured currency — playtest items are
 // non-purchasable so price is a placeholder to satisfy AGS validation.
 func (c *SDKClient) regionData() map[string][]platformclientmodels.RegionDataItemDTO {
-	if c.regionCurrencyCode == "" {
+	c.mu.RLock()
+	currencyCode := c.regionCurrencyCode
+	currencyType := c.regionCurrencyType
+	regionCode := c.regionCode
+	c.mu.RUnlock()
+	if currencyCode == "" {
 		return nil
 	}
 	zero := int32(0)
 	return map[string][]platformclientmodels.RegionDataItemDTO{
-		c.regionCode: {
+		regionCode: {
 			{
-				CurrencyCode:      ptrString(c.regionCurrencyCode),
-				CurrencyType:      ptrString(c.regionCurrencyType),
+				CurrencyCode:      ptrString(currencyCode),
+				CurrencyType:      ptrString(currencyType),
 				CurrencyNamespace: ptrString(c.namespace),
 				Price:             &zero,
 			},

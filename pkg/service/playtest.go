@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -66,6 +67,17 @@ type PlaytesthubServiceServer struct {
 	agsCodeBatchSize int
 	logger           *slog.Logger
 	namespace        string
+
+	// agsBootstrap gates AGS namespace bootstrap (M2 phase 16) so the
+	// Store + Category + Currency check runs at most once per process
+	// after the first success. A failed first attempt is retried on the
+	// next AGS_CAMPAIGN create rather than caching the failure: a
+	// transient AGS hiccup at boot would otherwise wedge every
+	// subsequent create until restart.
+	agsBootstrap struct {
+		mu   sync.Mutex
+		done bool
+	}
 }
 
 // NewPlaytesthubServiceServer wires a service with real repositories.

@@ -24,11 +24,16 @@ type MemClient struct {
 	linkedItems map[string]string
 	codes       map[string][]string
 
+	// bootstrapCalls counts Bootstrap invocations so tests can assert
+	// the service-layer sync.Once gate works as advertised.
+	bootstrapCalls int
+
 	// CreateItemErr / CreateCampaignErr / LinkItemToCampaignErr /
-	// CreateCodesErr / FetchCodesErr / DeleteItemErr / DeleteCampaignErr
-	// force the next call to that method to return the configured error
-	// and consume the slot. Multiple errors per method execute in order
-	// (first call returns the first slot, second call the second, etc.).
+	// CreateCodesErr / FetchCodesErr / DeleteItemErr / DeleteCampaignErr /
+	// BootstrapErr force the next call to that method to return the
+	// configured error and consume the slot. Multiple errors per method
+	// execute in order (first call returns the first slot, second call
+	// the second, etc.).
 	CreateItemErr         []error
 	CreateCampaignErr     []error
 	LinkItemToCampaignErr []error
@@ -36,6 +41,7 @@ type MemClient struct {
 	FetchCodesErr         []error
 	DeleteItemErr         []error
 	DeleteCampaignErr     []error
+	BootstrapErr          []error
 
 	// PartialFulfillment, when set for a campaign id, caps CreateCodes
 	// at the configured count regardless of the requested quantity.
@@ -52,6 +58,25 @@ func NewMemClient() *MemClient {
 		codes:              make(map[string][]string),
 		PartialFulfillment: make(map[string]int),
 	}
+}
+
+// Bootstrap is a no-op against MemClient: there are no AGS-side
+// resources to provision. Every invocation (success or injected error)
+// increments BootstrapCallCount so the service-layer sync.Once gate +
+// retry-on-failure path is asserted in tests.
+func (c *MemClient) Bootstrap(_ context.Context, _ BootstrapParams) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.bootstrapCalls++
+	return pop(&c.BootstrapErr)
+}
+
+// BootstrapCallCount returns how many times Bootstrap has been called
+// (test helper).
+func (c *MemClient) BootstrapCallCount() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.bootstrapCalls
 }
 
 // CreateItem records the spec under a fresh hex id and returns it.

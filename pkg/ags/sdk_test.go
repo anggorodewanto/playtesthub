@@ -4,15 +4,57 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/AccelByte/accelbyte-go-sdk/platform-sdk/pkg/platformclient/campaign"
+	"github.com/AccelByte/accelbyte-go-sdk/platform-sdk/pkg/platformclient/category"
+	"github.com/AccelByte/accelbyte-go-sdk/platform-sdk/pkg/platformclient/currency"
 	"github.com/AccelByte/accelbyte-go-sdk/platform-sdk/pkg/platformclient/item"
+	"github.com/AccelByte/accelbyte-go-sdk/platform-sdk/pkg/platformclient/store"
 	"github.com/AccelByte/accelbyte-go-sdk/platform-sdk/pkg/platformclientmodels"
 
 	"github.com/anggorodewanto/playtesthub/pkg/ags"
 )
+
+// fakeStoreSvc / fakeCategorySvc / fakeCurrencySvc satisfy the new
+// service interfaces SDKClient.Bootstrap depends on.
+type fakeStoreSvc struct {
+	listStores  func(*store.ListStoresParams) ([]*platformclientmodels.StoreInfo, error)
+	createStore func(*store.CreateStoreParams) (*platformclientmodels.StoreInfo, error)
+}
+
+func (f *fakeStoreSvc) ListStoresShort(p *store.ListStoresParams) ([]*platformclientmodels.StoreInfo, error) {
+	return f.listStores(p)
+}
+func (f *fakeStoreSvc) CreateStoreShort(p *store.CreateStoreParams) (*platformclientmodels.StoreInfo, error) {
+	return f.createStore(p)
+}
+
+type fakeCategorySvc struct {
+	getCategory    func(*category.GetCategoryParams) (*platformclientmodels.FullCategoryInfo, error)
+	createCategory func(*category.CreateCategoryParams) (*platformclientmodels.FullCategoryInfo, error)
+}
+
+func (f *fakeCategorySvc) GetCategoryShort(p *category.GetCategoryParams) (*platformclientmodels.FullCategoryInfo, error) {
+	return f.getCategory(p)
+}
+func (f *fakeCategorySvc) CreateCategoryShort(p *category.CreateCategoryParams) (*platformclientmodels.FullCategoryInfo, error) {
+	return f.createCategory(p)
+}
+
+type fakeCurrencySvc struct {
+	listCurrencies func(*currency.ListCurrenciesParams) ([]*platformclientmodels.CurrencyInfo, error)
+	createCurrency func(*currency.CreateCurrencyParams) (*platformclientmodels.CurrencyInfo, error)
+}
+
+func (f *fakeCurrencySvc) ListCurrenciesShort(p *currency.ListCurrenciesParams) ([]*platformclientmodels.CurrencyInfo, error) {
+	return f.listCurrencies(p)
+}
+func (f *fakeCurrencySvc) CreateCurrencyShort(p *currency.CreateCurrencyParams) (*platformclientmodels.CurrencyInfo, error) {
+	return f.createCurrency(p)
+}
 
 // fakeItemSvc + fakeCampaignSvc satisfy the SDK service interfaces
 // without touching the platform runtime. Each method consults a queued
@@ -415,4 +457,209 @@ func TestSDK_CreateItem_401WithoutLoginSurfaces401(t *testing.T) {
 	if !errors.As(err, &carrier) || carrier.HTTPStatus() != 401 {
 		t.Fatalf("expected HTTPStatus()=401, got %v", err)
 	}
+}
+
+// newSDKClientForBootstrap builds an SDKClient with the four prereq
+// services wired and no preset store/currency, so Bootstrap is forced
+// to discover or create.
+func newSDKClientForBootstrap(t *testing.T, storeSvc *fakeStoreSvc, catSvc *fakeCategorySvc, curSvc *fakeCurrencySvc) *ags.SDKClient {
+	t.Helper()
+	return ags.NewSDKClient(ags.SDKClientOptions{
+		Namespace:   "test-ns",
+		ItemSvc:     &fakeItemSvc{},
+		CampaignSvc: &fakeCampaignSvc{},
+		StoreSvc:    storeSvc,
+		CategorySvc: catSvc,
+		CurrencySvc: curSvc,
+	})
+}
+
+func TestSDK_Bootstrap_ReusesExistingStoreAndVirtualCurrency(t *testing.T) {
+	storeSvc := &fakeStoreSvc{
+		listStores: func(*store.ListStoresParams) ([]*platformclientmodels.StoreInfo, error) {
+			return []*platformclientmodels.StoreInfo{
+				{StoreID: ptr("store-existing"), Title: ptr("playtesthub")},
+			}, nil
+		},
+		createStore: func(*store.CreateStoreParams) (*platformclientmodels.StoreInfo, error) {
+			t.Fatal("CreateStore should not be called when an existing store is found")
+			return nil, nil
+		},
+	}
+	catSvc := &fakeCategorySvc{
+		getCategory: func(p *category.GetCategoryParams) (*platformclientmodels.FullCategoryInfo, error) {
+			if p.CategoryPath != "/playtesthub" {
+				t.Fatalf("categoryPath = %q, want /playtesthub", p.CategoryPath)
+			}
+			if p.StoreID == nil || *p.StoreID != "store-existing" {
+				t.Fatalf("storeID = %v, want store-existing", p.StoreID)
+			}
+			return &platformclientmodels.FullCategoryInfo{}, nil
+		},
+		createCategory: func(*category.CreateCategoryParams) (*platformclientmodels.FullCategoryInfo, error) {
+			t.Fatal("CreateCategory should not be called when GetCategory succeeds")
+			return nil, nil
+		},
+	}
+	curSvc := &fakeCurrencySvc{
+		listCurrencies: func(*currency.ListCurrenciesParams) ([]*platformclientmodels.CurrencyInfo, error) {
+			return []*platformclientmodels.CurrencyInfo{
+				{CurrencyCode: ptr("COIN"), CurrencyType: ptr("VIRTUAL")},
+			}, nil
+		},
+		createCurrency: func(*currency.CreateCurrencyParams) (*platformclientmodels.CurrencyInfo, error) {
+			t.Fatal("CreateCurrency should not be called when a VIRTUAL currency exists")
+			return nil, nil
+		},
+	}
+
+	c := newSDKClientForBootstrap(t, storeSvc, catSvc, curSvc)
+	if err := c.Bootstrap(context.Background(), ags.BootstrapParams{}); err != nil {
+		t.Fatalf("Bootstrap: %v", err)
+	}
+}
+
+// 409 on CreateStore (concurrent provisioner won the race) re-lists and
+// reuses the now-present store.
+func TestSDK_Bootstrap_ConflictOnCreateStoreReListsAndReuses(t *testing.T) {
+	listCalls := 0
+	storeSvc := &fakeStoreSvc{
+		listStores: func(*store.ListStoresParams) ([]*platformclientmodels.StoreInfo, error) {
+			listCalls++
+			if listCalls == 1 {
+				return nil, nil // empty: triggers CreateStore
+			}
+			return []*platformclientmodels.StoreInfo{
+				{StoreID: ptr("store-after-conflict"), Title: ptr("playtesthub")},
+			}, nil
+		},
+		createStore: func(*store.CreateStoreParams) (*platformclientmodels.StoreInfo, error) {
+			return nil, sdkBracketErr("POST", "/platform/admin/namespaces/test-ns/stores", 409, "already exists")
+		},
+	}
+	catSvc := &fakeCategorySvc{
+		getCategory: func(*category.GetCategoryParams) (*platformclientmodels.FullCategoryInfo, error) {
+			return &platformclientmodels.FullCategoryInfo{}, nil
+		},
+	}
+	curSvc := &fakeCurrencySvc{
+		listCurrencies: func(*currency.ListCurrenciesParams) ([]*platformclientmodels.CurrencyInfo, error) {
+			return []*platformclientmodels.CurrencyInfo{
+				{CurrencyCode: ptr("COIN"), CurrencyType: ptr("VIRTUAL")},
+			}, nil
+		},
+	}
+
+	c := newSDKClientForBootstrap(t, storeSvc, catSvc, curSvc)
+	if err := c.Bootstrap(context.Background(), ags.BootstrapParams{StoreTitle: "playtesthub"}); err != nil {
+		t.Fatalf("Bootstrap: %v", err)
+	}
+	if listCalls != 2 {
+		t.Fatalf("ListStores call count = %d, want 2 (initial empty + post-conflict re-list)", listCalls)
+	}
+}
+
+// 404 on GetCategory triggers CreateCategory; 409 on CreateCategory is
+// silently treated as success.
+func TestSDK_Bootstrap_404OnGetCategoryCreatesIt(t *testing.T) {
+	created := 0
+	storeSvc := &fakeStoreSvc{
+		listStores: func(*store.ListStoresParams) ([]*platformclientmodels.StoreInfo, error) {
+			return []*platformclientmodels.StoreInfo{{StoreID: ptr("store-A")}}, nil
+		},
+	}
+	catSvc := &fakeCategorySvc{
+		getCategory: func(*category.GetCategoryParams) (*platformclientmodels.FullCategoryInfo, error) {
+			return nil, sdkBracketErr("GET", "/platform/admin/namespaces/test-ns/categories/playtesthub", 404, "not found")
+		},
+		createCategory: func(p *category.CreateCategoryParams) (*platformclientmodels.FullCategoryInfo, error) {
+			created++
+			if p.Body == nil || p.Body.CategoryPath == nil || *p.Body.CategoryPath != "/playtesthub" {
+				t.Fatalf("body categoryPath wrong: %+v", p.Body)
+			}
+			return &platformclientmodels.FullCategoryInfo{}, nil
+		},
+	}
+	curSvc := &fakeCurrencySvc{
+		listCurrencies: func(*currency.ListCurrenciesParams) ([]*platformclientmodels.CurrencyInfo, error) {
+			return []*platformclientmodels.CurrencyInfo{{CurrencyCode: ptr("X"), CurrencyType: ptr("VIRTUAL")}}, nil
+		},
+	}
+
+	c := newSDKClientForBootstrap(t, storeSvc, catSvc, curSvc)
+	if err := c.Bootstrap(context.Background(), ags.BootstrapParams{}); err != nil {
+		t.Fatalf("Bootstrap: %v", err)
+	}
+	if created != 1 {
+		t.Fatalf("CreateCategory calls = %d, want 1", created)
+	}
+}
+
+// No VIRTUAL currency in the namespace → CreateCurrency runs with the
+// fallback code; 409 conflict from another concurrent bootstrap is
+// success.
+func TestSDK_Bootstrap_CreatesFallbackCurrencyWhenAbsent(t *testing.T) {
+	created := 0
+	storeSvc := &fakeStoreSvc{
+		listStores: func(*store.ListStoresParams) ([]*platformclientmodels.StoreInfo, error) {
+			return []*platformclientmodels.StoreInfo{{StoreID: ptr("store-A")}}, nil
+		},
+	}
+	catSvc := &fakeCategorySvc{
+		getCategory: func(*category.GetCategoryParams) (*platformclientmodels.FullCategoryInfo, error) {
+			return &platformclientmodels.FullCategoryInfo{}, nil
+		},
+	}
+	curSvc := &fakeCurrencySvc{
+		listCurrencies: func(*currency.ListCurrenciesParams) ([]*platformclientmodels.CurrencyInfo, error) {
+			// Only a REAL currency exists — Bootstrap must fall through
+			// to creating a VIRTUAL fallback.
+			return []*platformclientmodels.CurrencyInfo{{CurrencyCode: ptr("USD"), CurrencyType: ptr("REAL")}}, nil
+		},
+		createCurrency: func(p *currency.CreateCurrencyParams) (*platformclientmodels.CurrencyInfo, error) {
+			created++
+			if p.Body == nil || p.Body.CurrencyCode == nil || *p.Body.CurrencyCode != "PTHCOIN" {
+				t.Fatalf("currencyCode body = %+v, want PTHCOIN", p.Body)
+			}
+			if p.Body.CurrencyType != "VIRTUAL" {
+				t.Fatalf("currencyType = %q, want VIRTUAL", p.Body.CurrencyType)
+			}
+			// Simulate a racing operator who already created the currency.
+			return nil, sdkBracketErr("POST", "/platform/admin/namespaces/test-ns/currencies", 409, "already exists")
+		},
+	}
+
+	c := newSDKClientForBootstrap(t, storeSvc, catSvc, curSvc)
+	if err := c.Bootstrap(context.Background(), ags.BootstrapParams{
+		FallbackCurrencyCode: "PTHCOIN",
+		FallbackCurrencyType: "VIRTUAL",
+	}); err != nil {
+		t.Fatalf("Bootstrap: %v", err)
+	}
+	if created != 1 {
+		t.Fatalf("CreateCurrency calls = %d, want 1", created)
+	}
+}
+
+// Bootstrap surface error (non-409 / non-404 from any step) propagates
+// to the caller without resolving the resource. Subsequent CreateItem
+// calls fail with the "store id is unresolved" guard.
+func TestSDK_Bootstrap_NonRetryableErrorPropagates(t *testing.T) {
+	storeSvc := &fakeStoreSvc{
+		listStores: func(*store.ListStoresParams) ([]*platformclientmodels.StoreInfo, error) {
+			return nil, sdkBracketErr("GET", "/platform/admin/namespaces/test-ns/stores", 500, "boom")
+		},
+	}
+	c := newSDKClientForBootstrap(t, storeSvc, &fakeCategorySvc{}, &fakeCurrencySvc{})
+	err := c.Bootstrap(context.Background(), ags.BootstrapParams{})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !errMessageContains(err, "bootstrap store") {
+		t.Fatalf("expected error to name failed step, got %v", err)
+	}
+}
+
+func errMessageContains(err error, sub string) bool {
+	return err != nil && strings.Contains(err.Error(), sub)
 }
