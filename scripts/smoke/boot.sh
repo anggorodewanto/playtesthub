@@ -98,6 +98,7 @@ AGS_IAM_CLIENT_ID="smoke-client-id" \
 AGS_IAM_CLIENT_SECRET="smoke-client-secret" \
 AGS_BASE_URL="https://ags.smoke.invalid" \
 AGS_NAMESPACE="smoke" \
+AGS_STORE_ID="" \
 PLUGIN_GRPC_SERVER_AUTH_ENABLED=false \
 LEADER_HEARTBEAT_SECONDS=1 \
 LEADER_LEASE_TTL_SECONDS=5 \
@@ -117,6 +118,14 @@ grpcurl -plaintext -max-time 1 "localhost:$APP_PORT_GRPC" list >/dev/null \
     || { tail -20 /tmp/playtesthub-smoke.log >&2; fail "gRPC did not come up in 30s"; }
 
 # 3. Assertions -------------------------------------------------------------
+log "AGS client wiring branch logged (M2 phase 8.1)"
+# AGS_STORE_ID is empty here so bootapp must select the in-memory
+# MemClient path. A regression that flipped the gate (e.g. wiring the
+# SDK adapter unconditionally) would log the SDK-backed branch instead
+# and fail this assertion.
+grep -q '"msg":"ags client: in-memory' /tmp/playtesthub-smoke.log \
+    || { tail -40 /tmp/playtesthub-smoke.log >&2; fail "expected MemClient branch log line"; }
+
 log "gRPC reflection lists playtesthub.v1.PlaytesthubService"
 grpcurl -plaintext "localhost:$APP_PORT_GRPC" list \
     | grep -q '^playtesthub\.v1\.PlaytesthubService$' \

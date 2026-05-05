@@ -26,6 +26,15 @@ type Config struct {
 	AGSNamespace       string
 	BasePath           string
 
+	// AGSStoreID is the AGS Platform Store id under which playtesthub
+	// creates/deletes Items for the AGS_CAMPAIGN distribution model
+	// (PRD §4.6 / docs/ags-failure-modes.md). Optional: when empty the
+	// backend wires the in-memory ags.MemClient and AGS_CAMPAIGN
+	// playtests are recorded only locally — no real AGS resources are
+	// provisioned. Set this in production deployments to enable real
+	// Item / Campaign / code generation.
+	AGSStoreID string
+
 	// Optional with defaults (PRD §5.9).
 	ReservationTTLSeconds  int
 	ReclaimIntervalSeconds int
@@ -120,6 +129,8 @@ func Load() (*Config, error) {
 	if cfg.RefreshIntervalSeconds, err = getInt("REFRESH_INTERVAL", 600); err != nil {
 		return nil, err
 	}
+
+	cfg.AGSStoreID = os.Getenv("AGS_STORE_ID")
 
 	cfg.LogLevel = getString("LOG_LEVEL", "info")
 	cfg.AuthEnabled = getBool("PLUGIN_GRPC_SERVER_AUTH_ENABLED", true)

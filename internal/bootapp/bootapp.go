@@ -22,6 +22,7 @@ import (
 	"github.com/AccelByte/accelbyte-go-sdk/services-api/pkg/factory"
 	"github.com/AccelByte/accelbyte-go-sdk/services-api/pkg/repository"
 	"github.com/AccelByte/accelbyte-go-sdk/services-api/pkg/service/iam"
+	"github.com/AccelByte/accelbyte-go-sdk/services-api/pkg/service/platform"
 	sdkAuth "github.com/AccelByte/accelbyte-go-sdk/services-api/pkg/utils/auth"
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
 	prometheusGrpc "github.com/grpc-ecosystem/go-grpc-prometheus"
@@ -79,6 +80,13 @@ type Server struct {
 	// Exposed so main.go can run the worker + restart sweep with a
 	// shared instance; the e2e suite's bootapp constructions ignore it.
 	DMQueue *dmqueue.Queue
+
+	// PlatformLogin runs a client-credentials grant against AGS and
+	// seeds the TokenRepository the SDK-backed AGS adapter consumes.
+	// nil when no SDK adapter is wired (AGS_STORE_ID unset or auth
+	// disabled). main.go calls it during boot; the e2e suite ignores
+	// it because tests run AuthEnabled=false.
+	PlatformLogin func() error
 }
 
 // New constructs a Server from opts. It does not Serve; the caller
@@ -133,17 +141,18 @@ func New(ctx context.Context, opts Options) (*Server, error) {
 		grpc.ChainStreamInterceptor(streamInterceptors...),
 	)
 
-	svcServer, dmQueue := buildPlaytesthubServer(opts.Config, opts.DBPool, httpClient, logger)
+	svcServer, dmQueue, platformLogin := buildPlaytesthubServer(opts.Config, opts.DBPool, httpClient, logger)
 	pb.RegisterPlaytesthubServiceServer(grpcSrv, svcServer)
 	reflection.Register(grpcSrv)
 	grpc_health_v1.RegisterHealthServer(grpcSrv, health.NewServer())
 	prometheusGrpc.Register(grpcSrv)
 
 	return &Server{
-		GRPC:     grpcSrv,
-		listener: opts.Listener,
-		logger:   logger,
-		DMQueue:  dmQueue,
+		GRPC:          grpcSrv,
+		listener:      opts.Listener,
+		logger:        logger,
+		DMQueue:       dmQueue,
+		PlatformLogin: platformLogin,
 	}, nil
 }
 
@@ -225,7 +234,7 @@ func buildOAuthService(cfg *config.Config) (iam.OAuth20Service, repository.Confi
 	}, configRepo
 }
 
-func buildPlaytesthubServer(cfg *config.Config, dbPool *pgxpool.Pool, httpClient *http.Client, logger *slog.Logger) (*service.PlaytesthubServiceServer, *dmqueue.Queue) {
+func buildPlaytesthubServer(cfg *config.Config, dbPool *pgxpool.Pool, httpClient *http.Client, logger *slog.Logger) (*service.PlaytesthubServiceServer, *dmqueue.Queue, func() error) {
 	playtestStore := repo.NewPgPlaytestStore(dbPool)
 	applicantStore := repo.NewPgApplicantStore(dbPool)
 	ndaStore := repo.NewPgNDAAcceptanceStore(dbPool)
@@ -239,13 +248,57 @@ func buildPlaytesthubServer(cfg *config.Config, dbPool *pgxpool.Pool, httpClient
 		Namespace:       cfg.AGSNamespace,
 	}, dmqueue.SenderFunc(noopDMSender), applicantStore, auditStore, logger)
 
-	// AGS_CAMPAIGN initial-create wires through pkg/ags (M2 phase 8).
-	// Production wires the SDK-backed adapter once a live ISC namespace
-	// is available (phase 8.1 per docs/ags-failure-modes.md M2 sub-cap
-	// go/no-go matrix); until then bootapp wires the in-memory MemClient
-	// so the boot path + smoke harness exercise the full code path
-	// without an outbound AGS round-trip.
-	agsClient := ags.NewMemClient()
+	// AGS_CAMPAIGN initial-create wires through pkg/ags. The SDK-backed
+	// adapter (phase 8.1) is enabled only when AGS_STORE_ID is set;
+	// otherwise we fall back to the in-memory MemClient so dev/e2e
+	// boots without a live AGS namespace continue to exercise the full
+	// AGS_CAMPAIGN code path with no outbound calls. AuthEnabled is a
+	// secondary gate: SDK calls without an inbound auth surface would
+	// be misleading in tests.
+	var agsClient ags.Client
+	var platformLogin func() error
+	if cfg.AuthEnabled && cfg.AGSStoreID != "" {
+		platformConfigRepo := ags.NewPlatformConfigRepository(cfg.AGSBaseURL, cfg.AGSIAMClientID, cfg.AGSIAMClientSecret)
+		platformClient := factory.NewPlatformClient(platformConfigRepo)
+		// One TokenRepository instance is shared between the OAuth
+		// service that runs LoginClient (seeded by Server.PlatformLogin)
+		// and the Item / Campaign services that consume the token on
+		// each outbound AGS call. The SDK auto-refreshes via
+		// RefreshTokenImpl per the same pattern as buildOAuthService.
+		tokenRepo := sdkAuth.DefaultTokenRepositoryImpl()
+		refreshRepo := &sdkAuth.RefreshTokenImpl{RefreshRate: 0.8, AutoRefresh: true}
+		oauthSvc := iam.OAuth20Service{
+			Client:                 factory.NewIamClient(platformConfigRepo),
+			TokenRepository:        tokenRepo,
+			RefreshTokenRepository: refreshRepo,
+			ConfigRepository:       platformConfigRepo,
+		}
+		itemSvc := &platform.ItemService{
+			Client:           platformClient,
+			ConfigRepository: platformConfigRepo,
+			TokenRepository:  tokenRepo,
+		}
+		campaignSvc := &platform.CampaignService{
+			Client:           platformClient,
+			ConfigRepository: platformConfigRepo,
+			TokenRepository:  tokenRepo,
+		}
+		agsClient = ags.NewSDKClient(ags.SDKClientOptions{
+			Namespace:   cfg.AGSNamespace,
+			StoreID:     cfg.AGSStoreID,
+			ItemSvc:     ags.NewPlatformItemService(itemSvc),
+			CampaignSvc: ags.NewPlatformCampaignService(campaignSvc),
+		})
+		platformLogin = func() error {
+			id := cfg.AGSIAMClientID
+			secret := cfg.AGSIAMClientSecret
+			return oauthSvc.LoginClient(&id, &secret)
+		}
+		logger.Info("ags client: SDK-backed", "namespace", cfg.AGSNamespace, "storeId", cfg.AGSStoreID)
+	} else {
+		agsClient = ags.NewMemClient()
+		logger.Info("ags client: in-memory (set AGS_STORE_ID and enable auth to use the live SDK adapter)")
+	}
 
 	svcServer := service.NewPlaytesthubServiceServer(playtestStore, applicantStore, cfg.AGSNamespace).
 		WithNDAStore(ndaStore).
@@ -264,7 +317,7 @@ func buildPlaytesthubServer(cfg *config.Config, dbPool *pgxpool.Pool, httpClient
 		ClientID:     cfg.AGSIAMClientID,
 		ClientSecret: cfg.AGSIAMClientSecret,
 		HTTPClient:   httpClient,
-	}), dmQueue
+	}), dmQueue, platformLogin
 }
 
 // noopDMSender is the placeholder Sender wired in M2 phase 7. It

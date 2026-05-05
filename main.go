@@ -155,6 +155,18 @@ func main() {
 		}
 	}
 
+	// Seed the platform-side TokenRepository the SDK-backed AGS adapter
+	// consumes. Distinct from the inbound auth login above because that
+	// service owns its own TokenRepository, and the SDK's
+	// DefaultTokenRepositoryImpl returns a fresh instance per call.
+	if server.PlatformLogin != nil {
+		if err := server.PlatformLogin(); err != nil {
+			logger.Error("ags platform login failed", "error", err)
+			os.Exit(1)
+		}
+		logger.Info("ags platform client authenticated")
+	}
+
 	grpcGateway, err := common.NewGateway(ctx, fmt.Sprintf("localhost:%d", grpcServerPort), cfg.BasePath)
 	if err != nil {
 		logger.Error("failed to create gRPC-Gateway", "error", err)

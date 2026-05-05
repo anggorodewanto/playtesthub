@@ -273,6 +273,7 @@ If a test needs a time source, inject a `clock.Clock` (use `benbjohnson/clock` o
 - `make lint-proto` → `buf lint` against the `proto/` tree.
 - `make test` → unit + integration; assumes Docker is running.
 - `make lint` → `golangci-lint run`.
+- **Optional `AGS_STORE_ID`** (M2 phase 8.1): when set on a deployment with `PLUGIN_GRPC_SERVER_AUTH_ENABLED=true`, bootapp wires the SDK-backed AGS adapter (`pkg/ags.SDKClient`) and `CreatePlaytest` provisions a real Item + Campaign + codes in the named store; otherwise bootapp falls back to `pkg/ags.MemClient`. Without `AGS_STORE_ID`, AGS_CAMPAIGN playtests show codes in the playtesthub admin UI but no Item / Campaign / store entries appear in the AGS Admin Portal. The boot-time log line `ags client: SDK-backed` vs `ags client: in-memory` confirms which branch is live.
 
 ### Admin (Extend App UI, in `admin/`)
 - `cp .env.local.example .env.local` once; fill in `VITE_AB_*` values pointing at your AGS namespace + deployed service extension. `extend-helper-cli appui setup-env` can populate these.
