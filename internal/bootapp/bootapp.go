@@ -298,6 +298,12 @@ func buildPlaytesthubServer(cfg *config.Config, dbPool *pgxpool.Pool, httpClient
 			// platform-side token un-refreshed. SDKClient compensates by
 			// calling Login on HTTP 401 and retrying once.
 			Login: platformLogin,
+			// Region pricing — AGS rejects CreateItem without a fully
+			// formed RegionData entry for the store's defaultRegion.
+			// See docs/engineering.md "AGS namespace prerequisites".
+			RegionCurrencyCode: cfg.AGSRegionCurrencyCode,
+			RegionCurrencyType: cfg.AGSRegionCurrencyType,
+			RegionCode:         cfg.AGSRegionCode,
 		})
 		logger.Info("ags client: SDK-backed", "namespace", cfg.AGSNamespace, "storeId", cfg.AGSStoreID)
 	} else {

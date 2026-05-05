@@ -42,6 +42,16 @@ type SDKClient struct {
 	namespace string
 	storeID   string
 
+	// regionCurrencyCode names a currency that exists in `namespace`
+	// (typically VIRTUAL). When non-empty, CreateItem builds a
+	// fully-formed RegionData entry for `regionCode` so AGS's "Default
+	// region required" validation passes. When empty, RegionData is
+	// omitted and the call relies on AGS not enforcing the requirement
+	// for this namespace / store.
+	regionCurrencyCode string
+	regionCurrencyType string
+	regionCode         string
+
 	itemSvc     ItemService
 	campaignSvc CampaignService
 	login       func() error
@@ -76,6 +86,14 @@ type SDKClientOptions struct {
 	// consume. Optional — when nil, 401 responses surface as ClientError
 	// without a retry attempt.
 	Login func() error
+	// RegionCurrencyCode / RegionCurrencyType / RegionCode populate the
+	// RegionData entry CreateItem sends so AGS's "Default region
+	// required" validation passes (errorCode 30022). When
+	// RegionCurrencyCode is empty, CreateItem omits RegionData entirely.
+	// See docs/engineering.md "AGS namespace prerequisites".
+	RegionCurrencyCode string
+	RegionCurrencyType string
+	RegionCode         string
 }
 
 // NewSDKClient constructs an SDKClient. Namespace and StoreID are
@@ -88,12 +106,23 @@ func NewSDKClient(opts SDKClientOptions) *SDKClient {
 	if opts.StoreID == "" {
 		panic("ags.NewSDKClient: StoreID is required")
 	}
+	regionCode := opts.RegionCode
+	if regionCode == "" {
+		regionCode = "US"
+	}
+	regionCurrencyType := opts.RegionCurrencyType
+	if regionCurrencyType == "" {
+		regionCurrencyType = "VIRTUAL"
+	}
 	return &SDKClient{
-		namespace:   opts.Namespace,
-		storeID:     opts.StoreID,
-		itemSvc:     opts.ItemSvc,
-		campaignSvc: opts.CampaignSvc,
-		login:       opts.Login,
+		namespace:          opts.Namespace,
+		storeID:            opts.StoreID,
+		itemSvc:            opts.ItemSvc,
+		campaignSvc:        opts.CampaignSvc,
+		login:              opts.Login,
+		regionCurrencyCode: opts.RegionCurrencyCode,
+		regionCurrencyType: regionCurrencyType,
+		regionCode:         regionCode,
 	}
 }
 
@@ -167,9 +196,7 @@ func (c *SDKClient) CreateItem(ctx context.Context, spec ItemSpec) (string, erro
 		Localizations: map[string]platformclientmodels.Localization{
 			"en": {Title: ptrString(spec.Name), Description: spec.Description},
 		},
-		RegionData: map[string][]platformclientmodels.RegionDataItemDTO{
-			"US": {},
-		},
+		RegionData: c.regionData(),
 	}
 	params := &item.CreateItemParams{
 		Body:      body,
@@ -601,6 +628,30 @@ func (r platformConfigRepo) GetJusticeBaseUrl() string { return r.baseURL }
 
 func ptrString(s string) *string { return &s }
 func ptrInt32(v int32) *int32    { return &v }
+
+// regionData builds the RegionData map CreateItem includes on the body.
+// Returns nil when no currency is configured so the request omits the
+// field entirely (matches docs/engineering.md "AGS namespace
+// prerequisites": pricing currency is optional for namespaces that do
+// not enforce it). When set, returns one entry keyed by regionCode with
+// a zero-priced item using the configured currency — playtest items are
+// non-purchasable so price is a placeholder to satisfy AGS validation.
+func (c *SDKClient) regionData() map[string][]platformclientmodels.RegionDataItemDTO {
+	if c.regionCurrencyCode == "" {
+		return nil
+	}
+	zero := int32(0)
+	return map[string][]platformclientmodels.RegionDataItemDTO{
+		c.regionCode: {
+			{
+				CurrencyCode:      ptrString(c.regionCurrencyCode),
+				CurrencyType:      ptrString(c.regionCurrencyType),
+				CurrencyNamespace: ptrString(c.namespace),
+				Price:             &zero,
+			},
+		},
+	}
+}
 
 // newBatchName returns a unique 32-char-ish batch name AGS will accept
 // (alphanumeric + hyphen, 3..60 chars). Format: "pth-<16-hex>" so logs

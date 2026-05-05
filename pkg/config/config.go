@@ -35,6 +35,23 @@ type Config struct {
 	// Item / Campaign / code generation.
 	AGSStoreID string
 
+	// AGS_CAMPAIGN region pricing — see docs/engineering.md "AGS namespace
+	// prerequisites". AGS rejects CreateItem with errorCode 30022
+	// "Default region [<region>] is required" unless RegionData has a
+	// fully-formed entry for the store's defaultRegion (currencyCode +
+	// currencyType + price), even for non-purchasable CODE items.
+	//
+	// AGSRegionCurrencyCode names a currency that already exists in
+	// AGSNamespace (often a VIRTUAL coin). When unset, items are created
+	// without RegionData — this works only against namespaces / stores
+	// where AGS does not enforce the region requirement.
+	AGSRegionCurrencyCode string
+	// AGSRegionCurrencyType is "VIRTUAL" or "REAL". Defaults to VIRTUAL
+	// since playtest items are never sold.
+	AGSRegionCurrencyType string
+	// AGSRegionCode is the store's defaultRegion. Defaults to "US".
+	AGSRegionCode string
+
 	// Optional with defaults (PRD §5.9).
 	ReservationTTLSeconds  int
 	ReclaimIntervalSeconds int
@@ -131,6 +148,9 @@ func Load() (*Config, error) {
 	}
 
 	cfg.AGSStoreID = os.Getenv("AGS_STORE_ID")
+	cfg.AGSRegionCurrencyCode = os.Getenv("AGS_REGION_CURRENCY_CODE")
+	cfg.AGSRegionCurrencyType = getString("AGS_REGION_CURRENCY_TYPE", "VIRTUAL")
+	cfg.AGSRegionCode = getString("AGS_REGION_CODE", "US")
 
 	cfg.LogLevel = getString("LOG_LEVEL", "info")
 	cfg.AuthEnabled = getBool("PLUGIN_GRPC_SERVER_AUTH_ENABLED", true)

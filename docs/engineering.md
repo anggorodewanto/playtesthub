@@ -275,6 +275,19 @@ If a test needs a time source, inject a `clock.Clock` (use `benbjohnson/clock` o
 - `make lint` → `golangci-lint run`.
 - **Optional `AGS_STORE_ID`** (M2 phase 8.1): when set on a deployment with `PLUGIN_GRPC_SERVER_AUTH_ENABLED=true`, bootapp wires the SDK-backed AGS adapter (`pkg/ags.SDKClient`) and `CreatePlaytest` provisions a real Item + Campaign + codes in the named store; otherwise bootapp falls back to `pkg/ags.MemClient`. Without `AGS_STORE_ID`, AGS_CAMPAIGN playtests show codes in the playtesthub admin UI but no Item / Campaign / store entries appear in the AGS Admin Portal. The boot-time log line `ags client: SDK-backed` vs `ags client: in-memory` confirms which branch is live.
 
+#### AGS namespace prerequisites (one-time per namespace)
+
+The SDK-backed adapter assumes four pieces of state already exist in the AGS namespace pointed at by `AGS_NAMESPACE` / `AGS_STORE_ID`. Without them, `CreatePlaytest` for `AGS_CAMPAIGN` fails on the first AGS round-trip with a non-obvious error code. Provision once via `POST /platform/admin/...` (or the AGS Admin Portal) before the first AGS_CAMPAIGN create.
+
+| Resource | Why it's needed | How to create |
+| --- | --- | --- |
+| **Store** | All Items live under a Store; `AGS_STORE_ID` names it. | `POST /platform/admin/namespaces/{namespace}/stores` with body `{"title":"…","supportedRegions":["US"],"defaultRegion":"US","supportedLanguages":["en"],"defaultLanguage":"en"}` → save the returned `storeId`. |
+| **Category `/playtesthub`** | `SDKClient.CreateItem` hardcodes `categoryPath:"/playtesthub"` so playtest items stay isolated from any other store inventory. AGS rejects items targeting a missing category with HTTP 404 errorCode `30241` "Category [/playtesthub] does not exist". | `POST /platform/admin/namespaces/{namespace}/categories?storeId=<storeId>` with body `{"categoryPath":"/playtesthub","localizationDisplayNames":{"en":"Playtesthub"}}`. |
+| **Currency** (any VIRTUAL coin works) | AGS rejects `CreateItem` with HTTP 400 errorCode `30022` "Default region [<region>] is required" unless RegionData has a fully-formed entry (currencyCode + currencyType + price) for the store's defaultRegion — even for non-purchasable CODE items. | `POST /platform/admin/namespaces/{namespace}/currencies` with body `{"currencyCode":"COIN","currencySymbol":"C","currencyType":"VIRTUAL","decimals":0,"localizationDescriptions":{"en":"…"}}`. Most ISC namespaces already have a `COIN` currency from earlier setup; check `GET /platform/admin/namespaces/{namespace}/currencies` first. |
+| **Env vars on the deployed app** | Tell SDKClient which currency / region to put in `RegionData`. | `AGS_REGION_CURRENCY_CODE=COIN` (or whatever exists in the namespace), optional `AGS_REGION_CURRENCY_TYPE=VIRTUAL`, optional `AGS_REGION_CODE=US`. When `AGS_REGION_CURRENCY_CODE` is unset, SDKClient omits RegionData and the call relies on AGS not enforcing the requirement — works against some namespaces but not the standard ISC ones. |
+
+Verify in this order: store exists → category exists → currency exists → env vars are set on the deployment → bounce the app. The first AGS_CAMPAIGN playtest create after this surfaces a real Item + Campaign + codes under `Commerce → Items` and `Engagement → Campaigns` in the Admin Portal.
+
 ### Admin (Extend App UI, in `admin/`)
 - `cp .env.local.example .env.local` once; fill in `VITE_AB_*` values pointing at your AGS namespace + deployed service extension. `extend-helper-cli appui setup-env` can populate these.
 - `npm install`.
