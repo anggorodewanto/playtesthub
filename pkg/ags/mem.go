@@ -19,19 +19,23 @@ type MemClient struct {
 
 	items     map[string]ItemSpec
 	campaigns map[string]CampaignSpec
-	codes     map[string][]string
+	// linkedItems[campaignID] = itemID set by LinkItemToCampaign, so
+	// tests can verify the link step ran.
+	linkedItems map[string]string
+	codes       map[string][]string
 
-	// CreateItemErr / CreateCampaignErr / CreateCodesErr / FetchCodesErr
-	// / DeleteItemErr / DeleteCampaignErr force the next call to that
-	// method to return the configured error and consume the slot.
-	// Multiple errors per method execute in order (first call returns
-	// the first slot, second call the second, etc.).
-	CreateItemErr     []error
-	CreateCampaignErr []error
-	CreateCodesErr    []error
-	FetchCodesErr     []error
-	DeleteItemErr     []error
-	DeleteCampaignErr []error
+	// CreateItemErr / CreateCampaignErr / LinkItemToCampaignErr /
+	// CreateCodesErr / FetchCodesErr / DeleteItemErr / DeleteCampaignErr
+	// force the next call to that method to return the configured error
+	// and consume the slot. Multiple errors per method execute in order
+	// (first call returns the first slot, second call the second, etc.).
+	CreateItemErr         []error
+	CreateCampaignErr     []error
+	LinkItemToCampaignErr []error
+	CreateCodesErr        []error
+	FetchCodesErr         []error
+	DeleteItemErr         []error
+	DeleteCampaignErr     []error
 
 	// PartialFulfillment, when set for a campaign id, caps CreateCodes
 	// at the configured count regardless of the requested quantity.
@@ -44,6 +48,7 @@ func NewMemClient() *MemClient {
 	return &MemClient{
 		items:              make(map[string]ItemSpec),
 		campaigns:          make(map[string]CampaignSpec),
+		linkedItems:        make(map[string]string),
 		codes:              make(map[string][]string),
 		PartialFulfillment: make(map[string]int),
 	}
@@ -61,19 +66,35 @@ func (c *MemClient) CreateItem(_ context.Context, spec ItemSpec) (string, error)
 	return id, nil
 }
 
-// CreateCampaign records the spec under a fresh hex id.
+// CreateCampaign records the spec under a fresh hex id. The campaign
+// starts empty — tests can call LinkItemToCampaign to attach an Item.
 func (c *MemClient) CreateCampaign(_ context.Context, spec CampaignSpec) (string, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if err := pop(&c.CreateCampaignErr); err != nil {
 		return "", err
 	}
-	if _, ok := c.items[spec.ItemID]; !ok {
-		return "", &ClientError{StatusCode: 400, Op: "CreateCampaign", Message: "item not found: " + spec.ItemID}
-	}
 	id := "camp_" + randHex(8)
 	c.campaigns[id] = spec
 	return id, nil
+}
+
+// LinkItemToCampaign records the (campaignID, itemID) link. Errors when
+// either id is unknown so tests catch ordering regressions.
+func (c *MemClient) LinkItemToCampaign(_ context.Context, campaignID, itemID, _ string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if err := pop(&c.LinkItemToCampaignErr); err != nil {
+		return err
+	}
+	if _, ok := c.campaigns[campaignID]; !ok {
+		return &ClientError{StatusCode: 404, Op: "LinkItemToCampaign", Message: "campaign not found: " + campaignID}
+	}
+	if _, ok := c.items[itemID]; !ok {
+		return &ClientError{StatusCode: 404, Op: "LinkItemToCampaign", Message: "item not found: " + itemID}
+	}
+	c.linkedItems[campaignID] = itemID
+	return nil
 }
 
 // CreateCodes generates `quantity` deterministic-looking values,

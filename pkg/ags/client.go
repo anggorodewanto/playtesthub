@@ -17,15 +17,33 @@ import (
 // Client is the minimum AGS Platform API surface playtesthub needs.
 // Method semantics match docs/PRD.md §4.6 + docs/ags-failure-modes.md;
 // retry + classification policy is the implementation's job.
+//
+// Provisioning order (per AGS validation rules — see CreateItem):
+//
+//	CreateCampaign → CreateItem → LinkItemToCampaign → CreateCodes
+//
+// AGS rejects CODE-type Items whose BoothName does not refer to an
+// existing Campaign, so the Campaign must be created first. The
+// Campaign is then updated to redeem the just-created Item.
 type Client interface {
 	// CreateItem provisions an ENTITLEMENT-type Item under the
 	// configured namespace and returns the AGS-assigned item id
-	// (PRD §4.6 step 2a).
+	// (PRD §4.6 step 2a). The Item's BoothName is set to spec.Name,
+	// which must already exist as a Campaign — call CreateCampaign
+	// first.
 	CreateItem(ctx context.Context, spec ItemSpec) (string, error)
 
-	// CreateCampaign provisions a Campaign referencing itemID and
-	// returns the AGS-assigned campaign id (PRD §4.6 step 2b).
+	// CreateCampaign provisions an empty REDEMPTION campaign and
+	// returns the AGS-assigned campaign id (PRD §4.6 step 2b). The
+	// campaign is created without redeemable items; use
+	// LinkItemToCampaign to attach the Item once it has been created.
 	CreateCampaign(ctx context.Context, spec CampaignSpec) (string, error)
+
+	// LinkItemToCampaign sets the campaign's redeemable Items list to
+	// the single given (itemID, itemName) pair. Required after
+	// CreateItem: codes generated against a campaign with no items
+	// redeem nothing. Idempotent — repeated calls overwrite the list.
+	LinkItemToCampaign(ctx context.Context, campaignID, itemID, itemName string) error
 
 	// CreateCodes asks AGS to generate `quantity` codes against the
 	// campaign and returns the values inline. The implementation is
@@ -58,11 +76,12 @@ type ItemSpec struct {
 	Description string
 }
 
-// CampaignSpec is the input shape for CreateCampaign.
+// CampaignSpec is the input shape for CreateCampaign. The campaign is
+// created empty — items are attached later via LinkItemToCampaign once
+// the Item itself exists.
 type CampaignSpec struct {
 	Name        string
 	Description string
-	ItemID      string
 }
 
 // CodeBatchResult is the output shape of CreateCodes. Codes is the

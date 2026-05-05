@@ -91,15 +91,28 @@ func (s *PlaytesthubServiceServer) createAGSCampaignPlaytest(ctx context.Context
 	agsCtx, cancel := context.WithTimeout(ctx, agsInitialCreateTimeout)
 	defer cancel()
 
-	itemID, err := s.agsCreateItem(agsCtx, draft)
+	// AGS validates a CODE-type Item's BoothName at create time — the
+	// Campaign with that name must already exist. So provisioning is:
+	//   1. CreateCampaign (empty)
+	//   2. CreateItem with BoothName = campaign.Name
+	//   3. LinkItemToCampaign (UpdateCampaign Items=[itemID])
+	//   4. CreateCodes
+	// Cleanup matrix is staged accordingly.
+	campaignID, err := s.agsCreateCampaign(agsCtx, draft)
 	if err != nil {
 		s.recordCampaignCreateFailed(ctx, draft, err, false, false)
 		return nil, mapAGSError(err)
 	}
 
-	campaignID, err := s.agsCreateCampaign(agsCtx, draft, itemID)
+	itemID, err := s.agsCreateItem(agsCtx, draft)
 	if err != nil {
-		cleanupOK := s.cleanupAfterCampaignCreateFailure(ctx, itemID, "")
+		cleanupOK := s.cleanupAfterCampaignCreateFailure(ctx, "", campaignID)
+		s.recordCampaignCreateFailed(ctx, draft, err, true, cleanupOK)
+		return nil, mapAGSError(err)
+	}
+
+	if err := s.agsLinkItemToCampaign(agsCtx, campaignID, itemID, draft.Title); err != nil {
+		cleanupOK := s.cleanupAfterCampaignCreateFailure(ctx, itemID, campaignID)
 		s.recordCampaignCreateFailed(ctx, draft, err, true, cleanupOK)
 		return nil, mapAGSError(err)
 	}
@@ -172,15 +185,15 @@ func (s *PlaytesthubServiceServer) agsCreateItem(ctx context.Context, draft *rep
 	return id, err
 }
 
-// agsCreateCampaign provisions a Campaign referencing itemID.
-func (s *PlaytesthubServiceServer) agsCreateCampaign(ctx context.Context, draft *repo.Playtest, itemID string) (string, error) {
+// agsCreateCampaign provisions an empty REDEMPTION campaign. The Item
+// is attached afterwards via agsLinkItemToCampaign.
+func (s *PlaytesthubServiceServer) agsCreateCampaign(ctx context.Context, draft *repo.Playtest) (string, error) {
 	policy := ags.WithoutRetries()
 	var id string
 	err := policy.Run(ctx, "CreateCampaign", func(attemptCtx context.Context) error {
 		got, callErr := s.agsClient.CreateCampaign(attemptCtx, ags.CampaignSpec{
 			Name:        draft.Title,
 			Description: draft.Description,
-			ItemID:      itemID,
 		})
 		if callErr != nil {
 			return callErr
@@ -189,6 +202,16 @@ func (s *PlaytesthubServiceServer) agsCreateCampaign(ctx context.Context, draft 
 		return nil
 	})
 	return id, err
+}
+
+// agsLinkItemToCampaign attaches itemID as the campaign's redeemable
+// item. AGS rejects code redemption against a campaign with no items,
+// so this step is required before agsCreateCodesBatched.
+func (s *PlaytesthubServiceServer) agsLinkItemToCampaign(ctx context.Context, campaignID, itemID, itemName string) error {
+	policy := ags.WithoutRetries()
+	return policy.Run(ctx, "LinkItemToCampaign", func(attemptCtx context.Context) error {
+		return s.agsClient.LinkItemToCampaign(attemptCtx, campaignID, itemID, itemName)
+	})
 }
 
 // agsCreateCodesBatched walks the requested quantity in batches of

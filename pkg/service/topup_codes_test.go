@@ -21,8 +21,10 @@ import (
 func agsCampaignPlaytest(slug string, mem *ags.MemClient) *repo.Playtest {
 	pt := openPlaytest(slug)
 	pt.DistributionModel = distModelAGSCampaign
-	itemID, _ := mem.CreateItem(context.Background(), ags.ItemSpec{Name: pt.Title})
-	campaignID, _ := mem.CreateCampaign(context.Background(), ags.CampaignSpec{Name: pt.Title, ItemID: itemID})
+	ctx := context.Background()
+	campaignID, _ := mem.CreateCampaign(ctx, ags.CampaignSpec{Name: pt.Title})
+	itemID, _ := mem.CreateItem(ctx, ags.ItemSpec{Name: pt.Title})
+	_ = mem.LinkItemToCampaign(ctx, campaignID, itemID, pt.Title)
 	pt.AGSItemID = &itemID
 	pt.AGSCampaignID = &campaignID
 	return pt

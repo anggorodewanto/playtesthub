@@ -20,12 +20,15 @@ func TestMemClient_HappyPath(t *testing.T) {
 		t.Fatal("expected item to be registered")
 	}
 
-	campaignID, err := c.CreateCampaign(ctx, ags.CampaignSpec{Name: "Demo", ItemID: itemID})
+	campaignID, err := c.CreateCampaign(ctx, ags.CampaignSpec{Name: "Demo"})
 	if err != nil {
 		t.Fatalf("CreateCampaign: %v", err)
 	}
 	if !c.HasCampaign(campaignID) {
 		t.Fatal("expected campaign to be registered")
+	}
+	if err := c.LinkItemToCampaign(ctx, campaignID, itemID, "Demo"); err != nil {
+		t.Fatalf("LinkItemToCampaign: %v", err)
 	}
 
 	res, err := c.CreateCodes(ctx, campaignID, 3)
@@ -49,7 +52,10 @@ func TestMemClient_PartialFulfillment(t *testing.T) {
 	c := ags.NewMemClient()
 	ctx := context.Background()
 	itemID, _ := c.CreateItem(ctx, ags.ItemSpec{Name: "x"})
-	campID, _ := c.CreateCampaign(ctx, ags.CampaignSpec{Name: "x", ItemID: itemID})
+	campID, _ := c.CreateCampaign(ctx, ags.CampaignSpec{Name: "x"})
+	if err := c.LinkItemToCampaign(ctx, campID, itemID, "x"); err != nil {
+		t.Fatalf("LinkItemToCampaign: %v", err)
+	}
 
 	c.PartialFulfillment[campID] = 4
 	res, err := c.CreateCodes(ctx, campID, 10)
@@ -74,11 +80,15 @@ func TestMemClient_InjectedFailures(t *testing.T) {
 	}
 }
 
-func TestMemClient_CampaignWithUnknownItem(t *testing.T) {
+func TestMemClient_LinkItemToCampaign_UnknownIDs(t *testing.T) {
 	c := ags.NewMemClient()
-	_, err := c.CreateCampaign(context.Background(), ags.CampaignSpec{ItemID: "nope"})
-	if !ags.IsClientError(err) {
-		t.Fatalf("expected ClientError, got %v", err)
+	ctx := context.Background()
+	if err := c.LinkItemToCampaign(ctx, "missing-camp", "missing-item", "x"); !ags.IsClientError(err) {
+		t.Fatalf("expected ClientError for missing campaign, got %v", err)
+	}
+	campID, _ := c.CreateCampaign(ctx, ags.CampaignSpec{Name: "x"})
+	if err := c.LinkItemToCampaign(ctx, campID, "missing-item", "x"); !ags.IsClientError(err) {
+		t.Fatalf("expected ClientError for missing item, got %v", err)
 	}
 }
 

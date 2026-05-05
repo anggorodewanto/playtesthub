@@ -187,8 +187,12 @@ func (c *SDKClient) CreateItem(ctx context.Context, spec ItemSpec) (string, erro
 	return *got.ItemID, nil
 }
 
-// CreateCampaign provisions a REDEMPTION campaign that grants exactly
-// one of the supplied item per code (PRD §4.6 step 2b).
+// CreateCampaign provisions an empty REDEMPTION campaign (no
+// redeemable items). The Item is created next with BoothName equal to
+// this campaign's name; LinkItemToCampaign then attaches the item via
+// UpdateCampaign. AGS rejects CODE-type Items whose BoothName is null
+// or refers to a missing Campaign, so the Campaign-first ordering is
+// load-bearing — see Client interface docs.
 func (c *SDKClient) CreateCampaign(ctx context.Context, spec CampaignSpec) (string, error) {
 	body := &platformclientmodels.CampaignCreate{
 		Name:                  ptrString(spec.Name),
@@ -197,9 +201,6 @@ func (c *SDKClient) CreateCampaign(ctx context.Context, spec CampaignSpec) (stri
 		RedeemType:            "ITEM",
 		Status:                "ACTIVE",
 		MaxRedeemCountPerCode: 1,
-		Items: []*platformclientmodels.RedeemableItem{
-			{ItemID: ptrString(spec.ItemID), ItemName: ptrString(spec.Name), Quantity: 1},
-		},
 	}
 	params := &campaign.CreateCampaignParams{
 		Body:      body,
@@ -217,6 +218,43 @@ func (c *SDKClient) CreateCampaign(ctx context.Context, spec CampaignSpec) (stri
 		return "", &ClientError{StatusCode: 500, Op: "CreateCampaign", Message: "AGS returned empty campaign id"}
 	}
 	return *got.ID, nil
+}
+
+// LinkItemToCampaign updates the campaign's redeemable-items list to
+// the single (itemID, itemName) pair. Each redeem grants 1 unit
+// (MaxRedeemCountPerCode=1 is enforced at CreateCampaign time).
+func (c *SDKClient) LinkItemToCampaign(ctx context.Context, campaignID, itemID, itemName string) error {
+	getParams := (&campaign.GetCampaignParams{
+		CampaignID: campaignID,
+		Namespace:  c.namespace,
+	}).WithContext(ctx)
+	existing, err := callWithRelogin(c, "GetCampaign", func() (*platformclientmodels.CampaignInfo, error) {
+		return c.campaignSvc.GetCampaignShort(getParams)
+	})
+	if err != nil {
+		return err
+	}
+	if existing == nil || existing.Name == nil {
+		return &ClientError{StatusCode: 500, Op: "GetCampaign", Message: "AGS returned campaign without name"}
+	}
+	body := &platformclientmodels.CampaignUpdate{
+		Name:   existing.Name,
+		Status: "ACTIVE",
+		Items: []*platformclientmodels.RedeemableItem{
+			{ItemID: ptrString(itemID), ItemName: ptrString(itemName), Quantity: 1},
+		},
+	}
+	updateParams := (&campaign.UpdateCampaignParams{
+		Body:       body,
+		CampaignID: campaignID,
+		Namespace:  c.namespace,
+	}).WithContext(ctx)
+	if _, err := callWithRelogin(c, "UpdateCampaign", func() (*platformclientmodels.CampaignInfo, error) {
+		return c.campaignSvc.UpdateCampaignShort(updateParams)
+	}); err != nil {
+		return err
+	}
+	return nil
 }
 
 // CreateCodes asks AGS to generate `quantity` codes against the

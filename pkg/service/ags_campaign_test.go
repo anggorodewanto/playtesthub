@@ -242,6 +242,11 @@ func (p *partialFulfillClient) CreateCampaign(ctx context.Context, spec ags.Camp
 	return p.mem.CreateCampaign(ctx, spec)
 }
 
+func (p *partialFulfillClient) LinkItemToCampaign(ctx context.Context, campaignID, itemID, itemName string) error {
+	p.ensure()
+	return p.mem.LinkItemToCampaign(ctx, campaignID, itemID, itemName)
+}
+
 func (p *partialFulfillClient) CreateCodes(ctx context.Context, campaignID string, quantity int) (ags.CodeBatchResult, error) {
 	p.ensure()
 	want := min(p.cap, quantity)

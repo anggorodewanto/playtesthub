@@ -236,6 +236,47 @@ func TestSDK_DeleteItem_404IsNoop(t *testing.T) {
 	}
 }
 
+func TestSDK_LinkItemToCampaign_AttachesItemViaUpdate(t *testing.T) {
+	getCalls := 0
+	updateCalls := 0
+	svc := &fakeCampaignSvc{
+		getCampaign: func(p *campaign.GetCampaignParams) (*platformclientmodels.CampaignInfo, error) {
+			getCalls++
+			if p.CampaignID != "camp-1" {
+				t.Fatalf("campaignID = %q, want camp-1", p.CampaignID)
+			}
+			return &platformclientmodels.CampaignInfo{ID: ptr("camp-1"), Name: ptr("Pong")}, nil
+		},
+		updateCampaign: func(p *campaign.UpdateCampaignParams) (*platformclientmodels.CampaignInfo, error) {
+			updateCalls++
+			if p.Body == nil {
+				t.Fatal("body is nil")
+			}
+			if p.Body.Status != "ACTIVE" {
+				t.Fatalf("status = %q, want ACTIVE", p.Body.Status)
+			}
+			if got := len(p.Body.Items); got != 1 {
+				t.Fatalf("items = %d, want 1", got)
+			}
+			it := p.Body.Items[0]
+			if it.ItemID == nil || *it.ItemID != "item-1" {
+				t.Fatalf("itemID = %v, want item-1", it.ItemID)
+			}
+			if it.Quantity != 1 {
+				t.Fatalf("quantity = %d, want 1", it.Quantity)
+			}
+			return &platformclientmodels.CampaignInfo{ID: ptr("camp-1")}, nil
+		},
+	}
+	c := newSDKClient(t, &fakeItemSvc{}, svc)
+	if err := c.LinkItemToCampaign(context.Background(), "camp-1", "item-1", "Pong"); err != nil {
+		t.Fatalf("LinkItemToCampaign: %v", err)
+	}
+	if getCalls != 1 || updateCalls != 1 {
+		t.Fatalf("getCalls=%d updateCalls=%d", getCalls, updateCalls)
+	}
+}
+
 func TestSDK_DeleteCampaign_DeactivatesViaUpdate(t *testing.T) {
 	getCalls := 0
 	updateCalls := 0
