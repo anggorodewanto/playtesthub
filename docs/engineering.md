@@ -102,13 +102,22 @@ playtesthub/
 │   │   ├── survey.go
 │   │   ├── auditlog.go
 │   │   ├── leader.go
+│   │   ├── txrunner.go              # InTx(ctx, fn) wrapper — lets services chain repo calls in one tx without leaking pgx
 │   │   └── *_test.go                # integration tests against testcontainers-postgres
 │   ├── ags/                         # AGS Platform / Campaign API client
 │   ├── iam/                         # IAM JWT validation wrapper around the AGS SDK
 │   ├── discord/                     # Discord bot client (handle lookup + DM send)
 │   ├── dmqueue/                     # in-memory FIFO, circuit breaker, restart sweep
-│   ├── reclaim/                     # leader-elected reclaim job
 │   └── config/                      # env-var parsing, defaults
+├── internal/                        # process-internal subsystems (not importable by other repos)
+│   ├── bootapp/                     # gRPC server construction shared by main.go and e2e suite
+│   └── reclaim/                     # leader-elected reclaim worker
+├── cmd/
+│   └── pth/                         # CLI binary; see docs/cli.md
+├── e2e/                             # top-level e2e suite — boots bootapp + testcontainers-postgres, drives `pth`
+├── scripts/
+│   ├── smoke/                       # bash smoke harness — see §5.1
+│   └── loadtest/                    # perf proof-point harness (PRD §6 / §7)
 ├── admin/                           # Extend App UI (React 19 + Vite + Module Federation remote)
 │   ├── package.json                 # scripts: dev, build, codegen, cg:download, cg:clean-and-generate, test, lint
 │   ├── vite.config.ts               # @module-federation/vite + @tailwindcss/vite + devProxyPlugin
@@ -126,8 +135,6 @@ playtesthub/
 ├── player/                          # Svelte static app (self-hosted, GitHub Pages / Vercel)
 │   ├── public/config.json.example
 │   └── src/
-├── scripts/
-│   └── loadtest/                    # perf proof-point harness (PRD §6 / §7)
 ├── docs/                            # existing — PRD, schema, etc.
 ├── CLAUDE.md
 └── README.md
@@ -137,8 +144,10 @@ Rationale for the boundaries:
 
 - **`pkg/service` vs `pkg/repo`** — service layer is the only thing the gRPC server wires up. Handlers depend on repository interfaces, not concrete types. This is what makes handler-level unit tests fast (mocked repos) while repo tests exercise real SQL.
 - **`pkg/ags`, `pkg/iam`, `pkg/discord`** — one package per external boundary. Each exposes a narrow interface and hides the SDK behind it. Tests mock at the interface; we never mock the SDK types directly.
-- **`pkg/dmqueue`, `pkg/reclaim`** — internal subsystems with their own tests. They receive collaborators (repo, DM client) via interface injection.
-- **No `internal/`** — everything under `pkg/` is private by convention; there is no downstream consumer importing us as a library.
+- **`pkg/dmqueue`, `internal/reclaim`** — background subsystems with their own tests. They receive collaborators (repo, DM client) via interface injection.
+- **`internal/bootapp`** — single source of truth for gRPC server construction (interceptors + service registration + reflection + health + Prometheus). Both `main.go` and the `e2e/` suite call `bootapp.New(...)` so they wire identical servers; e2e gets a free port + an in-process server without duplicating handler-registration logic. main.go owns what e2e doesn't need (grpc-gateway HTTP server, OTEL tracer, swagger UI, signal handling, the reclaim/DM workers).
+- **`pkg/repo/txrunner.go`** — `TxRunner` interface + `PgTxRunner` wrap `*pgxpool.Pool`. Services that need to chain repo calls inside one transaction (approve flow: `Reserve → FencedFinalize → ApproveCAS`; AGS_CAMPAIGN initial-create: `playtest.CreateTx → code.BulkInsertGeneratedTx`) call `txRunner.InTx(ctx, fn)`; the runner commits on nil error and rolls back otherwise. Repo methods that need to participate take a `repo.Querier` (satisfied by both `*pgxpool.Pool` and `pgx.Tx`) so a single method works in or out of a tx without leaking pgx into `pkg/service`.
+- **`internal/`** is the drop zone for code we don't want any future Go consumer to import. `pkg/` is the public Go-import surface (still an internal-by-convention boundary, but exportable if a consumer ever appears).
 
 ---
 
@@ -227,6 +236,21 @@ Every PR must pass, in a single GitHub Actions workflow:
 | Migrations apply | `migrate up` against ephemeral Postgres | catches forward-only violations. |
 
 Perf proof point (500 signups / 10 min, p95 < 3s) is **not** a CI gate — reported per-release in `CHANGELOG.md` from `scripts/loadtest/` (PRD §6 / §7).
+
+### 5.1 Smoke harness (`scripts/smoke/`)
+
+Bash + `grpcurl` + `curl` scripts that exercise the real binary end-to-end. They catch the class of failure unit + integration tests miss by construction: the types compile, the handlers register, but the *binary* doesn't actually boot or route. Every phase that adds user-visible behavior extends the relevant script in the same PR (CLAUDE.md "smoke harness lands with the code that introduces it").
+
+| Script | Target | When to extend |
+| --- | --- | --- |
+| `boot.sh` | Local binary against ephemeral testcontainers-postgres on `:6565`. Asserts: migrations apply, gRPC reflection lists every RPC, `/apidocs/api.json` served, every handler reachable (auth-required RPCs return `Unauthenticated`, never `Unimplemented`), background workers (reclaim, DM queue) emit their startup log lines. | Any new RPC (add a reflection probe + an Unauth/Unimpl probe). Any new background goroutine (probe the startup log line). |
+| `cloud.sh` | Deployed backend over the public grpc-gateway HTTPS surface. Asserts each RPC the gateway routes responds 401 / its representative success/error code. | Any new RPC, any new HTTP path. The deployed gateway is the only place to catch gateway-route registration bugs and cookie-auth interceptor regressions. |
+| `pth.sh` | `cmd/pth/` binary against an ephemeral local backend (boots its own postgres + auth-disabled service on the same `:6565`). Asserts CLI-side flag parsing, dry-run JSON shapes, exit-code mapping, the `describe` golden diff, and (gated on `PTH_E2E_*` env) live login → flow round-trips. | Any new `pth` subcommand (add a dry-run probe + a registry/describe entry). |
+| `player-build.sh` | `player/` Vite build. Runs `npm install && npm run test && npm run build`; asserts bundle shape. | Any change to the Svelte build config or routing surface. |
+| `admin-build.sh` | `admin/` Vite build. Reseeds `swaggers/playtesthub.json` from `gateway/apidocs/api.swagger.json`, runs `cg:clean-and-generate` → eslint → vitest → `vite build`, asserts `dist/remoteEntry.js` + chunks. The codegen-from-local-swagger seed makes this script independent of any deployed AGS namespace, which is why it can run on a clean checkout. | Any change to admin pages, codegen config, or react-query hooks consumed by the UI. |
+| `env.sh` | Sources the env-var contract (`PTH_*` for the CLI smoke, `LEADER_*`/`RESERVATION_*` for fast reclaim ticks) so individual probes don't redeclare them. | Any new env var the smoke flow needs. |
+
+The CLI's `pth flow golden-m1` / `pth flow golden-m2` (composite NDJSON flows) are the canonical e2e checks; smoke probes catch wire-routing failures that flows would surface only via cryptic mid-run errors. Both layers stay.
 
 ---
 
