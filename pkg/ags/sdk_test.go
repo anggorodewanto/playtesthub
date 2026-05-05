@@ -62,6 +62,17 @@ func newSDKClient(t *testing.T, item *fakeItemSvc, camp *fakeCampaignSvc) *ags.S
 	})
 }
 
+func newSDKClientWithLogin(t *testing.T, item *fakeItemSvc, camp *fakeCampaignSvc, login func() error) *ags.SDKClient {
+	t.Helper()
+	return ags.NewSDKClient(ags.SDKClientOptions{
+		Namespace:   "test-ns",
+		StoreID:     "test-store",
+		ItemSvc:     item,
+		CampaignSvc: camp,
+		Login:       login,
+	})
+}
+
 func ptr[T any](v T) *T { return &v }
 
 // sdkBracketErr mimics the SDK typed-response Error format:
@@ -300,5 +311,67 @@ func TestSDK_FetchCodes_PagesUntilShort(t *testing.T) {
 	}
 	if page != 2 {
 		t.Fatalf("expected 2 pages, saw %d", page)
+	}
+}
+
+// TestSDK_CreateItem_401TriggersReloginAndRetry covers the platform-side
+// token-expiry path: AGS returns 401 once, the SDKClient invokes the
+// configured Login closure, and the second call succeeds. Mirrors the
+// production failure mode where the SDK's process-global auto-refresh
+// goroutine is claimed by the inbound auth surface and the platform
+// TokenRepository never gets refreshed on its own.
+func TestSDK_CreateItem_401TriggersReloginAndRetry(t *testing.T) {
+	calls := 0
+	svc := &fakeItemSvc{
+		createItem: func(*item.CreateItemParams) (*platformclientmodels.FullItemInfo, error) {
+			calls++
+			if calls == 1 {
+				return nil, sdkBracketErr("POST", "/platform/items", 401, `{"errorCode":20011,"errorMessage":"token is expired"}`)
+			}
+			return &platformclientmodels.FullItemInfo{ItemID: ptr("item-after-refresh")}, nil
+		},
+	}
+	logins := 0
+	c := newSDKClientWithLogin(t, svc, &fakeCampaignSvc{}, func() error {
+		logins++
+		return nil
+	})
+	got, err := c.CreateItem(context.Background(), ags.ItemSpec{Name: "Pong"})
+	if err != nil {
+		t.Fatalf("CreateItem: %v", err)
+	}
+	if got != "item-after-refresh" {
+		t.Fatalf("got %q, want item-after-refresh", got)
+	}
+	if calls != 2 {
+		t.Fatalf("expected 2 calls (initial + retry), got %d", calls)
+	}
+	if logins != 1 {
+		t.Fatalf("expected 1 login, got %d", logins)
+	}
+}
+
+// TestSDK_CreateItem_401WithoutLoginSurfaces401 checks that when no
+// Login closure is wired (legacy callers / tests), 401 is surfaced
+// without infinite-looping and with the correct status preserved.
+func TestSDK_CreateItem_401WithoutLoginSurfaces401(t *testing.T) {
+	calls := 0
+	svc := &fakeItemSvc{
+		createItem: func(*item.CreateItemParams) (*platformclientmodels.FullItemInfo, error) {
+			calls++
+			return nil, sdkBracketErr("POST", "/platform/items", 401, "expired")
+		},
+	}
+	c := newSDKClient(t, svc, &fakeCampaignSvc{})
+	_, err := c.CreateItem(context.Background(), ags.ItemSpec{Name: "x"})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if calls != 1 {
+		t.Fatalf("expected 1 call (no retry), got %d", calls)
+	}
+	var carrier interface{ HTTPStatus() int }
+	if !errors.As(err, &carrier) || carrier.HTTPStatus() != 401 {
+		t.Fatalf("expected HTTPStatus()=401, got %v", err)
 	}
 }

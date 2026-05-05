@@ -283,17 +283,22 @@ func buildPlaytesthubServer(cfg *config.Config, dbPool *pgxpool.Pool, httpClient
 			ConfigRepository: platformConfigRepo,
 			TokenRepository:  tokenRepo,
 		}
-		agsClient = ags.NewSDKClient(ags.SDKClientOptions{
-			Namespace:   cfg.AGSNamespace,
-			StoreID:     cfg.AGSStoreID,
-			ItemSvc:     ags.NewPlatformItemService(itemSvc),
-			CampaignSvc: ags.NewPlatformCampaignService(campaignSvc),
-		})
 		platformLogin = func() error {
 			id := cfg.AGSIAMClientID
 			secret := cfg.AGSIAMClientSecret
 			return oauthSvc.LoginClient(&id, &secret)
 		}
+		agsClient = ags.NewSDKClient(ags.SDKClientOptions{
+			Namespace:   cfg.AGSNamespace,
+			StoreID:     cfg.AGSStoreID,
+			ItemSvc:     ags.NewPlatformItemService(itemSvc),
+			CampaignSvc: ags.NewPlatformCampaignService(campaignSvc),
+			// SDK's auto-refresh goroutine is process-global (sync.Once)
+			// and the inbound auth surface claims it first, leaving the
+			// platform-side token un-refreshed. SDKClient compensates by
+			// calling Login on HTTP 401 and retrying once.
+			Login: platformLogin,
+		})
 		logger.Info("ags client: SDK-backed", "namespace", cfg.AGSNamespace, "storeId", cfg.AGSStoreID)
 	} else {
 		agsClient = ags.NewMemClient()

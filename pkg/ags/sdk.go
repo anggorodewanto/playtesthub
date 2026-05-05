@@ -30,14 +30,21 @@ import (
 //   - HTTP 5xx / timeout → ErrUnavailable (after retry exhaustion)
 //
 // Token plumbing: each *Service holds the same TokenRepository the
-// bootapp's OAuth20Service.LoginClient seeded, so every SDK call signs
-// with the latest auto-refreshed client-credentials token.
+// bootapp's OAuth20Service.LoginClient seeded. The SDK's background
+// auto-refresh goroutine is process-global (sync.Once) and gets
+// claimed by whichever LoginClient ran first (in our case, the inbound
+// auth surface), so the platform-side TokenRepo is never auto-refreshed.
+// We compensate with a login-on-401 retry: every outbound call that
+// returns HTTP 401 triggers Login() and one retry. Login is supplied by
+// bootapp via SDKClientOptions.Login (closes over the same OAuth20Service
+// and TokenRepository the platform service uses).
 type SDKClient struct {
 	namespace string
 	storeID   string
 
 	itemSvc     ItemService
 	campaignSvc CampaignService
+	login       func() error
 }
 
 // ItemService is the subset of platform.ItemService SDKClient depends
@@ -64,6 +71,11 @@ type SDKClientOptions struct {
 	StoreID     string
 	ItemSvc     ItemService
 	CampaignSvc CampaignService
+	// Login re-runs the client-credentials grant and stores the new
+	// token in the same TokenRepository the Item/Campaign services
+	// consume. Optional — when nil, 401 responses surface as ClientError
+	// without a retry attempt.
+	Login func() error
 }
 
 // NewSDKClient constructs an SDKClient. Namespace and StoreID are
@@ -81,6 +93,7 @@ func NewSDKClient(opts SDKClientOptions) *SDKClient {
 		storeID:     opts.StoreID,
 		itemSvc:     opts.ItemSvc,
 		campaignSvc: opts.CampaignSvc,
+		login:       opts.Login,
 	}
 }
 
@@ -162,9 +175,11 @@ func (c *SDKClient) CreateItem(ctx context.Context, spec ItemSpec) (string, erro
 	}
 	params = params.WithContext(ctx)
 
-	got, err := c.itemSvc.CreateItemShort(params)
+	got, err := callWithRelogin(c, "CreateItem", func() (*platformclientmodels.FullItemInfo, error) {
+		return c.itemSvc.CreateItemShort(params)
+	})
 	if err != nil {
-		return "", wrapSDKError("CreateItem", err)
+		return "", err
 	}
 	if got == nil || got.ItemID == nil {
 		return "", &ClientError{StatusCode: 500, Op: "CreateItem", Message: "AGS returned empty item id"}
@@ -192,9 +207,11 @@ func (c *SDKClient) CreateCampaign(ctx context.Context, spec CampaignSpec) (stri
 	}
 	params = params.WithContext(ctx)
 
-	got, err := c.campaignSvc.CreateCampaignShort(params)
+	got, err := callWithRelogin(c, "CreateCampaign", func() (*platformclientmodels.CampaignInfo, error) {
+		return c.campaignSvc.CreateCampaignShort(params)
+	})
 	if err != nil {
-		return "", wrapSDKError("CreateCampaign", err)
+		return "", err
 	}
 	if got == nil || got.ID == nil {
 		return "", &ClientError{StatusCode: 500, Op: "CreateCampaign", Message: "AGS returned empty campaign id"}
@@ -231,9 +248,11 @@ func (c *SDKClient) CreateCodes(ctx context.Context, campaignID string, quantity
 	}
 	createParams = createParams.WithContext(ctx)
 
-	createRes, err := c.campaignSvc.CreateCodesShort(createParams)
+	createRes, err := callWithRelogin(c, "CreateCodes", func() (*platformclientmodels.CodeCreateResult, error) {
+		return c.campaignSvc.CreateCodesShort(createParams)
+	})
 	if err != nil {
-		return CodeBatchResult{}, wrapSDKError("CreateCodes", err)
+		return CodeBatchResult{}, err
 	}
 	created := 0
 	if createRes != nil && createRes.NumCreated != nil {
@@ -268,9 +287,11 @@ func (c *SDKClient) FetchCodes(ctx context.Context, campaignID string) ([]string
 			Offset:     ptrInt32(offset),
 		}
 		params = params.WithContext(ctx)
-		res, err := c.campaignSvc.QueryCodesShort(params)
+		res, err := callWithRelogin(c, "QueryCodes", func() (*platformclientmodels.CodeInfoPagingSlicedResult, error) {
+			return c.campaignSvc.QueryCodesShort(params)
+		})
 		if err != nil {
-			return nil, wrapSDKError("QueryCodes", err)
+			return nil, err
 		}
 		if res == nil || len(res.Data) == 0 {
 			return out, nil
@@ -300,12 +321,13 @@ func (c *SDKClient) DeleteItem(ctx context.Context, itemID string) error {
 		Force:     &force,
 	}
 	params = params.WithContext(ctx)
-	if err := c.itemSvc.DeleteItemShort(params); err != nil {
-		wrapped := wrapSDKError("DeleteItem", err)
-		if isNotFound(wrapped) {
+	if err := callVoidWithRelogin(c, "DeleteItem", func() error {
+		return c.itemSvc.DeleteItemShort(params)
+	}); err != nil {
+		if isNotFound(err) {
 			return nil
 		}
-		return wrapped
+		return err
 	}
 	return nil
 }
@@ -318,13 +340,14 @@ func (c *SDKClient) DeleteCampaign(ctx context.Context, campaignID string) error
 		CampaignID: campaignID,
 		Namespace:  c.namespace,
 	}).WithContext(ctx)
-	existing, err := c.campaignSvc.GetCampaignShort(getParams)
+	existing, err := callWithRelogin(c, "GetCampaign", func() (*platformclientmodels.CampaignInfo, error) {
+		return c.campaignSvc.GetCampaignShort(getParams)
+	})
 	if err != nil {
-		wrapped := wrapSDKError("GetCampaign", err)
-		if isNotFound(wrapped) {
+		if isNotFound(err) {
 			return nil
 		}
-		return wrapped
+		return err
 	}
 	if existing == nil || existing.Name == nil {
 		return &ClientError{StatusCode: 500, Op: "GetCampaign", Message: "AGS returned campaign without name"}
@@ -339,12 +362,13 @@ func (c *SDKClient) DeleteCampaign(ctx context.Context, campaignID string) error
 		CampaignID: campaignID,
 		Namespace:  c.namespace,
 	}).WithContext(ctx)
-	if _, err := c.campaignSvc.UpdateCampaignShort(updateParams); err != nil {
-		wrapped := wrapSDKError("UpdateCampaign", err)
-		if isNotFound(wrapped) {
+	if _, err := callWithRelogin(c, "UpdateCampaign", func() (*platformclientmodels.CampaignInfo, error) {
+		return c.campaignSvc.UpdateCampaignShort(updateParams)
+	}); err != nil {
+		if isNotFound(err) {
 			return nil
 		}
-		return wrapped
+		return err
 	}
 	return nil
 }
@@ -463,6 +487,55 @@ func isNotFound(err error) bool {
 		return se.status == http.StatusNotFound
 	}
 	return false
+}
+
+// isUnauthorized reports whether err carries HTTP 401. The platform-side
+// TokenRepository never auto-refreshes (see SDKClient docs), so 401 is
+// the only signal we have that the token has expired and re-login is
+// needed.
+func isUnauthorized(err error) bool {
+	var se *sdkError
+	if errors.As(err, &se) {
+		return se.status == http.StatusUnauthorized
+	}
+	var ce *ClientError
+	if errors.As(err, &ce) {
+		return ce.StatusCode == http.StatusUnauthorized
+	}
+	return false
+}
+
+// callWithRelogin runs fn, and if the SDK returns HTTP 401 it triggers
+// SDKClient.login (when set) and retries fn once. The retry is
+// intentionally bounded to one attempt: 401 should clear after a fresh
+// client-credentials grant; any further 401 indicates a credential
+// problem the caller needs to surface.
+func callWithRelogin[T any](c *SDKClient, op string, fn func() (T, error)) (T, error) {
+	got, err := fn()
+	if err == nil {
+		return got, nil
+	}
+	wrapped := wrapSDKError(op, err)
+	if !isUnauthorized(wrapped) || c.login == nil {
+		return got, wrapped
+	}
+	if loginErr := c.login(); loginErr != nil {
+		return got, fmt.Errorf("ags: %s: relogin after 401: %w", op, loginErr)
+	}
+	got, err = fn()
+	if err != nil {
+		return got, wrapSDKError(op, err)
+	}
+	return got, nil
+}
+
+// callVoidWithRelogin is the no-result variant for SDK calls that
+// return only an error (e.g. DeleteItemShort).
+func callVoidWithRelogin(c *SDKClient, op string, fn func() error) error {
+	_, err := callWithRelogin(c, op, func() (struct{}, error) {
+		return struct{}{}, fn()
+	})
+	return err
 }
 
 // NewPlatformConfigRepository is a small bridge so bootapp can construct
