@@ -459,6 +459,129 @@
         ]
       }
     },
+    "/v1/admin/namespaces/{namespace}/playtests/{playtestId}/applicants:retryFailedDms": {
+      "post": {
+        "summary": "Bulk-enqueue every failed-DM applicant for retry (admin; not idempotent)",
+        "description": "Walks every applicant with last_dm_status=FAILED for the playtest and enqueues each through the same DM-queue path as approve, respecting the 10k cap and configured drain rate. Overflowed rows stay FAILED with last_dm_error='dm_queue_overflow' (PRD §5.5).",
+        "operationId": "PlaytesthubService_RetryFailedDms",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1RetryFailedDmsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "playtestId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/PlaytesthubServiceRetryFailedDmsBody"
+            }
+          }
+        ],
+        "tags": [
+          "PlaytesthubService"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v1/admin/namespaces/{namespace}/playtests/{playtestId}/auditLog": {
+      "get": {
+        "summary": "List audit log entries for a playtest (admin; cursor pagination on (createdAt, id))",
+        "description": "actor_filter='system' maps to actorUserId IS NULL per PRD §4.7. action_filter is exact-match on the action string. before_json / after_json carry the JSONB columns verbatim — the client renders the diff.",
+        "operationId": "PlaytesthubService_ListAuditLog",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListAuditLogResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "playtestId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "actorFilter",
+            "description": "Empty → no actor filter. 'system' maps to actorUserId IS NULL per\nPRD §4.7 / §5.7.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "actionFilter",
+            "description": "Empty → no action filter. Otherwise exact-match on the action\nstring (schema.md audit-action catalogue).",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "pageToken",
+            "description": "Opaque cursor; absent → start of stream.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "pageSize",
+            "description": "0 → server default (50). Max 200.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          }
+        ],
+        "tags": [
+          "PlaytesthubService"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
     "/v1/admin/namespaces/{namespace}/playtests/{playtestId}/codes": {
       "get": {
         "summary": "Inspect the code pool for a playtest (admin)",
@@ -655,6 +778,171 @@
         ]
       }
     },
+    "/v1/admin/namespaces/{namespace}/playtests/{playtestId}/survey": {
+      "post": {
+        "summary": "Create the survey for a playtest (admin; first-version only — second call returns AlreadyExists)",
+        "description": "Natural-key on playtest_id. Server mints question UUIDs and multi-choice option UUIDs. Bounds: ≤50 questions, prompt ≤1,000 chars, multi-choice 2–20 options with label ≤200 chars (schema.md §\"Survey entity spec\").",
+        "operationId": "PlaytesthubService_CreateSurvey",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1CreateSurveyResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "playtestId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/PlaytesthubServiceCreateSurveyBody"
+            }
+          }
+        ],
+        "tags": [
+          "PlaytesthubService"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "patch": {
+        "summary": "Edit the survey for a playtest (admin; bumps version each call)",
+        "description": "Always creates a new Survey row with version = previous + 1. Question UUIDs are preserved for kept questions (client passes the existing id) and minted for new ones (id empty). Multi-choice option ids likewise — keeps histogram aggregation keys stable across edits per schema.md.",
+        "operationId": "PlaytesthubService_EditSurvey",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1EditSurveyResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "playtestId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/PlaytesthubServiceEditSurveyBody"
+            }
+          }
+        ],
+        "tags": [
+          "PlaytesthubService"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v1/admin/namespaces/{namespace}/playtests/{playtestId}/survey/responses": {
+      "get": {
+        "summary": "List survey responses for a playtest (admin; cursor pagination on (submittedAt, id))",
+        "description": "Default page_size 50, max 200. Optional survey_id_filter narrows to a single Survey version for per-version aggregate split.",
+        "operationId": "PlaytesthubService_ListSurveyResponses",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListSurveyResponsesResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "playtestId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "surveyIdFilter",
+            "description": "Empty → all versions. Set to a Survey.id to narrow to a single\nversion for per-version aggregate split (PRD §5.6 cross-version\nviewer).",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "pageToken",
+            "description": "Opaque cursor; absent → start of stream.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "pageSize",
+            "description": "0 → server default (50). Max 200.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          }
+        ],
+        "tags": [
+          "PlaytesthubService"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
     "/v1/admin/namespaces/{namespace}/playtests/{playtestId}:transitionStatus": {
       "post": {
         "summary": "Transition a playtest's status (admin; DRAFT→OPEN→CLOSED only)",
@@ -765,6 +1053,88 @@
             "in": "path",
             "required": true,
             "type": "string"
+          }
+        ],
+        "tags": [
+          "PlaytesthubService"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v1/player/playtests/{playtestId}/survey": {
+      "get": {
+        "summary": "Get the current survey for a playtest (authenticated player)",
+        "description": "Returns the version pointed at by Playtest.surveyId. NotFound when the playtest has no survey.",
+        "operationId": "PlaytesthubService_GetSurvey",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetSurveyResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "playtestId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "PlaytesthubService"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v1/player/playtests/{playtestId}/survey:submit": {
+      "post": {
+        "summary": "Submit a one-shot survey response (authenticated player; APPROVED + NDA-current applicants only)",
+        "description": "Natural-key on (playtestId, userId). Second submit returns gRPC AlreadyExists with empty body per errors.md row 31. The server records against the survey_id the client submitted — a concurrent EditSurvey does not invalidate an in-flight submit (PRD §5.6).",
+        "operationId": "PlaytesthubService_SubmitSurveyResponse",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1SubmitSurveyResponseResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "playtestId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/PlaytesthubServiceSubmitSurveyResponseBody"
+            }
           }
         ],
         "tags": [
@@ -1023,6 +1393,19 @@
         }
       }
     },
+    "PlaytesthubServiceCreateSurveyBody": {
+      "type": "object",
+      "properties": {
+        "questions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1SurveyQuestion"
+          },
+          "description": "Ordered question array. Server mints UUIDs for every question +\noption (any client-supplied id is ignored on Create — see EditSurvey\nfor the preserve-on-edit path). Bounds enforced server-side per\nschema.md."
+        }
+      }
+    },
     "PlaytesthubServiceEditPlaytestBody": {
       "type": "object",
       "properties": {
@@ -1058,6 +1441,19 @@
       },
       "description": "EditPlaytestRequest mutable-field whitelist tracks PRD §5.1 L146.\nImmutable fields (slug, namespace path params excluded, status,\ndistribution_model, initial_code_quantity, ags_*, timestamps) are\ndeliberately absent — clients that send them on the JSON body still have\nthem rejected at the handler layer."
     },
+    "PlaytesthubServiceEditSurveyBody": {
+      "type": "object",
+      "properties": {
+        "questions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1SurveyQuestion"
+          },
+          "description": "Ordered question array. For each entry: `id` non-empty → preserve\n(must match an existing question's id on the current version);\n`id` empty → mint a new UUID. Same rule applies to MultiChoiceOption.id.\nThe server bumps version each call."
+        }
+      }
+    },
     "PlaytesthubServiceRejectApplicantBody": {
       "type": "object",
       "properties": {
@@ -1070,6 +1466,9 @@
     "PlaytesthubServiceRetryDMBody": {
       "type": "object"
     },
+    "PlaytesthubServiceRetryFailedDmsBody": {
+      "type": "object"
+    },
     "PlaytesthubServiceSignupBody": {
       "type": "object",
       "properties": {
@@ -1077,6 +1476,22 @@
           "type": "array",
           "items": {
             "$ref": "#/definitions/v1Platform"
+          }
+        }
+      }
+    },
+    "PlaytesthubServiceSubmitSurveyResponseBody": {
+      "type": "object",
+      "properties": {
+        "surveyId": {
+          "type": "string",
+          "description": "The Survey.id (version) the client fetched and is submitting\nagainst. Pinned to defeat mid-fill version race per PRD §5.6."
+        },
+        "answers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1SurveyAnswer"
           }
         }
       }
@@ -1231,6 +1646,37 @@
         }
       }
     },
+    "v1AuditLogEntry": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "namespace": {
+          "type": "string"
+        },
+        "playtestId": {
+          "type": "string"
+        },
+        "actorUserId": {
+          "type": "string"
+        },
+        "action": {
+          "type": "string"
+        },
+        "beforeJson": {
+          "type": "string"
+        },
+        "afterJson": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "description": "AuditLogEntry — one row from the AuditLog table (schema.md §\"AuditLog\ntable\"). before_json / after_json carry the JSONB payload columns\nserialized as opaque JSON strings — the client renders the diff and\nthe wire shape stays stable as schema.md grows new payload variants.\nactor_user_id absent ⇄ actorUserId IS NULL (system-emitted event)."
+    },
     "v1Code": {
       "type": "object",
       "properties": {
@@ -1305,6 +1751,14 @@
         }
       }
     },
+    "v1CreateSurveyResponse": {
+      "type": "object",
+      "properties": {
+        "survey": {
+          "$ref": "#/definitions/v1Survey"
+        }
+      }
+    },
     "v1DistributionModel": {
       "type": "string",
       "enum": [
@@ -1328,6 +1782,14 @@
       "properties": {
         "playtest": {
           "$ref": "#/definitions/v1Playtest"
+        }
+      }
+    },
+    "v1EditSurveyResponse": {
+      "type": "object",
+      "properties": {
+        "survey": {
+          "$ref": "#/definitions/v1Survey"
         }
       }
     },
@@ -1419,6 +1881,14 @@
         }
       }
     },
+    "v1GetSurveyResponse": {
+      "type": "object",
+      "properties": {
+        "survey": {
+          "$ref": "#/definitions/v1Survey"
+        }
+      }
+    },
     "v1ListApplicantsResponse": {
       "type": "object",
       "properties": {
@@ -1427,6 +1897,21 @@
           "items": {
             "type": "object",
             "$ref": "#/definitions/v1Applicant"
+          }
+        },
+        "nextPageToken": {
+          "type": "string"
+        }
+      }
+    },
+    "v1ListAuditLogResponse": {
+      "type": "object",
+      "properties": {
+        "entries": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1AuditLogEntry"
           }
         },
         "nextPageToken": {
@@ -1445,6 +1930,33 @@
           }
         }
       }
+    },
+    "v1ListSurveyResponsesResponse": {
+      "type": "object",
+      "properties": {
+        "responses": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1SurveyResponse"
+          }
+        },
+        "nextPageToken": {
+          "type": "string"
+        }
+      }
+    },
+    "v1MultiChoiceOption": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        }
+      },
+      "description": "MultiChoiceOption — one entry on a multi_choice question. `id` is\nserver-minted on first save and preserved across EditSurvey version\nbumps so histogram aggregation keys stay stable (schema.md §\"Survey\nentity spec\"). On EditSurvey, clients pass the existing `id` for\nkept options and leave it empty for new options."
     },
     "v1NDAAcceptance": {
       "type": "object",
@@ -1663,6 +2175,21 @@
         }
       }
     },
+    "v1RetryFailedDmsResponse": {
+      "type": "object",
+      "properties": {
+        "enqueued": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Number of applicants successfully enqueued onto the DM queue."
+        },
+        "overflow": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Number of applicants whose enqueue was rejected by the queue cap;\nthese stay last_dm_status=FAILED with last_dm_error='dm_queue_overflow'\n(PRD §5.5)."
+        }
+      }
+    },
     "v1SignupResponse": {
       "type": "object",
       "properties": {
@@ -1673,6 +2200,139 @@
     },
     "v1SoftDeletePlaytestResponse": {
       "type": "object"
+    },
+    "v1SubmitSurveyResponseResponse": {
+      "type": "object",
+      "properties": {
+        "response": {
+          "$ref": "#/definitions/v1SurveyResponse"
+        }
+      }
+    },
+    "v1Survey": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "playtestId": {
+          "type": "string"
+        },
+        "version": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "questions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1SurveyQuestion"
+          }
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "description": "Survey — one row per (playtest, version). Editing a survey writes\na new row with version = previous + 1; the prior versions are\nretained so SurveyResponse rows can be aggregated per-version\n(PRD §5.6)."
+    },
+    "v1SurveyAnswer": {
+      "type": "object",
+      "properties": {
+        "questionId": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "rating": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "multiChoice": {
+          "$ref": "#/definitions/v1SurveyMultiChoiceAnswer"
+        }
+      }
+    },
+    "v1SurveyMultiChoiceAnswer": {
+      "type": "object",
+      "properties": {
+        "optionIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "description": "SurveyAnswer — one entry per answered question on a SurveyResponse.\nThe oneof keeps text, rating, and multi-choice payloads typed and\nmutually exclusive. multi_choice carries either one option_id\n(radio) or many (checkbox) — matched to the question's\nallow_multiple flag at submit time."
+    },
+    "v1SurveyQuestion": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "type": {
+          "$ref": "#/definitions/v1SurveyQuestionType"
+        },
+        "prompt": {
+          "type": "string"
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "options": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1MultiChoiceOption"
+          }
+        },
+        "allowMultiple": {
+          "type": "boolean"
+        }
+      },
+      "description": "SurveyQuestion — one entry in a Survey's ordered question array.\n`id` server-minted on first save; preserved across edits for kept\nquestions (clients pass it back), empty for new questions.\n`options` populated only for SURVEY_QUESTION_TYPE_MULTI_CHOICE; the\nserver rejects on save if outside 2–20 entries. `allow_multiple`\ndistinguishes single-select (radio) from multi-select (checkbox)\nrendering on the player side."
+    },
+    "v1SurveyQuestionType": {
+      "type": "string",
+      "enum": [
+        "SURVEY_QUESTION_TYPE_UNSPECIFIED",
+        "SURVEY_QUESTION_TYPE_TEXT",
+        "SURVEY_QUESTION_TYPE_RATING",
+        "SURVEY_QUESTION_TYPE_MULTI_CHOICE"
+      ],
+      "default": "SURVEY_QUESTION_TYPE_UNSPECIFIED",
+      "description": "SurveyQuestionType — discriminator for the typed-question shape.\n`text` (free-text textarea), `rating` (fixed 1–5), `multi_choice`\n(2–20 labelled options)."
+    },
+    "v1SurveyResponse": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "playtestId": {
+          "type": "string"
+        },
+        "userId": {
+          "type": "string"
+        },
+        "surveyId": {
+          "type": "string"
+        },
+        "answers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1SurveyAnswer"
+          }
+        },
+        "submittedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "description": "SurveyResponse — one row per (playtest, user). UNIQUE(playtestId,\nuserId) at the DB level enforces one-shot semantics regardless of\nsurvey version bumps (schema.md §\"Survey entity spec\"). `survey_id`\npins the Survey row (version) the client fetched and submitted\nagainst."
     },
     "v1SyncFromAGSResponse": {
       "type": "object",

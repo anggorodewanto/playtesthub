@@ -339,6 +339,61 @@ func (CodeState) EnumDescriptor() ([]byte, []int) {
 	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{5}
 }
 
+// SurveyQuestionType — discriminator for the typed-question shape.
+// `text` (free-text textarea), `rating` (fixed 1–5), `multi_choice`
+// (2–20 labelled options).
+type SurveyQuestionType int32
+
+const (
+	SurveyQuestionType_SURVEY_QUESTION_TYPE_UNSPECIFIED  SurveyQuestionType = 0
+	SurveyQuestionType_SURVEY_QUESTION_TYPE_TEXT         SurveyQuestionType = 1
+	SurveyQuestionType_SURVEY_QUESTION_TYPE_RATING       SurveyQuestionType = 2
+	SurveyQuestionType_SURVEY_QUESTION_TYPE_MULTI_CHOICE SurveyQuestionType = 3
+)
+
+// Enum value maps for SurveyQuestionType.
+var (
+	SurveyQuestionType_name = map[int32]string{
+		0: "SURVEY_QUESTION_TYPE_UNSPECIFIED",
+		1: "SURVEY_QUESTION_TYPE_TEXT",
+		2: "SURVEY_QUESTION_TYPE_RATING",
+		3: "SURVEY_QUESTION_TYPE_MULTI_CHOICE",
+	}
+	SurveyQuestionType_value = map[string]int32{
+		"SURVEY_QUESTION_TYPE_UNSPECIFIED":  0,
+		"SURVEY_QUESTION_TYPE_TEXT":         1,
+		"SURVEY_QUESTION_TYPE_RATING":       2,
+		"SURVEY_QUESTION_TYPE_MULTI_CHOICE": 3,
+	}
+)
+
+func (x SurveyQuestionType) Enum() *SurveyQuestionType {
+	p := new(SurveyQuestionType)
+	*p = x
+	return p
+}
+
+func (x SurveyQuestionType) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (SurveyQuestionType) Descriptor() protoreflect.EnumDescriptor {
+	return file_playtesthub_v1_playtesthub_proto_enumTypes[6].Descriptor()
+}
+
+func (SurveyQuestionType) Type() protoreflect.EnumType {
+	return &file_playtesthub_v1_playtesthub_proto_enumTypes[6]
+}
+
+func (x SurveyQuestionType) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use SurveyQuestionType.Descriptor instead.
+func (SurveyQuestionType) EnumDescriptor() ([]byte, []int) {
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{6}
+}
+
 // Playtest is the full admin-visible entity. Field semantics: PRD §5.1.
 type Playtest struct {
 	state                 protoimpl.MessageState `protogen:"open.v1"`
@@ -1178,6 +1233,583 @@ func (x *CodePoolStats) GetGranted() int32 {
 	return 0
 }
 
+// MultiChoiceOption — one entry on a multi_choice question. `id` is
+// server-minted on first save and preserved across EditSurvey version
+// bumps so histogram aggregation keys stay stable (schema.md §"Survey
+// entity spec"). On EditSurvey, clients pass the existing `id` for
+// kept options and leave it empty for new options.
+type MultiChoiceOption struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Label         string                 `protobuf:"bytes,2,opt,name=label,proto3" json:"label,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MultiChoiceOption) Reset() {
+	*x = MultiChoiceOption{}
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MultiChoiceOption) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MultiChoiceOption) ProtoMessage() {}
+
+func (x *MultiChoiceOption) ProtoReflect() protoreflect.Message {
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MultiChoiceOption.ProtoReflect.Descriptor instead.
+func (*MultiChoiceOption) Descriptor() ([]byte, []int) {
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *MultiChoiceOption) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *MultiChoiceOption) GetLabel() string {
+	if x != nil {
+		return x.Label
+	}
+	return ""
+}
+
+// SurveyQuestion — one entry in a Survey's ordered question array.
+// `id` server-minted on first save; preserved across edits for kept
+// questions (clients pass it back), empty for new questions.
+// `options` populated only for SURVEY_QUESTION_TYPE_MULTI_CHOICE; the
+// server rejects on save if outside 2–20 entries. `allow_multiple`
+// distinguishes single-select (radio) from multi-select (checkbox)
+// rendering on the player side.
+type SurveyQuestion struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Type          SurveyQuestionType     `protobuf:"varint,2,opt,name=type,proto3,enum=playtesthub.v1.SurveyQuestionType" json:"type,omitempty"`
+	Prompt        string                 `protobuf:"bytes,3,opt,name=prompt,proto3" json:"prompt,omitempty"`
+	Required      bool                   `protobuf:"varint,4,opt,name=required,proto3" json:"required,omitempty"`
+	Options       []*MultiChoiceOption   `protobuf:"bytes,5,rep,name=options,proto3" json:"options,omitempty"`
+	AllowMultiple bool                   `protobuf:"varint,6,opt,name=allow_multiple,json=allowMultiple,proto3" json:"allow_multiple,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SurveyQuestion) Reset() {
+	*x = SurveyQuestion{}
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SurveyQuestion) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SurveyQuestion) ProtoMessage() {}
+
+func (x *SurveyQuestion) ProtoReflect() protoreflect.Message {
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SurveyQuestion.ProtoReflect.Descriptor instead.
+func (*SurveyQuestion) Descriptor() ([]byte, []int) {
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *SurveyQuestion) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *SurveyQuestion) GetType() SurveyQuestionType {
+	if x != nil {
+		return x.Type
+	}
+	return SurveyQuestionType_SURVEY_QUESTION_TYPE_UNSPECIFIED
+}
+
+func (x *SurveyQuestion) GetPrompt() string {
+	if x != nil {
+		return x.Prompt
+	}
+	return ""
+}
+
+func (x *SurveyQuestion) GetRequired() bool {
+	if x != nil {
+		return x.Required
+	}
+	return false
+}
+
+func (x *SurveyQuestion) GetOptions() []*MultiChoiceOption {
+	if x != nil {
+		return x.Options
+	}
+	return nil
+}
+
+func (x *SurveyQuestion) GetAllowMultiple() bool {
+	if x != nil {
+		return x.AllowMultiple
+	}
+	return false
+}
+
+// Survey — one row per (playtest, version). Editing a survey writes
+// a new row with version = previous + 1; the prior versions are
+// retained so SurveyResponse rows can be aggregated per-version
+// (PRD §5.6).
+type Survey struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	PlaytestId    string                 `protobuf:"bytes,2,opt,name=playtest_id,json=playtestId,proto3" json:"playtest_id,omitempty"`
+	Version       int32                  `protobuf:"varint,3,opt,name=version,proto3" json:"version,omitempty"`
+	Questions     []*SurveyQuestion      `protobuf:"bytes,4,rep,name=questions,proto3" json:"questions,omitempty"`
+	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Survey) Reset() {
+	*x = Survey{}
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Survey) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Survey) ProtoMessage() {}
+
+func (x *Survey) ProtoReflect() protoreflect.Message {
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Survey.ProtoReflect.Descriptor instead.
+func (*Survey) Descriptor() ([]byte, []int) {
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *Survey) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *Survey) GetPlaytestId() string {
+	if x != nil {
+		return x.PlaytestId
+	}
+	return ""
+}
+
+func (x *Survey) GetVersion() int32 {
+	if x != nil {
+		return x.Version
+	}
+	return 0
+}
+
+func (x *Survey) GetQuestions() []*SurveyQuestion {
+	if x != nil {
+		return x.Questions
+	}
+	return nil
+}
+
+func (x *Survey) GetCreatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return nil
+}
+
+// SurveyAnswer — one entry per answered question on a SurveyResponse.
+// The oneof keeps text, rating, and multi-choice payloads typed and
+// mutually exclusive. multi_choice carries either one option_id
+// (radio) or many (checkbox) — matched to the question's
+// allow_multiple flag at submit time.
+type SurveyMultiChoiceAnswer struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	OptionIds     []string               `protobuf:"bytes,1,rep,name=option_ids,json=optionIds,proto3" json:"option_ids,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SurveyMultiChoiceAnswer) Reset() {
+	*x = SurveyMultiChoiceAnswer{}
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SurveyMultiChoiceAnswer) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SurveyMultiChoiceAnswer) ProtoMessage() {}
+
+func (x *SurveyMultiChoiceAnswer) ProtoReflect() protoreflect.Message {
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SurveyMultiChoiceAnswer.ProtoReflect.Descriptor instead.
+func (*SurveyMultiChoiceAnswer) Descriptor() ([]byte, []int) {
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *SurveyMultiChoiceAnswer) GetOptionIds() []string {
+	if x != nil {
+		return x.OptionIds
+	}
+	return nil
+}
+
+type SurveyAnswer struct {
+	state      protoimpl.MessageState `protogen:"open.v1"`
+	QuestionId string                 `protobuf:"bytes,1,opt,name=question_id,json=questionId,proto3" json:"question_id,omitempty"`
+	// Types that are valid to be assigned to Value:
+	//
+	//	*SurveyAnswer_Text
+	//	*SurveyAnswer_Rating
+	//	*SurveyAnswer_MultiChoice
+	Value         isSurveyAnswer_Value `protobuf_oneof:"value"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SurveyAnswer) Reset() {
+	*x = SurveyAnswer{}
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SurveyAnswer) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SurveyAnswer) ProtoMessage() {}
+
+func (x *SurveyAnswer) ProtoReflect() protoreflect.Message {
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SurveyAnswer.ProtoReflect.Descriptor instead.
+func (*SurveyAnswer) Descriptor() ([]byte, []int) {
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *SurveyAnswer) GetQuestionId() string {
+	if x != nil {
+		return x.QuestionId
+	}
+	return ""
+}
+
+func (x *SurveyAnswer) GetValue() isSurveyAnswer_Value {
+	if x != nil {
+		return x.Value
+	}
+	return nil
+}
+
+func (x *SurveyAnswer) GetText() string {
+	if x != nil {
+		if x, ok := x.Value.(*SurveyAnswer_Text); ok {
+			return x.Text
+		}
+	}
+	return ""
+}
+
+func (x *SurveyAnswer) GetRating() int32 {
+	if x != nil {
+		if x, ok := x.Value.(*SurveyAnswer_Rating); ok {
+			return x.Rating
+		}
+	}
+	return 0
+}
+
+func (x *SurveyAnswer) GetMultiChoice() *SurveyMultiChoiceAnswer {
+	if x != nil {
+		if x, ok := x.Value.(*SurveyAnswer_MultiChoice); ok {
+			return x.MultiChoice
+		}
+	}
+	return nil
+}
+
+type isSurveyAnswer_Value interface {
+	isSurveyAnswer_Value()
+}
+
+type SurveyAnswer_Text struct {
+	Text string `protobuf:"bytes,2,opt,name=text,proto3,oneof"`
+}
+
+type SurveyAnswer_Rating struct {
+	Rating int32 `protobuf:"varint,3,opt,name=rating,proto3,oneof"`
+}
+
+type SurveyAnswer_MultiChoice struct {
+	MultiChoice *SurveyMultiChoiceAnswer `protobuf:"bytes,4,opt,name=multi_choice,json=multiChoice,proto3,oneof"`
+}
+
+func (*SurveyAnswer_Text) isSurveyAnswer_Value() {}
+
+func (*SurveyAnswer_Rating) isSurveyAnswer_Value() {}
+
+func (*SurveyAnswer_MultiChoice) isSurveyAnswer_Value() {}
+
+// SurveyResponse — one row per (playtest, user). UNIQUE(playtestId,
+// userId) at the DB level enforces one-shot semantics regardless of
+// survey version bumps (schema.md §"Survey entity spec"). `survey_id`
+// pins the Survey row (version) the client fetched and submitted
+// against.
+type SurveyResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	PlaytestId    string                 `protobuf:"bytes,2,opt,name=playtest_id,json=playtestId,proto3" json:"playtest_id,omitempty"`
+	UserId        string                 `protobuf:"bytes,3,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	SurveyId      string                 `protobuf:"bytes,4,opt,name=survey_id,json=surveyId,proto3" json:"survey_id,omitempty"`
+	Answers       []*SurveyAnswer        `protobuf:"bytes,5,rep,name=answers,proto3" json:"answers,omitempty"`
+	SubmittedAt   *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=submitted_at,json=submittedAt,proto3" json:"submitted_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SurveyResponse) Reset() {
+	*x = SurveyResponse{}
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SurveyResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SurveyResponse) ProtoMessage() {}
+
+func (x *SurveyResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SurveyResponse.ProtoReflect.Descriptor instead.
+func (*SurveyResponse) Descriptor() ([]byte, []int) {
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *SurveyResponse) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *SurveyResponse) GetPlaytestId() string {
+	if x != nil {
+		return x.PlaytestId
+	}
+	return ""
+}
+
+func (x *SurveyResponse) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *SurveyResponse) GetSurveyId() string {
+	if x != nil {
+		return x.SurveyId
+	}
+	return ""
+}
+
+func (x *SurveyResponse) GetAnswers() []*SurveyAnswer {
+	if x != nil {
+		return x.Answers
+	}
+	return nil
+}
+
+func (x *SurveyResponse) GetSubmittedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.SubmittedAt
+	}
+	return nil
+}
+
+// AuditLogEntry — one row from the AuditLog table (schema.md §"AuditLog
+// table"). before_json / after_json carry the JSONB payload columns
+// serialized as opaque JSON strings — the client renders the diff and
+// the wire shape stays stable as schema.md grows new payload variants.
+// actor_user_id absent ⇄ actorUserId IS NULL (system-emitted event).
+type AuditLogEntry struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Namespace     string                 `protobuf:"bytes,2,opt,name=namespace,proto3" json:"namespace,omitempty"`
+	PlaytestId    *string                `protobuf:"bytes,3,opt,name=playtest_id,json=playtestId,proto3,oneof" json:"playtest_id,omitempty"`
+	ActorUserId   *string                `protobuf:"bytes,4,opt,name=actor_user_id,json=actorUserId,proto3,oneof" json:"actor_user_id,omitempty"`
+	Action        string                 `protobuf:"bytes,5,opt,name=action,proto3" json:"action,omitempty"`
+	BeforeJson    string                 `protobuf:"bytes,6,opt,name=before_json,json=beforeJson,proto3" json:"before_json,omitempty"`
+	AfterJson     string                 `protobuf:"bytes,7,opt,name=after_json,json=afterJson,proto3" json:"after_json,omitempty"`
+	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AuditLogEntry) Reset() {
+	*x = AuditLogEntry{}
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AuditLogEntry) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AuditLogEntry) ProtoMessage() {}
+
+func (x *AuditLogEntry) ProtoReflect() protoreflect.Message {
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AuditLogEntry.ProtoReflect.Descriptor instead.
+func (*AuditLogEntry) Descriptor() ([]byte, []int) {
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *AuditLogEntry) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *AuditLogEntry) GetNamespace() string {
+	if x != nil {
+		return x.Namespace
+	}
+	return ""
+}
+
+func (x *AuditLogEntry) GetPlaytestId() string {
+	if x != nil && x.PlaytestId != nil {
+		return *x.PlaytestId
+	}
+	return ""
+}
+
+func (x *AuditLogEntry) GetActorUserId() string {
+	if x != nil && x.ActorUserId != nil {
+		return *x.ActorUserId
+	}
+	return ""
+}
+
+func (x *AuditLogEntry) GetAction() string {
+	if x != nil {
+		return x.Action
+	}
+	return ""
+}
+
+func (x *AuditLogEntry) GetBeforeJson() string {
+	if x != nil {
+		return x.BeforeJson
+	}
+	return ""
+}
+
+func (x *AuditLogEntry) GetAfterJson() string {
+	if x != nil {
+		return x.AfterJson
+	}
+	return ""
+}
+
+func (x *AuditLogEntry) GetCreatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return nil
+}
+
 type GetPublicPlaytestRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Slug          string                 `protobuf:"bytes,1,opt,name=slug,proto3" json:"slug,omitempty"`
@@ -1187,7 +1819,7 @@ type GetPublicPlaytestRequest struct {
 
 func (x *GetPublicPlaytestRequest) Reset() {
 	*x = GetPublicPlaytestRequest{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[7]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1199,7 +1831,7 @@ func (x *GetPublicPlaytestRequest) String() string {
 func (*GetPublicPlaytestRequest) ProtoMessage() {}
 
 func (x *GetPublicPlaytestRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[7]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1212,7 +1844,7 @@ func (x *GetPublicPlaytestRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetPublicPlaytestRequest.ProtoReflect.Descriptor instead.
 func (*GetPublicPlaytestRequest) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{7}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *GetPublicPlaytestRequest) GetSlug() string {
@@ -1231,7 +1863,7 @@ type GetPublicPlaytestResponse struct {
 
 func (x *GetPublicPlaytestResponse) Reset() {
 	*x = GetPublicPlaytestResponse{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[8]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1243,7 +1875,7 @@ func (x *GetPublicPlaytestResponse) String() string {
 func (*GetPublicPlaytestResponse) ProtoMessage() {}
 
 func (x *GetPublicPlaytestResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[8]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1256,7 +1888,7 @@ func (x *GetPublicPlaytestResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetPublicPlaytestResponse.ProtoReflect.Descriptor instead.
 func (*GetPublicPlaytestResponse) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{8}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *GetPublicPlaytestResponse) GetPlaytest() *PublicPlaytest {
@@ -1275,7 +1907,7 @@ type GetPlaytestForPlayerRequest struct {
 
 func (x *GetPlaytestForPlayerRequest) Reset() {
 	*x = GetPlaytestForPlayerRequest{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[9]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1287,7 +1919,7 @@ func (x *GetPlaytestForPlayerRequest) String() string {
 func (*GetPlaytestForPlayerRequest) ProtoMessage() {}
 
 func (x *GetPlaytestForPlayerRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[9]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1300,7 +1932,7 @@ func (x *GetPlaytestForPlayerRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetPlaytestForPlayerRequest.ProtoReflect.Descriptor instead.
 func (*GetPlaytestForPlayerRequest) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{9}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *GetPlaytestForPlayerRequest) GetSlug() string {
@@ -1319,7 +1951,7 @@ type GetPlaytestForPlayerResponse struct {
 
 func (x *GetPlaytestForPlayerResponse) Reset() {
 	*x = GetPlaytestForPlayerResponse{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[10]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1331,7 +1963,7 @@ func (x *GetPlaytestForPlayerResponse) String() string {
 func (*GetPlaytestForPlayerResponse) ProtoMessage() {}
 
 func (x *GetPlaytestForPlayerResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[10]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1344,7 +1976,7 @@ func (x *GetPlaytestForPlayerResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetPlaytestForPlayerResponse.ProtoReflect.Descriptor instead.
 func (*GetPlaytestForPlayerResponse) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{10}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *GetPlaytestForPlayerResponse) GetPlaytest() *PlayerPlaytest {
@@ -1364,7 +1996,7 @@ type AdminGetPlaytestRequest struct {
 
 func (x *AdminGetPlaytestRequest) Reset() {
 	*x = AdminGetPlaytestRequest{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[11]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1376,7 +2008,7 @@ func (x *AdminGetPlaytestRequest) String() string {
 func (*AdminGetPlaytestRequest) ProtoMessage() {}
 
 func (x *AdminGetPlaytestRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[11]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1389,7 +2021,7 @@ func (x *AdminGetPlaytestRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AdminGetPlaytestRequest.ProtoReflect.Descriptor instead.
 func (*AdminGetPlaytestRequest) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{11}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *AdminGetPlaytestRequest) GetNamespace() string {
@@ -1415,7 +2047,7 @@ type AdminGetPlaytestResponse struct {
 
 func (x *AdminGetPlaytestResponse) Reset() {
 	*x = AdminGetPlaytestResponse{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[12]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1427,7 +2059,7 @@ func (x *AdminGetPlaytestResponse) String() string {
 func (*AdminGetPlaytestResponse) ProtoMessage() {}
 
 func (x *AdminGetPlaytestResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[12]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1440,7 +2072,7 @@ func (x *AdminGetPlaytestResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AdminGetPlaytestResponse.ProtoReflect.Descriptor instead.
 func (*AdminGetPlaytestResponse) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{12}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *AdminGetPlaytestResponse) GetPlaytest() *Playtest {
@@ -1459,7 +2091,7 @@ type ListPlaytestsRequest struct {
 
 func (x *ListPlaytestsRequest) Reset() {
 	*x = ListPlaytestsRequest{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[13]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1471,7 +2103,7 @@ func (x *ListPlaytestsRequest) String() string {
 func (*ListPlaytestsRequest) ProtoMessage() {}
 
 func (x *ListPlaytestsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[13]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1484,7 +2116,7 @@ func (x *ListPlaytestsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListPlaytestsRequest.ProtoReflect.Descriptor instead.
 func (*ListPlaytestsRequest) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{13}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *ListPlaytestsRequest) GetNamespace() string {
@@ -1503,7 +2135,7 @@ type ListPlaytestsResponse struct {
 
 func (x *ListPlaytestsResponse) Reset() {
 	*x = ListPlaytestsResponse{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[14]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1515,7 +2147,7 @@ func (x *ListPlaytestsResponse) String() string {
 func (*ListPlaytestsResponse) ProtoMessage() {}
 
 func (x *ListPlaytestsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[14]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1528,7 +2160,7 @@ func (x *ListPlaytestsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListPlaytestsResponse.ProtoReflect.Descriptor instead.
 func (*ListPlaytestsResponse) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{14}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *ListPlaytestsResponse) GetPlaytests() []*Playtest {
@@ -1558,7 +2190,7 @@ type CreatePlaytestRequest struct {
 
 func (x *CreatePlaytestRequest) Reset() {
 	*x = CreatePlaytestRequest{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[15]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1570,7 +2202,7 @@ func (x *CreatePlaytestRequest) String() string {
 func (*CreatePlaytestRequest) ProtoMessage() {}
 
 func (x *CreatePlaytestRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[15]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1583,7 +2215,7 @@ func (x *CreatePlaytestRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreatePlaytestRequest.ProtoReflect.Descriptor instead.
 func (*CreatePlaytestRequest) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{15}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *CreatePlaytestRequest) GetNamespace() string {
@@ -1679,7 +2311,7 @@ type CreatePlaytestResponse struct {
 
 func (x *CreatePlaytestResponse) Reset() {
 	*x = CreatePlaytestResponse{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[16]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1691,7 +2323,7 @@ func (x *CreatePlaytestResponse) String() string {
 func (*CreatePlaytestResponse) ProtoMessage() {}
 
 func (x *CreatePlaytestResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[16]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1704,7 +2336,7 @@ func (x *CreatePlaytestResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreatePlaytestResponse.ProtoReflect.Descriptor instead.
 func (*CreatePlaytestResponse) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{16}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *CreatePlaytestResponse) GetPlaytest() *Playtest {
@@ -1737,7 +2369,7 @@ type EditPlaytestRequest struct {
 
 func (x *EditPlaytestRequest) Reset() {
 	*x = EditPlaytestRequest{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[17]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1749,7 +2381,7 @@ func (x *EditPlaytestRequest) String() string {
 func (*EditPlaytestRequest) ProtoMessage() {}
 
 func (x *EditPlaytestRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[17]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1762,7 +2394,7 @@ func (x *EditPlaytestRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EditPlaytestRequest.ProtoReflect.Descriptor instead.
 func (*EditPlaytestRequest) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{17}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *EditPlaytestRequest) GetNamespace() string {
@@ -1844,7 +2476,7 @@ type EditPlaytestResponse struct {
 
 func (x *EditPlaytestResponse) Reset() {
 	*x = EditPlaytestResponse{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[18]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1856,7 +2488,7 @@ func (x *EditPlaytestResponse) String() string {
 func (*EditPlaytestResponse) ProtoMessage() {}
 
 func (x *EditPlaytestResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[18]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1869,7 +2501,7 @@ func (x *EditPlaytestResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EditPlaytestResponse.ProtoReflect.Descriptor instead.
 func (*EditPlaytestResponse) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{18}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *EditPlaytestResponse) GetPlaytest() *Playtest {
@@ -1889,7 +2521,7 @@ type SoftDeletePlaytestRequest struct {
 
 func (x *SoftDeletePlaytestRequest) Reset() {
 	*x = SoftDeletePlaytestRequest{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[19]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1901,7 +2533,7 @@ func (x *SoftDeletePlaytestRequest) String() string {
 func (*SoftDeletePlaytestRequest) ProtoMessage() {}
 
 func (x *SoftDeletePlaytestRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[19]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1914,7 +2546,7 @@ func (x *SoftDeletePlaytestRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SoftDeletePlaytestRequest.ProtoReflect.Descriptor instead.
 func (*SoftDeletePlaytestRequest) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{19}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *SoftDeletePlaytestRequest) GetNamespace() string {
@@ -1939,7 +2571,7 @@ type SoftDeletePlaytestResponse struct {
 
 func (x *SoftDeletePlaytestResponse) Reset() {
 	*x = SoftDeletePlaytestResponse{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[20]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1951,7 +2583,7 @@ func (x *SoftDeletePlaytestResponse) String() string {
 func (*SoftDeletePlaytestResponse) ProtoMessage() {}
 
 func (x *SoftDeletePlaytestResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[20]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1964,7 +2596,7 @@ func (x *SoftDeletePlaytestResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SoftDeletePlaytestResponse.ProtoReflect.Descriptor instead.
 func (*SoftDeletePlaytestResponse) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{20}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{27}
 }
 
 type TransitionPlaytestStatusRequest struct {
@@ -1978,7 +2610,7 @@ type TransitionPlaytestStatusRequest struct {
 
 func (x *TransitionPlaytestStatusRequest) Reset() {
 	*x = TransitionPlaytestStatusRequest{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[21]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1990,7 +2622,7 @@ func (x *TransitionPlaytestStatusRequest) String() string {
 func (*TransitionPlaytestStatusRequest) ProtoMessage() {}
 
 func (x *TransitionPlaytestStatusRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[21]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2003,7 +2635,7 @@ func (x *TransitionPlaytestStatusRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TransitionPlaytestStatusRequest.ProtoReflect.Descriptor instead.
 func (*TransitionPlaytestStatusRequest) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{21}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *TransitionPlaytestStatusRequest) GetNamespace() string {
@@ -2036,7 +2668,7 @@ type TransitionPlaytestStatusResponse struct {
 
 func (x *TransitionPlaytestStatusResponse) Reset() {
 	*x = TransitionPlaytestStatusResponse{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[22]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2048,7 +2680,7 @@ func (x *TransitionPlaytestStatusResponse) String() string {
 func (*TransitionPlaytestStatusResponse) ProtoMessage() {}
 
 func (x *TransitionPlaytestStatusResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[22]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2061,7 +2693,7 @@ func (x *TransitionPlaytestStatusResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TransitionPlaytestStatusResponse.ProtoReflect.Descriptor instead.
 func (*TransitionPlaytestStatusResponse) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{22}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *TransitionPlaytestStatusResponse) GetPlaytest() *Playtest {
@@ -2081,7 +2713,7 @@ type SignupRequest struct {
 
 func (x *SignupRequest) Reset() {
 	*x = SignupRequest{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[23]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2093,7 +2725,7 @@ func (x *SignupRequest) String() string {
 func (*SignupRequest) ProtoMessage() {}
 
 func (x *SignupRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[23]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2106,7 +2738,7 @@ func (x *SignupRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SignupRequest.ProtoReflect.Descriptor instead.
 func (*SignupRequest) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{23}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *SignupRequest) GetSlug() string {
@@ -2132,7 +2764,7 @@ type SignupResponse struct {
 
 func (x *SignupResponse) Reset() {
 	*x = SignupResponse{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[24]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2144,7 +2776,7 @@ func (x *SignupResponse) String() string {
 func (*SignupResponse) ProtoMessage() {}
 
 func (x *SignupResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[24]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2157,7 +2789,7 @@ func (x *SignupResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SignupResponse.ProtoReflect.Descriptor instead.
 func (*SignupResponse) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{24}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *SignupResponse) GetApplicant() *Applicant {
@@ -2176,7 +2808,7 @@ type GetApplicantStatusRequest struct {
 
 func (x *GetApplicantStatusRequest) Reset() {
 	*x = GetApplicantStatusRequest{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[25]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2188,7 +2820,7 @@ func (x *GetApplicantStatusRequest) String() string {
 func (*GetApplicantStatusRequest) ProtoMessage() {}
 
 func (x *GetApplicantStatusRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[25]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2201,7 +2833,7 @@ func (x *GetApplicantStatusRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetApplicantStatusRequest.ProtoReflect.Descriptor instead.
 func (*GetApplicantStatusRequest) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{25}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *GetApplicantStatusRequest) GetSlug() string {
@@ -2220,7 +2852,7 @@ type GetApplicantStatusResponse struct {
 
 func (x *GetApplicantStatusResponse) Reset() {
 	*x = GetApplicantStatusResponse{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[26]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2232,7 +2864,7 @@ func (x *GetApplicantStatusResponse) String() string {
 func (*GetApplicantStatusResponse) ProtoMessage() {}
 
 func (x *GetApplicantStatusResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[26]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2245,7 +2877,7 @@ func (x *GetApplicantStatusResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetApplicantStatusResponse.ProtoReflect.Descriptor instead.
 func (*GetApplicantStatusResponse) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{26}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *GetApplicantStatusResponse) GetApplicant() *Applicant {
@@ -2274,7 +2906,7 @@ type ExchangeDiscordCodeRequest struct {
 
 func (x *ExchangeDiscordCodeRequest) Reset() {
 	*x = ExchangeDiscordCodeRequest{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[27]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2286,7 +2918,7 @@ func (x *ExchangeDiscordCodeRequest) String() string {
 func (*ExchangeDiscordCodeRequest) ProtoMessage() {}
 
 func (x *ExchangeDiscordCodeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[27]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2299,7 +2931,7 @@ func (x *ExchangeDiscordCodeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExchangeDiscordCodeRequest.ProtoReflect.Descriptor instead.
 func (*ExchangeDiscordCodeRequest) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{27}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *ExchangeDiscordCodeRequest) GetCode() string {
@@ -2333,7 +2965,7 @@ type ExchangeDiscordCodeResponse struct {
 
 func (x *ExchangeDiscordCodeResponse) Reset() {
 	*x = ExchangeDiscordCodeResponse{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[28]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2345,7 +2977,7 @@ func (x *ExchangeDiscordCodeResponse) String() string {
 func (*ExchangeDiscordCodeResponse) ProtoMessage() {}
 
 func (x *ExchangeDiscordCodeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[28]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2358,7 +2990,7 @@ func (x *ExchangeDiscordCodeResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExchangeDiscordCodeResponse.ProtoReflect.Descriptor instead.
 func (*ExchangeDiscordCodeResponse) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{28}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *ExchangeDiscordCodeResponse) GetAccessToken() string {
@@ -2398,7 +3030,7 @@ type AcceptNDARequest struct {
 
 func (x *AcceptNDARequest) Reset() {
 	*x = AcceptNDARequest{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[29]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2410,7 +3042,7 @@ func (x *AcceptNDARequest) String() string {
 func (*AcceptNDARequest) ProtoMessage() {}
 
 func (x *AcceptNDARequest) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[29]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2423,7 +3055,7 @@ func (x *AcceptNDARequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AcceptNDARequest.ProtoReflect.Descriptor instead.
 func (*AcceptNDARequest) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{29}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *AcceptNDARequest) GetPlaytestId() string {
@@ -2442,7 +3074,7 @@ type AcceptNDAResponse struct {
 
 func (x *AcceptNDAResponse) Reset() {
 	*x = AcceptNDAResponse{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[30]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2454,7 +3086,7 @@ func (x *AcceptNDAResponse) String() string {
 func (*AcceptNDAResponse) ProtoMessage() {}
 
 func (x *AcceptNDAResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[30]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2467,7 +3099,7 @@ func (x *AcceptNDAResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AcceptNDAResponse.ProtoReflect.Descriptor instead.
 func (*AcceptNDAResponse) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{30}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *AcceptNDAResponse) GetAcceptance() *NDAAcceptance {
@@ -2486,7 +3118,7 @@ type GetGrantedCodeRequest struct {
 
 func (x *GetGrantedCodeRequest) Reset() {
 	*x = GetGrantedCodeRequest{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[31]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2498,7 +3130,7 @@ func (x *GetGrantedCodeRequest) String() string {
 func (*GetGrantedCodeRequest) ProtoMessage() {}
 
 func (x *GetGrantedCodeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[31]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2511,7 +3143,7 @@ func (x *GetGrantedCodeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetGrantedCodeRequest.ProtoReflect.Descriptor instead.
 func (*GetGrantedCodeRequest) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{31}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *GetGrantedCodeRequest) GetPlaytestId() string {
@@ -2534,7 +3166,7 @@ type GetGrantedCodeResponse struct {
 
 func (x *GetGrantedCodeResponse) Reset() {
 	*x = GetGrantedCodeResponse{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[32]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2546,7 +3178,7 @@ func (x *GetGrantedCodeResponse) String() string {
 func (*GetGrantedCodeResponse) ProtoMessage() {}
 
 func (x *GetGrantedCodeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[32]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2559,7 +3191,7 @@ func (x *GetGrantedCodeResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetGrantedCodeResponse.ProtoReflect.Descriptor instead.
 func (*GetGrantedCodeResponse) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{32}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *GetGrantedCodeResponse) GetValue() string {
@@ -2594,7 +3226,7 @@ type ListApplicantsRequest struct {
 
 func (x *ListApplicantsRequest) Reset() {
 	*x = ListApplicantsRequest{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[33]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2606,7 +3238,7 @@ func (x *ListApplicantsRequest) String() string {
 func (*ListApplicantsRequest) ProtoMessage() {}
 
 func (x *ListApplicantsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[33]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2619,7 +3251,7 @@ func (x *ListApplicantsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListApplicantsRequest.ProtoReflect.Descriptor instead.
 func (*ListApplicantsRequest) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{33}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{40}
 }
 
 func (x *ListApplicantsRequest) GetNamespace() string {
@@ -2674,7 +3306,7 @@ type ListApplicantsResponse struct {
 
 func (x *ListApplicantsResponse) Reset() {
 	*x = ListApplicantsResponse{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[34]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2686,7 +3318,7 @@ func (x *ListApplicantsResponse) String() string {
 func (*ListApplicantsResponse) ProtoMessage() {}
 
 func (x *ListApplicantsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[34]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2699,7 +3331,7 @@ func (x *ListApplicantsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListApplicantsResponse.ProtoReflect.Descriptor instead.
 func (*ListApplicantsResponse) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{34}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{41}
 }
 
 func (x *ListApplicantsResponse) GetApplicants() []*Applicant {
@@ -2726,7 +3358,7 @@ type ApproveApplicantRequest struct {
 
 func (x *ApproveApplicantRequest) Reset() {
 	*x = ApproveApplicantRequest{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[35]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2738,7 +3370,7 @@ func (x *ApproveApplicantRequest) String() string {
 func (*ApproveApplicantRequest) ProtoMessage() {}
 
 func (x *ApproveApplicantRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[35]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2751,7 +3383,7 @@ func (x *ApproveApplicantRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ApproveApplicantRequest.ProtoReflect.Descriptor instead.
 func (*ApproveApplicantRequest) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{35}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{42}
 }
 
 func (x *ApproveApplicantRequest) GetNamespace() string {
@@ -2777,7 +3409,7 @@ type ApproveApplicantResponse struct {
 
 func (x *ApproveApplicantResponse) Reset() {
 	*x = ApproveApplicantResponse{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[36]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2789,7 +3421,7 @@ func (x *ApproveApplicantResponse) String() string {
 func (*ApproveApplicantResponse) ProtoMessage() {}
 
 func (x *ApproveApplicantResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[36]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2802,7 +3434,7 @@ func (x *ApproveApplicantResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ApproveApplicantResponse.ProtoReflect.Descriptor instead.
 func (*ApproveApplicantResponse) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{36}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{43}
 }
 
 func (x *ApproveApplicantResponse) GetApplicant() *Applicant {
@@ -2824,7 +3456,7 @@ type RejectApplicantRequest struct {
 
 func (x *RejectApplicantRequest) Reset() {
 	*x = RejectApplicantRequest{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[37]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2836,7 +3468,7 @@ func (x *RejectApplicantRequest) String() string {
 func (*RejectApplicantRequest) ProtoMessage() {}
 
 func (x *RejectApplicantRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[37]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2849,7 +3481,7 @@ func (x *RejectApplicantRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RejectApplicantRequest.ProtoReflect.Descriptor instead.
 func (*RejectApplicantRequest) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{37}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{44}
 }
 
 func (x *RejectApplicantRequest) GetNamespace() string {
@@ -2882,7 +3514,7 @@ type RejectApplicantResponse struct {
 
 func (x *RejectApplicantResponse) Reset() {
 	*x = RejectApplicantResponse{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[38]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2894,7 +3526,7 @@ func (x *RejectApplicantResponse) String() string {
 func (*RejectApplicantResponse) ProtoMessage() {}
 
 func (x *RejectApplicantResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[38]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2907,7 +3539,7 @@ func (x *RejectApplicantResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RejectApplicantResponse.ProtoReflect.Descriptor instead.
 func (*RejectApplicantResponse) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{38}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{45}
 }
 
 func (x *RejectApplicantResponse) GetApplicant() *Applicant {
@@ -2927,7 +3559,7 @@ type RetryDMRequest struct {
 
 func (x *RetryDMRequest) Reset() {
 	*x = RetryDMRequest{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[39]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[46]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2939,7 +3571,7 @@ func (x *RetryDMRequest) String() string {
 func (*RetryDMRequest) ProtoMessage() {}
 
 func (x *RetryDMRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[39]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[46]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2952,7 +3584,7 @@ func (x *RetryDMRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RetryDMRequest.ProtoReflect.Descriptor instead.
 func (*RetryDMRequest) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{39}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{46}
 }
 
 func (x *RetryDMRequest) GetNamespace() string {
@@ -2978,7 +3610,7 @@ type RetryDMResponse struct {
 
 func (x *RetryDMResponse) Reset() {
 	*x = RetryDMResponse{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[40]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[47]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2990,7 +3622,7 @@ func (x *RetryDMResponse) String() string {
 func (*RetryDMResponse) ProtoMessage() {}
 
 func (x *RetryDMResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[40]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[47]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3003,7 +3635,7 @@ func (x *RetryDMResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RetryDMResponse.ProtoReflect.Descriptor instead.
 func (*RetryDMResponse) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{40}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{47}
 }
 
 func (x *RetryDMResponse) GetApplicant() *Applicant {
@@ -3030,7 +3662,7 @@ type UploadCodesRequest struct {
 
 func (x *UploadCodesRequest) Reset() {
 	*x = UploadCodesRequest{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[41]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[48]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3042,7 +3674,7 @@ func (x *UploadCodesRequest) String() string {
 func (*UploadCodesRequest) ProtoMessage() {}
 
 func (x *UploadCodesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[41]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[48]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3055,7 +3687,7 @@ func (x *UploadCodesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UploadCodesRequest.ProtoReflect.Descriptor instead.
 func (*UploadCodesRequest) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{41}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{48}
 }
 
 func (x *UploadCodesRequest) GetNamespace() string {
@@ -3102,7 +3734,7 @@ type UploadCodesRejection struct {
 
 func (x *UploadCodesRejection) Reset() {
 	*x = UploadCodesRejection{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[42]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[49]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3114,7 +3746,7 @@ func (x *UploadCodesRejection) String() string {
 func (*UploadCodesRejection) ProtoMessage() {}
 
 func (x *UploadCodesRejection) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[42]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[49]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3127,7 +3759,7 @@ func (x *UploadCodesRejection) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UploadCodesRejection.ProtoReflect.Descriptor instead.
 func (*UploadCodesRejection) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{42}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{49}
 }
 
 func (x *UploadCodesRejection) GetLineNumber() int32 {
@@ -3163,7 +3795,7 @@ type UploadCodesResponse struct {
 
 func (x *UploadCodesResponse) Reset() {
 	*x = UploadCodesResponse{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[43]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[50]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3175,7 +3807,7 @@ func (x *UploadCodesResponse) String() string {
 func (*UploadCodesResponse) ProtoMessage() {}
 
 func (x *UploadCodesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[43]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[50]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3188,7 +3820,7 @@ func (x *UploadCodesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UploadCodesResponse.ProtoReflect.Descriptor instead.
 func (*UploadCodesResponse) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{43}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{50}
 }
 
 func (x *UploadCodesResponse) GetInserted() int32 {
@@ -3217,7 +3849,7 @@ type TopUpCodesRequest struct {
 
 func (x *TopUpCodesRequest) Reset() {
 	*x = TopUpCodesRequest{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[44]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[51]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3229,7 +3861,7 @@ func (x *TopUpCodesRequest) String() string {
 func (*TopUpCodesRequest) ProtoMessage() {}
 
 func (x *TopUpCodesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[44]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[51]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3242,7 +3874,7 @@ func (x *TopUpCodesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TopUpCodesRequest.ProtoReflect.Descriptor instead.
 func (*TopUpCodesRequest) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{44}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{51}
 }
 
 func (x *TopUpCodesRequest) GetNamespace() string {
@@ -3278,7 +3910,7 @@ type TopUpCodesResponse struct {
 
 func (x *TopUpCodesResponse) Reset() {
 	*x = TopUpCodesResponse{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[45]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[52]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3290,7 +3922,7 @@ func (x *TopUpCodesResponse) String() string {
 func (*TopUpCodesResponse) ProtoMessage() {}
 
 func (x *TopUpCodesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[45]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[52]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3303,7 +3935,7 @@ func (x *TopUpCodesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TopUpCodesResponse.ProtoReflect.Descriptor instead.
 func (*TopUpCodesResponse) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{45}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{52}
 }
 
 func (x *TopUpCodesResponse) GetPool() *CodePoolStats {
@@ -3330,7 +3962,7 @@ type SyncFromAGSRequest struct {
 
 func (x *SyncFromAGSRequest) Reset() {
 	*x = SyncFromAGSRequest{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[46]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[53]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3342,7 +3974,7 @@ func (x *SyncFromAGSRequest) String() string {
 func (*SyncFromAGSRequest) ProtoMessage() {}
 
 func (x *SyncFromAGSRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[46]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[53]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3355,7 +3987,7 @@ func (x *SyncFromAGSRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SyncFromAGSRequest.ProtoReflect.Descriptor instead.
 func (*SyncFromAGSRequest) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{46}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{53}
 }
 
 func (x *SyncFromAGSRequest) GetNamespace() string {
@@ -3384,7 +4016,7 @@ type SyncFromAGSResponse struct {
 
 func (x *SyncFromAGSResponse) Reset() {
 	*x = SyncFromAGSResponse{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[47]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[54]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3396,7 +4028,7 @@ func (x *SyncFromAGSResponse) String() string {
 func (*SyncFromAGSResponse) ProtoMessage() {}
 
 func (x *SyncFromAGSResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[47]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[54]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3409,7 +4041,7 @@ func (x *SyncFromAGSResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SyncFromAGSResponse.ProtoReflect.Descriptor instead.
 func (*SyncFromAGSResponse) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{47}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{54}
 }
 
 func (x *SyncFromAGSResponse) GetPool() *CodePoolStats {
@@ -3436,7 +4068,7 @@ type GetCodePoolRequest struct {
 
 func (x *GetCodePoolRequest) Reset() {
 	*x = GetCodePoolRequest{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[48]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[55]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3448,7 +4080,7 @@ func (x *GetCodePoolRequest) String() string {
 func (*GetCodePoolRequest) ProtoMessage() {}
 
 func (x *GetCodePoolRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[48]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[55]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3461,7 +4093,7 @@ func (x *GetCodePoolRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetCodePoolRequest.ProtoReflect.Descriptor instead.
 func (*GetCodePoolRequest) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{48}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{55}
 }
 
 func (x *GetCodePoolRequest) GetNamespace() string {
@@ -3490,7 +4122,7 @@ type GetCodePoolResponse struct {
 
 func (x *GetCodePoolResponse) Reset() {
 	*x = GetCodePoolResponse{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[49]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[56]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3502,7 +4134,7 @@ func (x *GetCodePoolResponse) String() string {
 func (*GetCodePoolResponse) ProtoMessage() {}
 
 func (x *GetCodePoolResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[49]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[56]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3515,7 +4147,7 @@ func (x *GetCodePoolResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetCodePoolResponse.ProtoReflect.Descriptor instead.
 func (*GetCodePoolResponse) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{49}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{56}
 }
 
 func (x *GetCodePoolResponse) GetStats() *CodePoolStats {
@@ -3530,6 +4162,799 @@ func (x *GetCodePoolResponse) GetCodes() []*Code {
 		return x.Codes
 	}
 	return nil
+}
+
+type CreateSurveyRequest struct {
+	state      protoimpl.MessageState `protogen:"open.v1"`
+	Namespace  string                 `protobuf:"bytes,1,opt,name=namespace,proto3" json:"namespace,omitempty"`
+	PlaytestId string                 `protobuf:"bytes,2,opt,name=playtest_id,json=playtestId,proto3" json:"playtest_id,omitempty"`
+	// Ordered question array. Server mints UUIDs for every question +
+	// option (any client-supplied id is ignored on Create — see EditSurvey
+	// for the preserve-on-edit path). Bounds enforced server-side per
+	// schema.md.
+	Questions     []*SurveyQuestion `protobuf:"bytes,3,rep,name=questions,proto3" json:"questions,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateSurveyRequest) Reset() {
+	*x = CreateSurveyRequest{}
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[57]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateSurveyRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateSurveyRequest) ProtoMessage() {}
+
+func (x *CreateSurveyRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[57]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateSurveyRequest.ProtoReflect.Descriptor instead.
+func (*CreateSurveyRequest) Descriptor() ([]byte, []int) {
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{57}
+}
+
+func (x *CreateSurveyRequest) GetNamespace() string {
+	if x != nil {
+		return x.Namespace
+	}
+	return ""
+}
+
+func (x *CreateSurveyRequest) GetPlaytestId() string {
+	if x != nil {
+		return x.PlaytestId
+	}
+	return ""
+}
+
+func (x *CreateSurveyRequest) GetQuestions() []*SurveyQuestion {
+	if x != nil {
+		return x.Questions
+	}
+	return nil
+}
+
+type CreateSurveyResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Survey        *Survey                `protobuf:"bytes,1,opt,name=survey,proto3" json:"survey,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateSurveyResponse) Reset() {
+	*x = CreateSurveyResponse{}
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[58]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateSurveyResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateSurveyResponse) ProtoMessage() {}
+
+func (x *CreateSurveyResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[58]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateSurveyResponse.ProtoReflect.Descriptor instead.
+func (*CreateSurveyResponse) Descriptor() ([]byte, []int) {
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{58}
+}
+
+func (x *CreateSurveyResponse) GetSurvey() *Survey {
+	if x != nil {
+		return x.Survey
+	}
+	return nil
+}
+
+type EditSurveyRequest struct {
+	state      protoimpl.MessageState `protogen:"open.v1"`
+	Namespace  string                 `protobuf:"bytes,1,opt,name=namespace,proto3" json:"namespace,omitempty"`
+	PlaytestId string                 `protobuf:"bytes,2,opt,name=playtest_id,json=playtestId,proto3" json:"playtest_id,omitempty"`
+	// Ordered question array. For each entry: `id` non-empty → preserve
+	// (must match an existing question's id on the current version);
+	// `id` empty → mint a new UUID. Same rule applies to MultiChoiceOption.id.
+	// The server bumps version each call.
+	Questions     []*SurveyQuestion `protobuf:"bytes,3,rep,name=questions,proto3" json:"questions,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EditSurveyRequest) Reset() {
+	*x = EditSurveyRequest{}
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[59]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EditSurveyRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EditSurveyRequest) ProtoMessage() {}
+
+func (x *EditSurveyRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[59]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EditSurveyRequest.ProtoReflect.Descriptor instead.
+func (*EditSurveyRequest) Descriptor() ([]byte, []int) {
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{59}
+}
+
+func (x *EditSurveyRequest) GetNamespace() string {
+	if x != nil {
+		return x.Namespace
+	}
+	return ""
+}
+
+func (x *EditSurveyRequest) GetPlaytestId() string {
+	if x != nil {
+		return x.PlaytestId
+	}
+	return ""
+}
+
+func (x *EditSurveyRequest) GetQuestions() []*SurveyQuestion {
+	if x != nil {
+		return x.Questions
+	}
+	return nil
+}
+
+type EditSurveyResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Survey        *Survey                `protobuf:"bytes,1,opt,name=survey,proto3" json:"survey,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EditSurveyResponse) Reset() {
+	*x = EditSurveyResponse{}
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[60]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EditSurveyResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EditSurveyResponse) ProtoMessage() {}
+
+func (x *EditSurveyResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[60]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EditSurveyResponse.ProtoReflect.Descriptor instead.
+func (*EditSurveyResponse) Descriptor() ([]byte, []int) {
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{60}
+}
+
+func (x *EditSurveyResponse) GetSurvey() *Survey {
+	if x != nil {
+		return x.Survey
+	}
+	return nil
+}
+
+type GetSurveyRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	PlaytestId    string                 `protobuf:"bytes,1,opt,name=playtest_id,json=playtestId,proto3" json:"playtest_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetSurveyRequest) Reset() {
+	*x = GetSurveyRequest{}
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[61]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetSurveyRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetSurveyRequest) ProtoMessage() {}
+
+func (x *GetSurveyRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[61]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetSurveyRequest.ProtoReflect.Descriptor instead.
+func (*GetSurveyRequest) Descriptor() ([]byte, []int) {
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{61}
+}
+
+func (x *GetSurveyRequest) GetPlaytestId() string {
+	if x != nil {
+		return x.PlaytestId
+	}
+	return ""
+}
+
+type GetSurveyResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Survey        *Survey                `protobuf:"bytes,1,opt,name=survey,proto3" json:"survey,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetSurveyResponse) Reset() {
+	*x = GetSurveyResponse{}
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[62]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetSurveyResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetSurveyResponse) ProtoMessage() {}
+
+func (x *GetSurveyResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[62]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetSurveyResponse.ProtoReflect.Descriptor instead.
+func (*GetSurveyResponse) Descriptor() ([]byte, []int) {
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{62}
+}
+
+func (x *GetSurveyResponse) GetSurvey() *Survey {
+	if x != nil {
+		return x.Survey
+	}
+	return nil
+}
+
+type SubmitSurveyResponseRequest struct {
+	state      protoimpl.MessageState `protogen:"open.v1"`
+	PlaytestId string                 `protobuf:"bytes,1,opt,name=playtest_id,json=playtestId,proto3" json:"playtest_id,omitempty"`
+	// The Survey.id (version) the client fetched and is submitting
+	// against. Pinned to defeat mid-fill version race per PRD §5.6.
+	SurveyId      string          `protobuf:"bytes,2,opt,name=survey_id,json=surveyId,proto3" json:"survey_id,omitempty"`
+	Answers       []*SurveyAnswer `protobuf:"bytes,3,rep,name=answers,proto3" json:"answers,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SubmitSurveyResponseRequest) Reset() {
+	*x = SubmitSurveyResponseRequest{}
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[63]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SubmitSurveyResponseRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SubmitSurveyResponseRequest) ProtoMessage() {}
+
+func (x *SubmitSurveyResponseRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[63]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SubmitSurveyResponseRequest.ProtoReflect.Descriptor instead.
+func (*SubmitSurveyResponseRequest) Descriptor() ([]byte, []int) {
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{63}
+}
+
+func (x *SubmitSurveyResponseRequest) GetPlaytestId() string {
+	if x != nil {
+		return x.PlaytestId
+	}
+	return ""
+}
+
+func (x *SubmitSurveyResponseRequest) GetSurveyId() string {
+	if x != nil {
+		return x.SurveyId
+	}
+	return ""
+}
+
+func (x *SubmitSurveyResponseRequest) GetAnswers() []*SurveyAnswer {
+	if x != nil {
+		return x.Answers
+	}
+	return nil
+}
+
+type SubmitSurveyResponseResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Response      *SurveyResponse        `protobuf:"bytes,1,opt,name=response,proto3" json:"response,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SubmitSurveyResponseResponse) Reset() {
+	*x = SubmitSurveyResponseResponse{}
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[64]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SubmitSurveyResponseResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SubmitSurveyResponseResponse) ProtoMessage() {}
+
+func (x *SubmitSurveyResponseResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[64]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SubmitSurveyResponseResponse.ProtoReflect.Descriptor instead.
+func (*SubmitSurveyResponseResponse) Descriptor() ([]byte, []int) {
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{64}
+}
+
+func (x *SubmitSurveyResponseResponse) GetResponse() *SurveyResponse {
+	if x != nil {
+		return x.Response
+	}
+	return nil
+}
+
+type ListSurveyResponsesRequest struct {
+	state      protoimpl.MessageState `protogen:"open.v1"`
+	Namespace  string                 `protobuf:"bytes,1,opt,name=namespace,proto3" json:"namespace,omitempty"`
+	PlaytestId string                 `protobuf:"bytes,2,opt,name=playtest_id,json=playtestId,proto3" json:"playtest_id,omitempty"`
+	// Empty → all versions. Set to a Survey.id to narrow to a single
+	// version for per-version aggregate split (PRD §5.6 cross-version
+	// viewer).
+	SurveyIdFilter string `protobuf:"bytes,3,opt,name=survey_id_filter,json=surveyIdFilter,proto3" json:"survey_id_filter,omitempty"`
+	// Opaque cursor; absent → start of stream.
+	PageToken string `protobuf:"bytes,4,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
+	// 0 → server default (50). Max 200.
+	PageSize      int32 `protobuf:"varint,5,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListSurveyResponsesRequest) Reset() {
+	*x = ListSurveyResponsesRequest{}
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[65]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListSurveyResponsesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListSurveyResponsesRequest) ProtoMessage() {}
+
+func (x *ListSurveyResponsesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[65]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListSurveyResponsesRequest.ProtoReflect.Descriptor instead.
+func (*ListSurveyResponsesRequest) Descriptor() ([]byte, []int) {
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{65}
+}
+
+func (x *ListSurveyResponsesRequest) GetNamespace() string {
+	if x != nil {
+		return x.Namespace
+	}
+	return ""
+}
+
+func (x *ListSurveyResponsesRequest) GetPlaytestId() string {
+	if x != nil {
+		return x.PlaytestId
+	}
+	return ""
+}
+
+func (x *ListSurveyResponsesRequest) GetSurveyIdFilter() string {
+	if x != nil {
+		return x.SurveyIdFilter
+	}
+	return ""
+}
+
+func (x *ListSurveyResponsesRequest) GetPageToken() string {
+	if x != nil {
+		return x.PageToken
+	}
+	return ""
+}
+
+func (x *ListSurveyResponsesRequest) GetPageSize() int32 {
+	if x != nil {
+		return x.PageSize
+	}
+	return 0
+}
+
+type ListSurveyResponsesResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Responses     []*SurveyResponse      `protobuf:"bytes,1,rep,name=responses,proto3" json:"responses,omitempty"`
+	NextPageToken string                 `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListSurveyResponsesResponse) Reset() {
+	*x = ListSurveyResponsesResponse{}
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[66]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListSurveyResponsesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListSurveyResponsesResponse) ProtoMessage() {}
+
+func (x *ListSurveyResponsesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[66]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListSurveyResponsesResponse.ProtoReflect.Descriptor instead.
+func (*ListSurveyResponsesResponse) Descriptor() ([]byte, []int) {
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{66}
+}
+
+func (x *ListSurveyResponsesResponse) GetResponses() []*SurveyResponse {
+	if x != nil {
+		return x.Responses
+	}
+	return nil
+}
+
+func (x *ListSurveyResponsesResponse) GetNextPageToken() string {
+	if x != nil {
+		return x.NextPageToken
+	}
+	return ""
+}
+
+type ListAuditLogRequest struct {
+	state      protoimpl.MessageState `protogen:"open.v1"`
+	Namespace  string                 `protobuf:"bytes,1,opt,name=namespace,proto3" json:"namespace,omitempty"`
+	PlaytestId string                 `protobuf:"bytes,2,opt,name=playtest_id,json=playtestId,proto3" json:"playtest_id,omitempty"`
+	// Empty → no actor filter. 'system' maps to actorUserId IS NULL per
+	// PRD §4.7 / §5.7.
+	ActorFilter string `protobuf:"bytes,3,opt,name=actor_filter,json=actorFilter,proto3" json:"actor_filter,omitempty"`
+	// Empty → no action filter. Otherwise exact-match on the action
+	// string (schema.md audit-action catalogue).
+	ActionFilter string `protobuf:"bytes,4,opt,name=action_filter,json=actionFilter,proto3" json:"action_filter,omitempty"`
+	// Opaque cursor; absent → start of stream.
+	PageToken string `protobuf:"bytes,5,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
+	// 0 → server default (50). Max 200.
+	PageSize      int32 `protobuf:"varint,6,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListAuditLogRequest) Reset() {
+	*x = ListAuditLogRequest{}
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[67]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListAuditLogRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListAuditLogRequest) ProtoMessage() {}
+
+func (x *ListAuditLogRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[67]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListAuditLogRequest.ProtoReflect.Descriptor instead.
+func (*ListAuditLogRequest) Descriptor() ([]byte, []int) {
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{67}
+}
+
+func (x *ListAuditLogRequest) GetNamespace() string {
+	if x != nil {
+		return x.Namespace
+	}
+	return ""
+}
+
+func (x *ListAuditLogRequest) GetPlaytestId() string {
+	if x != nil {
+		return x.PlaytestId
+	}
+	return ""
+}
+
+func (x *ListAuditLogRequest) GetActorFilter() string {
+	if x != nil {
+		return x.ActorFilter
+	}
+	return ""
+}
+
+func (x *ListAuditLogRequest) GetActionFilter() string {
+	if x != nil {
+		return x.ActionFilter
+	}
+	return ""
+}
+
+func (x *ListAuditLogRequest) GetPageToken() string {
+	if x != nil {
+		return x.PageToken
+	}
+	return ""
+}
+
+func (x *ListAuditLogRequest) GetPageSize() int32 {
+	if x != nil {
+		return x.PageSize
+	}
+	return 0
+}
+
+type ListAuditLogResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Entries       []*AuditLogEntry       `protobuf:"bytes,1,rep,name=entries,proto3" json:"entries,omitempty"`
+	NextPageToken string                 `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListAuditLogResponse) Reset() {
+	*x = ListAuditLogResponse{}
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[68]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListAuditLogResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListAuditLogResponse) ProtoMessage() {}
+
+func (x *ListAuditLogResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[68]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListAuditLogResponse.ProtoReflect.Descriptor instead.
+func (*ListAuditLogResponse) Descriptor() ([]byte, []int) {
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{68}
+}
+
+func (x *ListAuditLogResponse) GetEntries() []*AuditLogEntry {
+	if x != nil {
+		return x.Entries
+	}
+	return nil
+}
+
+func (x *ListAuditLogResponse) GetNextPageToken() string {
+	if x != nil {
+		return x.NextPageToken
+	}
+	return ""
+}
+
+type RetryFailedDmsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Namespace     string                 `protobuf:"bytes,1,opt,name=namespace,proto3" json:"namespace,omitempty"`
+	PlaytestId    string                 `protobuf:"bytes,2,opt,name=playtest_id,json=playtestId,proto3" json:"playtest_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RetryFailedDmsRequest) Reset() {
+	*x = RetryFailedDmsRequest{}
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[69]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RetryFailedDmsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RetryFailedDmsRequest) ProtoMessage() {}
+
+func (x *RetryFailedDmsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[69]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RetryFailedDmsRequest.ProtoReflect.Descriptor instead.
+func (*RetryFailedDmsRequest) Descriptor() ([]byte, []int) {
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{69}
+}
+
+func (x *RetryFailedDmsRequest) GetNamespace() string {
+	if x != nil {
+		return x.Namespace
+	}
+	return ""
+}
+
+func (x *RetryFailedDmsRequest) GetPlaytestId() string {
+	if x != nil {
+		return x.PlaytestId
+	}
+	return ""
+}
+
+type RetryFailedDmsResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Number of applicants successfully enqueued onto the DM queue.
+	Enqueued int32 `protobuf:"varint,1,opt,name=enqueued,proto3" json:"enqueued,omitempty"`
+	// Number of applicants whose enqueue was rejected by the queue cap;
+	// these stay last_dm_status=FAILED with last_dm_error='dm_queue_overflow'
+	// (PRD §5.5).
+	Overflow      int32 `protobuf:"varint,2,opt,name=overflow,proto3" json:"overflow,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RetryFailedDmsResponse) Reset() {
+	*x = RetryFailedDmsResponse{}
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[70]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RetryFailedDmsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RetryFailedDmsResponse) ProtoMessage() {}
+
+func (x *RetryFailedDmsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[70]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RetryFailedDmsResponse.ProtoReflect.Descriptor instead.
+func (*RetryFailedDmsResponse) Descriptor() ([]byte, []int) {
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{70}
+}
+
+func (x *RetryFailedDmsResponse) GetEnqueued() int32 {
+	if x != nil {
+		return x.Enqueued
+	}
+	return 0
+}
+
+func (x *RetryFailedDmsResponse) GetOverflow() int32 {
+	if x != nil {
+		return x.Overflow
+	}
+	return 0
 }
 
 var File_playtesthub_v1_playtesthub_proto protoreflect.FileDescriptor
@@ -3642,7 +5067,58 @@ const file_playtesthub_v1_playtesthub_proto_rawDesc = "" +
 	"\x05total\x18\x01 \x01(\x05R\x05total\x12\x16\n" +
 	"\x06unused\x18\x02 \x01(\x05R\x06unused\x12\x1a\n" +
 	"\breserved\x18\x03 \x01(\x05R\breserved\x12\x18\n" +
-	"\agranted\x18\x04 \x01(\x05R\agranted\".\n" +
+	"\agranted\x18\x04 \x01(\x05R\agranted\"9\n" +
+	"\x11MultiChoiceOption\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
+	"\x05label\x18\x02 \x01(\tR\x05label\"\xf0\x01\n" +
+	"\x0eSurveyQuestion\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x126\n" +
+	"\x04type\x18\x02 \x01(\x0e2\".playtesthub.v1.SurveyQuestionTypeR\x04type\x12\x16\n" +
+	"\x06prompt\x18\x03 \x01(\tR\x06prompt\x12\x1a\n" +
+	"\brequired\x18\x04 \x01(\bR\brequired\x12;\n" +
+	"\aoptions\x18\x05 \x03(\v2!.playtesthub.v1.MultiChoiceOptionR\aoptions\x12%\n" +
+	"\x0eallow_multiple\x18\x06 \x01(\bR\rallowMultiple\"\xcc\x01\n" +
+	"\x06Survey\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1f\n" +
+	"\vplaytest_id\x18\x02 \x01(\tR\n" +
+	"playtestId\x12\x18\n" +
+	"\aversion\x18\x03 \x01(\x05R\aversion\x12<\n" +
+	"\tquestions\x18\x04 \x03(\v2\x1e.playtesthub.v1.SurveyQuestionR\tquestions\x129\n" +
+	"\n" +
+	"created_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\"8\n" +
+	"\x17SurveyMultiChoiceAnswer\x12\x1d\n" +
+	"\n" +
+	"option_ids\x18\x01 \x03(\tR\toptionIds\"\xb6\x01\n" +
+	"\fSurveyAnswer\x12\x1f\n" +
+	"\vquestion_id\x18\x01 \x01(\tR\n" +
+	"questionId\x12\x14\n" +
+	"\x04text\x18\x02 \x01(\tH\x00R\x04text\x12\x18\n" +
+	"\x06rating\x18\x03 \x01(\x05H\x00R\x06rating\x12L\n" +
+	"\fmulti_choice\x18\x04 \x01(\v2'.playtesthub.v1.SurveyMultiChoiceAnswerH\x00R\vmultiChoiceB\a\n" +
+	"\x05value\"\xee\x01\n" +
+	"\x0eSurveyResponse\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1f\n" +
+	"\vplaytest_id\x18\x02 \x01(\tR\n" +
+	"playtestId\x12\x17\n" +
+	"\auser_id\x18\x03 \x01(\tR\x06userId\x12\x1b\n" +
+	"\tsurvey_id\x18\x04 \x01(\tR\bsurveyId\x126\n" +
+	"\aanswers\x18\x05 \x03(\v2\x1c.playtesthub.v1.SurveyAnswerR\aanswers\x12=\n" +
+	"\fsubmitted_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\vsubmittedAt\"\xc1\x02\n" +
+	"\rAuditLogEntry\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1c\n" +
+	"\tnamespace\x18\x02 \x01(\tR\tnamespace\x12$\n" +
+	"\vplaytest_id\x18\x03 \x01(\tH\x00R\n" +
+	"playtestId\x88\x01\x01\x12'\n" +
+	"\ractor_user_id\x18\x04 \x01(\tH\x01R\vactorUserId\x88\x01\x01\x12\x16\n" +
+	"\x06action\x18\x05 \x01(\tR\x06action\x12\x1f\n" +
+	"\vbefore_json\x18\x06 \x01(\tR\n" +
+	"beforeJson\x12\x1d\n" +
+	"\n" +
+	"after_json\x18\a \x01(\tR\tafterJson\x129\n" +
+	"\n" +
+	"created_at\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAtB\x0e\n" +
+	"\f_playtest_idB\x10\n" +
+	"\x0e_actor_user_id\".\n" +
 	"\x18GetPublicPlaytestRequest\x12\x12\n" +
 	"\x04slug\x18\x01 \x01(\tR\x04slug\"W\n" +
 	"\x19GetPublicPlaytestResponse\x12:\n" +
@@ -3806,7 +5282,63 @@ const file_playtesthub_v1_playtesthub_proto_rawDesc = "" +
 	"playtestId\"v\n" +
 	"\x13GetCodePoolResponse\x123\n" +
 	"\x05stats\x18\x01 \x01(\v2\x1d.playtesthub.v1.CodePoolStatsR\x05stats\x12*\n" +
-	"\x05codes\x18\x02 \x03(\v2\x14.playtesthub.v1.CodeR\x05codes*\x8c\x01\n" +
+	"\x05codes\x18\x02 \x03(\v2\x14.playtesthub.v1.CodeR\x05codes\"\x92\x01\n" +
+	"\x13CreateSurveyRequest\x12\x1c\n" +
+	"\tnamespace\x18\x01 \x01(\tR\tnamespace\x12\x1f\n" +
+	"\vplaytest_id\x18\x02 \x01(\tR\n" +
+	"playtestId\x12<\n" +
+	"\tquestions\x18\x03 \x03(\v2\x1e.playtesthub.v1.SurveyQuestionR\tquestions\"F\n" +
+	"\x14CreateSurveyResponse\x12.\n" +
+	"\x06survey\x18\x01 \x01(\v2\x16.playtesthub.v1.SurveyR\x06survey\"\x90\x01\n" +
+	"\x11EditSurveyRequest\x12\x1c\n" +
+	"\tnamespace\x18\x01 \x01(\tR\tnamespace\x12\x1f\n" +
+	"\vplaytest_id\x18\x02 \x01(\tR\n" +
+	"playtestId\x12<\n" +
+	"\tquestions\x18\x03 \x03(\v2\x1e.playtesthub.v1.SurveyQuestionR\tquestions\"D\n" +
+	"\x12EditSurveyResponse\x12.\n" +
+	"\x06survey\x18\x01 \x01(\v2\x16.playtesthub.v1.SurveyR\x06survey\"3\n" +
+	"\x10GetSurveyRequest\x12\x1f\n" +
+	"\vplaytest_id\x18\x01 \x01(\tR\n" +
+	"playtestId\"C\n" +
+	"\x11GetSurveyResponse\x12.\n" +
+	"\x06survey\x18\x01 \x01(\v2\x16.playtesthub.v1.SurveyR\x06survey\"\x93\x01\n" +
+	"\x1bSubmitSurveyResponseRequest\x12\x1f\n" +
+	"\vplaytest_id\x18\x01 \x01(\tR\n" +
+	"playtestId\x12\x1b\n" +
+	"\tsurvey_id\x18\x02 \x01(\tR\bsurveyId\x126\n" +
+	"\aanswers\x18\x03 \x03(\v2\x1c.playtesthub.v1.SurveyAnswerR\aanswers\"Z\n" +
+	"\x1cSubmitSurveyResponseResponse\x12:\n" +
+	"\bresponse\x18\x01 \x01(\v2\x1e.playtesthub.v1.SurveyResponseR\bresponse\"\xc1\x01\n" +
+	"\x1aListSurveyResponsesRequest\x12\x1c\n" +
+	"\tnamespace\x18\x01 \x01(\tR\tnamespace\x12\x1f\n" +
+	"\vplaytest_id\x18\x02 \x01(\tR\n" +
+	"playtestId\x12(\n" +
+	"\x10survey_id_filter\x18\x03 \x01(\tR\x0esurveyIdFilter\x12\x1d\n" +
+	"\n" +
+	"page_token\x18\x04 \x01(\tR\tpageToken\x12\x1b\n" +
+	"\tpage_size\x18\x05 \x01(\x05R\bpageSize\"\x83\x01\n" +
+	"\x1bListSurveyResponsesResponse\x12<\n" +
+	"\tresponses\x18\x01 \x03(\v2\x1e.playtesthub.v1.SurveyResponseR\tresponses\x12&\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\xd8\x01\n" +
+	"\x13ListAuditLogRequest\x12\x1c\n" +
+	"\tnamespace\x18\x01 \x01(\tR\tnamespace\x12\x1f\n" +
+	"\vplaytest_id\x18\x02 \x01(\tR\n" +
+	"playtestId\x12!\n" +
+	"\factor_filter\x18\x03 \x01(\tR\vactorFilter\x12#\n" +
+	"\raction_filter\x18\x04 \x01(\tR\factionFilter\x12\x1d\n" +
+	"\n" +
+	"page_token\x18\x05 \x01(\tR\tpageToken\x12\x1b\n" +
+	"\tpage_size\x18\x06 \x01(\x05R\bpageSize\"w\n" +
+	"\x14ListAuditLogResponse\x127\n" +
+	"\aentries\x18\x01 \x03(\v2\x1d.playtesthub.v1.AuditLogEntryR\aentries\x12&\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"V\n" +
+	"\x15RetryFailedDmsRequest\x12\x1c\n" +
+	"\tnamespace\x18\x01 \x01(\tR\tnamespace\x12\x1f\n" +
+	"\vplaytest_id\x18\x02 \x01(\tR\n" +
+	"playtestId\"P\n" +
+	"\x16RetryFailedDmsResponse\x12\x1a\n" +
+	"\benqueued\x18\x01 \x01(\x05R\benqueued\x12\x1a\n" +
+	"\boverflow\x18\x02 \x01(\x05R\boverflow*\x8c\x01\n" +
 	"\bPlatform\x12\x18\n" +
 	"\x14PLATFORM_UNSPECIFIED\x10\x00\x12\x12\n" +
 	"\x0ePLATFORM_STEAM\x10\x01\x12\x11\n" +
@@ -3836,7 +5368,12 @@ const file_playtesthub_v1_playtesthub_proto_rawDesc = "" +
 	"\x16CODE_STATE_UNSPECIFIED\x10\x00\x12\x15\n" +
 	"\x11CODE_STATE_UNUSED\x10\x01\x12\x17\n" +
 	"\x13CODE_STATE_RESERVED\x10\x02\x12\x16\n" +
-	"\x12CODE_STATE_GRANTED\x10\x032\x8dB\n" +
+	"\x12CODE_STATE_GRANTED\x10\x03*\xa1\x01\n" +
+	"\x12SurveyQuestionType\x12$\n" +
+	" SURVEY_QUESTION_TYPE_UNSPECIFIED\x10\x00\x12\x1d\n" +
+	"\x19SURVEY_QUESTION_TYPE_TEXT\x10\x01\x12\x1f\n" +
+	"\x1bSURVEY_QUESTION_TYPE_RATING\x10\x02\x12%\n" +
+	"!SURVEY_QUESTION_TYPE_MULTI_CHOICE\x10\x032\x9d^\n" +
 	"\x12PlaytesthubService\x12\xa0\x02\n" +
 	"\x11GetPublicPlaytest\x12(.playtesthub.v1.GetPublicPlaytestRequest\x1a).playtesthub.v1.GetPublicPlaytestResponse\"\xb5\x01\x92A\x8e\x01\x12(Get a playtest by slug (unauthenticated)\x1abReturns the public field subset for an OPEN playtest. NotFound for DRAFT, CLOSED, or soft-deleted.\x82\xd3\xe4\x93\x02\x1d\x12\x1b/v1/public/playtests/{slug}\x12\xac\x02\n" +
 	"\x14GetPlaytestForPlayer\x12+.playtesthub.v1.GetPlaytestForPlayerRequest\x1a,.playtesthub.v1.GetPlaytestForPlayerResponse\"\xb8\x01\x92A\x91\x01\x12-Get a playtest by slug (authenticated player)\x1aRReturns the player-visible field set including NDA text and currentNdaVersionHash.b\f\n" +
@@ -3916,7 +5453,36 @@ const file_playtesthub_v1_playtesthub_proto_rawDesc = "" +
 	"\vGetCodePool\x12\".playtesthub.v1.GetCodePoolRequest\x1a#.playtesthub.v1.GetCodePoolResponse\"\xc9\x02\x92A\xcf\x01\x12,Inspect the code pool for a playtest (admin)\x1a\x90\x01Returns aggregate counts plus the full code list including raw values — admin surfaces are exempt from the §6 log-redaction rule (PRD §5.7).b\f\n" +
 	"\n" +
 	"\n" +
-	"\x06Bearer\x12\x00\x8a\xb5\x18(ADMIN:NAMESPACE:{namespace}:EXTEND:APPUI\x90\xb5\x18\x02\x82\xd3\xe4\x93\x02@\x12>/v1/admin/namespaces/{namespace}/playtests/{playtest_id}/codesB\x94\x01\x92AF\x12\x15\n" +
+	"\x06Bearer\x12\x00\x8a\xb5\x18(ADMIN:NAMESPACE:{namespace}:EXTEND:APPUI\x90\xb5\x18\x02\x82\xd3\xe4\x93\x02@\x12>/v1/admin/namespaces/{namespace}/playtests/{playtest_id}/codes\x12\xad\x04\n" +
+	"\fCreateSurvey\x12#.playtesthub.v1.CreateSurveyRequest\x1a$.playtesthub.v1.CreateSurveyResponse\"\xd1\x03\x92A\xd3\x02\x12bCreate the survey for a playtest (admin; first-version only — second call returns AlreadyExists)\x1a\xde\x01Natural-key on playtest_id. Server mints question UUIDs and multi-choice option UUIDs. Bounds: ≤50 questions, prompt ≤1,000 chars, multi-choice 2–20 options with label ≤200 chars (schema.md §\"Survey entity spec\").b\f\n" +
+	"\n" +
+	"\n" +
+	"\x06Bearer\x12\x00\x8a\xb5\x18(ADMIN:NAMESPACE:{namespace}:EXTEND:APPUI\x90\xb5\x18\x01\x82\xd3\xe4\x93\x02D:\x01*\"?/v1/admin/namespaces/{namespace}/playtests/{playtest_id}/survey\x12\xbf\x04\n" +
+	"\n" +
+	"EditSurvey\x12!.playtesthub.v1.EditSurveyRequest\x1a\".playtesthub.v1.EditSurveyResponse\"\xe9\x03\x92A\xeb\x02\x12?Edit the survey for a playtest (admin; bumps version each call)\x1a\x99\x02Always creates a new Survey row with version = previous + 1. Question UUIDs are preserved for kept questions (client passes the existing id) and minted for new ones (id empty). Multi-choice option ids likewise — keeps histogram aggregation keys stable across edits per schema.md.b\f\n" +
+	"\n" +
+	"\n" +
+	"\x06Bearer\x12\x00\x8a\xb5\x18(ADMIN:NAMESPACE:{namespace}:EXTEND:APPUI\x90\xb5\x18\x04\x82\xd3\xe4\x93\x02D:\x01*2?/v1/admin/namespaces/{namespace}/playtests/{playtest_id}/survey\x12\xb4\x02\n" +
+	"\tGetSurvey\x12 .playtesthub.v1.GetSurveyRequest\x1a!.playtesthub.v1.GetSurveyResponse\"\xe1\x01\x92A\xac\x01\x12<Get the current survey for a playtest (authenticated player)\x1a^Returns the version pointed at by Playtest.surveyId. NotFound when the playtest has no survey.b\f\n" +
+	"\n" +
+	"\n" +
+	"\x06Bearer\x12\x00\x82\xd3\xe4\x93\x02+\x12)/v1/player/playtests/{playtest_id}/survey\x12\xa8\x04\n" +
+	"\x14SubmitSurveyResponse\x12+.playtesthub.v1.SubmitSurveyResponseRequest\x1a,.playtesthub.v1.SubmitSurveyResponseResponse\"\xb4\x03\x92A\xf5\x02\x12`Submit a one-shot survey response (authenticated player; APPROVED + NDA-current applicants only)\x1a\x82\x02Natural-key on (playtestId, userId). Second submit returns gRPC AlreadyExists with empty body per errors.md row 31. The server records against the survey_id the client submitted — a concurrent EditSurvey does not invalidate an in-flight submit (PRD §5.6).b\f\n" +
+	"\n" +
+	"\n" +
+	"\x06Bearer\x12\x00\x82\xd3\xe4\x93\x025:\x01*\"0/v1/player/playtests/{playtest_id}/survey:submit\x12\xd8\x03\n" +
+	"\x13ListSurveyResponses\x12*.playtesthub.v1.ListSurveyResponsesRequest\x1a+.playtesthub.v1.ListSurveyResponsesResponse\"\xe7\x02\x92A\xe2\x01\x12TList survey responses for a playtest (admin; cursor pagination on (submittedAt, id))\x1a|Default page_size 50, max 200. Optional survey_id_filter narrows to a single Survey version for per-version aggregate split.b\f\n" +
+	"\n" +
+	"\n" +
+	"\x06Bearer\x12\x00\x8a\xb5\x18(ADMIN:NAMESPACE:{namespace}:EXTEND:APPUI\x90\xb5\x18\x02\x82\xd3\xe4\x93\x02K\x12I/v1/admin/namespaces/{namespace}/playtests/{playtest_id}/survey/responses\x12\x8d\x04\n" +
+	"\fListAuditLog\x12#.playtesthub.v1.ListAuditLogRequest\x1a$.playtesthub.v1.ListAuditLogResponse\"\xb1\x03\x92A\xb4\x02\x12SList audit log entries for a playtest (admin; cursor pagination on (createdAt, id))\x1a\xce\x01actor_filter='system' maps to actorUserId IS NULL per PRD §4.7. action_filter is exact-match on the action string. before_json / after_json carry the JSONB columns verbatim — the client renders the diff.b\f\n" +
+	"\n" +
+	"\n" +
+	"\x06Bearer\x12\x00\x8a\xb5\x18(ADMIN:NAMESPACE:{namespace}:EXTEND:APPUI\x90\xb5\x18\x02\x82\xd3\xe4\x93\x02C\x12A/v1/admin/namespaces/{namespace}/playtests/{playtest_id}/auditLog\x12\xce\x04\n" +
+	"\x0eRetryFailedDms\x12%.playtesthub.v1.RetryFailedDmsRequest\x1a&.playtesthub.v1.RetryFailedDmsResponse\"\xec\x03\x92A\xdb\x02\x12HBulk-enqueue every failed-DM applicant for retry (admin; not idempotent)\x1a\x80\x02Walks every applicant with last_dm_status=FAILED for the playtest and enqueues each through the same DM-queue path as approve, respecting the 10k cap and configured drain rate. Overflowed rows stay FAILED with last_dm_error='dm_queue_overflow' (PRD §5.5).b\f\n" +
+	"\n" +
+	"\n" +
+	"\x06Bearer\x12\x00\x8a\xb5\x18(ADMIN:NAMESPACE:{namespace}:EXTEND:APPUI\x90\xb5\x18\x04\x82\xd3\xe4\x93\x02W:\x01*\"R/v1/admin/namespaces/{namespace}/playtests/{playtest_id}/applicants:retryFailedDmsB\x94\x01\x92AF\x12\x15\n" +
 	"\x0fplaytesthub API2\x02v1\"\f/playtesthubZ\x1f\n" +
 	"\x1d\n" +
 	"\x06Bearer\x12\x13\b\x02\x1a\rAuthorization \x02ZIgithub.com/anggorodewanto/playtesthub/pkg/pb/playtesthub/v1;playtesthubv1b\x06proto3"
@@ -3933,8 +5499,8 @@ func file_playtesthub_v1_playtesthub_proto_rawDescGZIP() []byte {
 	return file_playtesthub_v1_playtesthub_proto_rawDescData
 }
 
-var file_playtesthub_v1_playtesthub_proto_enumTypes = make([]protoimpl.EnumInfo, 6)
-var file_playtesthub_v1_playtesthub_proto_msgTypes = make([]protoimpl.MessageInfo, 50)
+var file_playtesthub_v1_playtesthub_proto_enumTypes = make([]protoimpl.EnumInfo, 7)
+var file_playtesthub_v1_playtesthub_proto_msgTypes = make([]protoimpl.MessageInfo, 71)
 var file_playtesthub_v1_playtesthub_proto_goTypes = []any{
 	(Platform)(0),                            // 0: playtesthub.v1.Platform
 	(PlaytestStatus)(0),                      // 1: playtesthub.v1.PlaytestStatus
@@ -3942,163 +5508,216 @@ var file_playtesthub_v1_playtesthub_proto_goTypes = []any{
 	(ApplicantStatus)(0),                     // 3: playtesthub.v1.ApplicantStatus
 	(DmStatus)(0),                            // 4: playtesthub.v1.DmStatus
 	(CodeState)(0),                           // 5: playtesthub.v1.CodeState
-	(*Playtest)(nil),                         // 6: playtesthub.v1.Playtest
-	(*PublicPlaytest)(nil),                   // 7: playtesthub.v1.PublicPlaytest
-	(*PlayerPlaytest)(nil),                   // 8: playtesthub.v1.PlayerPlaytest
-	(*Applicant)(nil),                        // 9: playtesthub.v1.Applicant
-	(*NDAAcceptance)(nil),                    // 10: playtesthub.v1.NDAAcceptance
-	(*Code)(nil),                             // 11: playtesthub.v1.Code
-	(*CodePoolStats)(nil),                    // 12: playtesthub.v1.CodePoolStats
-	(*GetPublicPlaytestRequest)(nil),         // 13: playtesthub.v1.GetPublicPlaytestRequest
-	(*GetPublicPlaytestResponse)(nil),        // 14: playtesthub.v1.GetPublicPlaytestResponse
-	(*GetPlaytestForPlayerRequest)(nil),      // 15: playtesthub.v1.GetPlaytestForPlayerRequest
-	(*GetPlaytestForPlayerResponse)(nil),     // 16: playtesthub.v1.GetPlaytestForPlayerResponse
-	(*AdminGetPlaytestRequest)(nil),          // 17: playtesthub.v1.AdminGetPlaytestRequest
-	(*AdminGetPlaytestResponse)(nil),         // 18: playtesthub.v1.AdminGetPlaytestResponse
-	(*ListPlaytestsRequest)(nil),             // 19: playtesthub.v1.ListPlaytestsRequest
-	(*ListPlaytestsResponse)(nil),            // 20: playtesthub.v1.ListPlaytestsResponse
-	(*CreatePlaytestRequest)(nil),            // 21: playtesthub.v1.CreatePlaytestRequest
-	(*CreatePlaytestResponse)(nil),           // 22: playtesthub.v1.CreatePlaytestResponse
-	(*EditPlaytestRequest)(nil),              // 23: playtesthub.v1.EditPlaytestRequest
-	(*EditPlaytestResponse)(nil),             // 24: playtesthub.v1.EditPlaytestResponse
-	(*SoftDeletePlaytestRequest)(nil),        // 25: playtesthub.v1.SoftDeletePlaytestRequest
-	(*SoftDeletePlaytestResponse)(nil),       // 26: playtesthub.v1.SoftDeletePlaytestResponse
-	(*TransitionPlaytestStatusRequest)(nil),  // 27: playtesthub.v1.TransitionPlaytestStatusRequest
-	(*TransitionPlaytestStatusResponse)(nil), // 28: playtesthub.v1.TransitionPlaytestStatusResponse
-	(*SignupRequest)(nil),                    // 29: playtesthub.v1.SignupRequest
-	(*SignupResponse)(nil),                   // 30: playtesthub.v1.SignupResponse
-	(*GetApplicantStatusRequest)(nil),        // 31: playtesthub.v1.GetApplicantStatusRequest
-	(*GetApplicantStatusResponse)(nil),       // 32: playtesthub.v1.GetApplicantStatusResponse
-	(*ExchangeDiscordCodeRequest)(nil),       // 33: playtesthub.v1.ExchangeDiscordCodeRequest
-	(*ExchangeDiscordCodeResponse)(nil),      // 34: playtesthub.v1.ExchangeDiscordCodeResponse
-	(*AcceptNDARequest)(nil),                 // 35: playtesthub.v1.AcceptNDARequest
-	(*AcceptNDAResponse)(nil),                // 36: playtesthub.v1.AcceptNDAResponse
-	(*GetGrantedCodeRequest)(nil),            // 37: playtesthub.v1.GetGrantedCodeRequest
-	(*GetGrantedCodeResponse)(nil),           // 38: playtesthub.v1.GetGrantedCodeResponse
-	(*ListApplicantsRequest)(nil),            // 39: playtesthub.v1.ListApplicantsRequest
-	(*ListApplicantsResponse)(nil),           // 40: playtesthub.v1.ListApplicantsResponse
-	(*ApproveApplicantRequest)(nil),          // 41: playtesthub.v1.ApproveApplicantRequest
-	(*ApproveApplicantResponse)(nil),         // 42: playtesthub.v1.ApproveApplicantResponse
-	(*RejectApplicantRequest)(nil),           // 43: playtesthub.v1.RejectApplicantRequest
-	(*RejectApplicantResponse)(nil),          // 44: playtesthub.v1.RejectApplicantResponse
-	(*RetryDMRequest)(nil),                   // 45: playtesthub.v1.RetryDMRequest
-	(*RetryDMResponse)(nil),                  // 46: playtesthub.v1.RetryDMResponse
-	(*UploadCodesRequest)(nil),               // 47: playtesthub.v1.UploadCodesRequest
-	(*UploadCodesRejection)(nil),             // 48: playtesthub.v1.UploadCodesRejection
-	(*UploadCodesResponse)(nil),              // 49: playtesthub.v1.UploadCodesResponse
-	(*TopUpCodesRequest)(nil),                // 50: playtesthub.v1.TopUpCodesRequest
-	(*TopUpCodesResponse)(nil),               // 51: playtesthub.v1.TopUpCodesResponse
-	(*SyncFromAGSRequest)(nil),               // 52: playtesthub.v1.SyncFromAGSRequest
-	(*SyncFromAGSResponse)(nil),              // 53: playtesthub.v1.SyncFromAGSResponse
-	(*GetCodePoolRequest)(nil),               // 54: playtesthub.v1.GetCodePoolRequest
-	(*GetCodePoolResponse)(nil),              // 55: playtesthub.v1.GetCodePoolResponse
-	(*timestamppb.Timestamp)(nil),            // 56: google.protobuf.Timestamp
+	(SurveyQuestionType)(0),                  // 6: playtesthub.v1.SurveyQuestionType
+	(*Playtest)(nil),                         // 7: playtesthub.v1.Playtest
+	(*PublicPlaytest)(nil),                   // 8: playtesthub.v1.PublicPlaytest
+	(*PlayerPlaytest)(nil),                   // 9: playtesthub.v1.PlayerPlaytest
+	(*Applicant)(nil),                        // 10: playtesthub.v1.Applicant
+	(*NDAAcceptance)(nil),                    // 11: playtesthub.v1.NDAAcceptance
+	(*Code)(nil),                             // 12: playtesthub.v1.Code
+	(*CodePoolStats)(nil),                    // 13: playtesthub.v1.CodePoolStats
+	(*MultiChoiceOption)(nil),                // 14: playtesthub.v1.MultiChoiceOption
+	(*SurveyQuestion)(nil),                   // 15: playtesthub.v1.SurveyQuestion
+	(*Survey)(nil),                           // 16: playtesthub.v1.Survey
+	(*SurveyMultiChoiceAnswer)(nil),          // 17: playtesthub.v1.SurveyMultiChoiceAnswer
+	(*SurveyAnswer)(nil),                     // 18: playtesthub.v1.SurveyAnswer
+	(*SurveyResponse)(nil),                   // 19: playtesthub.v1.SurveyResponse
+	(*AuditLogEntry)(nil),                    // 20: playtesthub.v1.AuditLogEntry
+	(*GetPublicPlaytestRequest)(nil),         // 21: playtesthub.v1.GetPublicPlaytestRequest
+	(*GetPublicPlaytestResponse)(nil),        // 22: playtesthub.v1.GetPublicPlaytestResponse
+	(*GetPlaytestForPlayerRequest)(nil),      // 23: playtesthub.v1.GetPlaytestForPlayerRequest
+	(*GetPlaytestForPlayerResponse)(nil),     // 24: playtesthub.v1.GetPlaytestForPlayerResponse
+	(*AdminGetPlaytestRequest)(nil),          // 25: playtesthub.v1.AdminGetPlaytestRequest
+	(*AdminGetPlaytestResponse)(nil),         // 26: playtesthub.v1.AdminGetPlaytestResponse
+	(*ListPlaytestsRequest)(nil),             // 27: playtesthub.v1.ListPlaytestsRequest
+	(*ListPlaytestsResponse)(nil),            // 28: playtesthub.v1.ListPlaytestsResponse
+	(*CreatePlaytestRequest)(nil),            // 29: playtesthub.v1.CreatePlaytestRequest
+	(*CreatePlaytestResponse)(nil),           // 30: playtesthub.v1.CreatePlaytestResponse
+	(*EditPlaytestRequest)(nil),              // 31: playtesthub.v1.EditPlaytestRequest
+	(*EditPlaytestResponse)(nil),             // 32: playtesthub.v1.EditPlaytestResponse
+	(*SoftDeletePlaytestRequest)(nil),        // 33: playtesthub.v1.SoftDeletePlaytestRequest
+	(*SoftDeletePlaytestResponse)(nil),       // 34: playtesthub.v1.SoftDeletePlaytestResponse
+	(*TransitionPlaytestStatusRequest)(nil),  // 35: playtesthub.v1.TransitionPlaytestStatusRequest
+	(*TransitionPlaytestStatusResponse)(nil), // 36: playtesthub.v1.TransitionPlaytestStatusResponse
+	(*SignupRequest)(nil),                    // 37: playtesthub.v1.SignupRequest
+	(*SignupResponse)(nil),                   // 38: playtesthub.v1.SignupResponse
+	(*GetApplicantStatusRequest)(nil),        // 39: playtesthub.v1.GetApplicantStatusRequest
+	(*GetApplicantStatusResponse)(nil),       // 40: playtesthub.v1.GetApplicantStatusResponse
+	(*ExchangeDiscordCodeRequest)(nil),       // 41: playtesthub.v1.ExchangeDiscordCodeRequest
+	(*ExchangeDiscordCodeResponse)(nil),      // 42: playtesthub.v1.ExchangeDiscordCodeResponse
+	(*AcceptNDARequest)(nil),                 // 43: playtesthub.v1.AcceptNDARequest
+	(*AcceptNDAResponse)(nil),                // 44: playtesthub.v1.AcceptNDAResponse
+	(*GetGrantedCodeRequest)(nil),            // 45: playtesthub.v1.GetGrantedCodeRequest
+	(*GetGrantedCodeResponse)(nil),           // 46: playtesthub.v1.GetGrantedCodeResponse
+	(*ListApplicantsRequest)(nil),            // 47: playtesthub.v1.ListApplicantsRequest
+	(*ListApplicantsResponse)(nil),           // 48: playtesthub.v1.ListApplicantsResponse
+	(*ApproveApplicantRequest)(nil),          // 49: playtesthub.v1.ApproveApplicantRequest
+	(*ApproveApplicantResponse)(nil),         // 50: playtesthub.v1.ApproveApplicantResponse
+	(*RejectApplicantRequest)(nil),           // 51: playtesthub.v1.RejectApplicantRequest
+	(*RejectApplicantResponse)(nil),          // 52: playtesthub.v1.RejectApplicantResponse
+	(*RetryDMRequest)(nil),                   // 53: playtesthub.v1.RetryDMRequest
+	(*RetryDMResponse)(nil),                  // 54: playtesthub.v1.RetryDMResponse
+	(*UploadCodesRequest)(nil),               // 55: playtesthub.v1.UploadCodesRequest
+	(*UploadCodesRejection)(nil),             // 56: playtesthub.v1.UploadCodesRejection
+	(*UploadCodesResponse)(nil),              // 57: playtesthub.v1.UploadCodesResponse
+	(*TopUpCodesRequest)(nil),                // 58: playtesthub.v1.TopUpCodesRequest
+	(*TopUpCodesResponse)(nil),               // 59: playtesthub.v1.TopUpCodesResponse
+	(*SyncFromAGSRequest)(nil),               // 60: playtesthub.v1.SyncFromAGSRequest
+	(*SyncFromAGSResponse)(nil),              // 61: playtesthub.v1.SyncFromAGSResponse
+	(*GetCodePoolRequest)(nil),               // 62: playtesthub.v1.GetCodePoolRequest
+	(*GetCodePoolResponse)(nil),              // 63: playtesthub.v1.GetCodePoolResponse
+	(*CreateSurveyRequest)(nil),              // 64: playtesthub.v1.CreateSurveyRequest
+	(*CreateSurveyResponse)(nil),             // 65: playtesthub.v1.CreateSurveyResponse
+	(*EditSurveyRequest)(nil),                // 66: playtesthub.v1.EditSurveyRequest
+	(*EditSurveyResponse)(nil),               // 67: playtesthub.v1.EditSurveyResponse
+	(*GetSurveyRequest)(nil),                 // 68: playtesthub.v1.GetSurveyRequest
+	(*GetSurveyResponse)(nil),                // 69: playtesthub.v1.GetSurveyResponse
+	(*SubmitSurveyResponseRequest)(nil),      // 70: playtesthub.v1.SubmitSurveyResponseRequest
+	(*SubmitSurveyResponseResponse)(nil),     // 71: playtesthub.v1.SubmitSurveyResponseResponse
+	(*ListSurveyResponsesRequest)(nil),       // 72: playtesthub.v1.ListSurveyResponsesRequest
+	(*ListSurveyResponsesResponse)(nil),      // 73: playtesthub.v1.ListSurveyResponsesResponse
+	(*ListAuditLogRequest)(nil),              // 74: playtesthub.v1.ListAuditLogRequest
+	(*ListAuditLogResponse)(nil),             // 75: playtesthub.v1.ListAuditLogResponse
+	(*RetryFailedDmsRequest)(nil),            // 76: playtesthub.v1.RetryFailedDmsRequest
+	(*RetryFailedDmsResponse)(nil),           // 77: playtesthub.v1.RetryFailedDmsResponse
+	(*timestamppb.Timestamp)(nil),            // 78: google.protobuf.Timestamp
 }
 var file_playtesthub_v1_playtesthub_proto_depIdxs = []int32{
-	0,  // 0: playtesthub.v1.Playtest.platforms:type_name -> playtesthub.v1.Platform
-	56, // 1: playtesthub.v1.Playtest.starts_at:type_name -> google.protobuf.Timestamp
-	56, // 2: playtesthub.v1.Playtest.ends_at:type_name -> google.protobuf.Timestamp
-	1,  // 3: playtesthub.v1.Playtest.status:type_name -> playtesthub.v1.PlaytestStatus
-	2,  // 4: playtesthub.v1.Playtest.distribution_model:type_name -> playtesthub.v1.DistributionModel
-	56, // 5: playtesthub.v1.Playtest.created_at:type_name -> google.protobuf.Timestamp
-	56, // 6: playtesthub.v1.Playtest.updated_at:type_name -> google.protobuf.Timestamp
-	56, // 7: playtesthub.v1.Playtest.deleted_at:type_name -> google.protobuf.Timestamp
-	0,  // 8: playtesthub.v1.PublicPlaytest.platforms:type_name -> playtesthub.v1.Platform
-	56, // 9: playtesthub.v1.PublicPlaytest.starts_at:type_name -> google.protobuf.Timestamp
-	56, // 10: playtesthub.v1.PublicPlaytest.ends_at:type_name -> google.protobuf.Timestamp
-	0,  // 11: playtesthub.v1.PlayerPlaytest.platforms:type_name -> playtesthub.v1.Platform
-	56, // 12: playtesthub.v1.PlayerPlaytest.starts_at:type_name -> google.protobuf.Timestamp
-	56, // 13: playtesthub.v1.PlayerPlaytest.ends_at:type_name -> google.protobuf.Timestamp
-	1,  // 14: playtesthub.v1.PlayerPlaytest.status:type_name -> playtesthub.v1.PlaytestStatus
-	2,  // 15: playtesthub.v1.PlayerPlaytest.distribution_model:type_name -> playtesthub.v1.DistributionModel
-	0,  // 16: playtesthub.v1.Applicant.platforms:type_name -> playtesthub.v1.Platform
-	3,  // 17: playtesthub.v1.Applicant.status:type_name -> playtesthub.v1.ApplicantStatus
-	56, // 18: playtesthub.v1.Applicant.approved_at:type_name -> google.protobuf.Timestamp
-	4,  // 19: playtesthub.v1.Applicant.last_dm_status:type_name -> playtesthub.v1.DmStatus
-	56, // 20: playtesthub.v1.Applicant.last_dm_attempt_at:type_name -> google.protobuf.Timestamp
-	56, // 21: playtesthub.v1.Applicant.created_at:type_name -> google.protobuf.Timestamp
-	56, // 22: playtesthub.v1.NDAAcceptance.accepted_at:type_name -> google.protobuf.Timestamp
-	5,  // 23: playtesthub.v1.Code.state:type_name -> playtesthub.v1.CodeState
-	56, // 24: playtesthub.v1.Code.reserved_at:type_name -> google.protobuf.Timestamp
-	56, // 25: playtesthub.v1.Code.granted_at:type_name -> google.protobuf.Timestamp
-	56, // 26: playtesthub.v1.Code.created_at:type_name -> google.protobuf.Timestamp
-	7,  // 27: playtesthub.v1.GetPublicPlaytestResponse.playtest:type_name -> playtesthub.v1.PublicPlaytest
-	8,  // 28: playtesthub.v1.GetPlaytestForPlayerResponse.playtest:type_name -> playtesthub.v1.PlayerPlaytest
-	6,  // 29: playtesthub.v1.AdminGetPlaytestResponse.playtest:type_name -> playtesthub.v1.Playtest
-	6,  // 30: playtesthub.v1.ListPlaytestsResponse.playtests:type_name -> playtesthub.v1.Playtest
-	0,  // 31: playtesthub.v1.CreatePlaytestRequest.platforms:type_name -> playtesthub.v1.Platform
-	56, // 32: playtesthub.v1.CreatePlaytestRequest.starts_at:type_name -> google.protobuf.Timestamp
-	56, // 33: playtesthub.v1.CreatePlaytestRequest.ends_at:type_name -> google.protobuf.Timestamp
-	2,  // 34: playtesthub.v1.CreatePlaytestRequest.distribution_model:type_name -> playtesthub.v1.DistributionModel
-	6,  // 35: playtesthub.v1.CreatePlaytestResponse.playtest:type_name -> playtesthub.v1.Playtest
-	0,  // 36: playtesthub.v1.EditPlaytestRequest.platforms:type_name -> playtesthub.v1.Platform
-	56, // 37: playtesthub.v1.EditPlaytestRequest.starts_at:type_name -> google.protobuf.Timestamp
-	56, // 38: playtesthub.v1.EditPlaytestRequest.ends_at:type_name -> google.protobuf.Timestamp
-	6,  // 39: playtesthub.v1.EditPlaytestResponse.playtest:type_name -> playtesthub.v1.Playtest
-	1,  // 40: playtesthub.v1.TransitionPlaytestStatusRequest.target_status:type_name -> playtesthub.v1.PlaytestStatus
-	6,  // 41: playtesthub.v1.TransitionPlaytestStatusResponse.playtest:type_name -> playtesthub.v1.Playtest
-	0,  // 42: playtesthub.v1.SignupRequest.platforms:type_name -> playtesthub.v1.Platform
-	9,  // 43: playtesthub.v1.SignupResponse.applicant:type_name -> playtesthub.v1.Applicant
-	9,  // 44: playtesthub.v1.GetApplicantStatusResponse.applicant:type_name -> playtesthub.v1.Applicant
-	10, // 45: playtesthub.v1.AcceptNDAResponse.acceptance:type_name -> playtesthub.v1.NDAAcceptance
-	2,  // 46: playtesthub.v1.GetGrantedCodeResponse.distribution_model:type_name -> playtesthub.v1.DistributionModel
-	3,  // 47: playtesthub.v1.ListApplicantsRequest.status_filter:type_name -> playtesthub.v1.ApplicantStatus
-	9,  // 48: playtesthub.v1.ListApplicantsResponse.applicants:type_name -> playtesthub.v1.Applicant
-	9,  // 49: playtesthub.v1.ApproveApplicantResponse.applicant:type_name -> playtesthub.v1.Applicant
-	9,  // 50: playtesthub.v1.RejectApplicantResponse.applicant:type_name -> playtesthub.v1.Applicant
-	9,  // 51: playtesthub.v1.RetryDMResponse.applicant:type_name -> playtesthub.v1.Applicant
-	48, // 52: playtesthub.v1.UploadCodesResponse.rejections:type_name -> playtesthub.v1.UploadCodesRejection
-	12, // 53: playtesthub.v1.TopUpCodesResponse.pool:type_name -> playtesthub.v1.CodePoolStats
-	12, // 54: playtesthub.v1.SyncFromAGSResponse.pool:type_name -> playtesthub.v1.CodePoolStats
-	12, // 55: playtesthub.v1.GetCodePoolResponse.stats:type_name -> playtesthub.v1.CodePoolStats
-	11, // 56: playtesthub.v1.GetCodePoolResponse.codes:type_name -> playtesthub.v1.Code
-	13, // 57: playtesthub.v1.PlaytesthubService.GetPublicPlaytest:input_type -> playtesthub.v1.GetPublicPlaytestRequest
-	15, // 58: playtesthub.v1.PlaytesthubService.GetPlaytestForPlayer:input_type -> playtesthub.v1.GetPlaytestForPlayerRequest
-	17, // 59: playtesthub.v1.PlaytesthubService.AdminGetPlaytest:input_type -> playtesthub.v1.AdminGetPlaytestRequest
-	19, // 60: playtesthub.v1.PlaytesthubService.ListPlaytests:input_type -> playtesthub.v1.ListPlaytestsRequest
-	21, // 61: playtesthub.v1.PlaytesthubService.CreatePlaytest:input_type -> playtesthub.v1.CreatePlaytestRequest
-	23, // 62: playtesthub.v1.PlaytesthubService.EditPlaytest:input_type -> playtesthub.v1.EditPlaytestRequest
-	25, // 63: playtesthub.v1.PlaytesthubService.SoftDeletePlaytest:input_type -> playtesthub.v1.SoftDeletePlaytestRequest
-	27, // 64: playtesthub.v1.PlaytesthubService.TransitionPlaytestStatus:input_type -> playtesthub.v1.TransitionPlaytestStatusRequest
-	33, // 65: playtesthub.v1.PlaytesthubService.ExchangeDiscordCode:input_type -> playtesthub.v1.ExchangeDiscordCodeRequest
-	29, // 66: playtesthub.v1.PlaytesthubService.Signup:input_type -> playtesthub.v1.SignupRequest
-	31, // 67: playtesthub.v1.PlaytesthubService.GetApplicantStatus:input_type -> playtesthub.v1.GetApplicantStatusRequest
-	35, // 68: playtesthub.v1.PlaytesthubService.AcceptNDA:input_type -> playtesthub.v1.AcceptNDARequest
-	37, // 69: playtesthub.v1.PlaytesthubService.GetGrantedCode:input_type -> playtesthub.v1.GetGrantedCodeRequest
-	39, // 70: playtesthub.v1.PlaytesthubService.ListApplicants:input_type -> playtesthub.v1.ListApplicantsRequest
-	41, // 71: playtesthub.v1.PlaytesthubService.ApproveApplicant:input_type -> playtesthub.v1.ApproveApplicantRequest
-	43, // 72: playtesthub.v1.PlaytesthubService.RejectApplicant:input_type -> playtesthub.v1.RejectApplicantRequest
-	45, // 73: playtesthub.v1.PlaytesthubService.RetryDM:input_type -> playtesthub.v1.RetryDMRequest
-	47, // 74: playtesthub.v1.PlaytesthubService.UploadCodes:input_type -> playtesthub.v1.UploadCodesRequest
-	50, // 75: playtesthub.v1.PlaytesthubService.TopUpCodes:input_type -> playtesthub.v1.TopUpCodesRequest
-	52, // 76: playtesthub.v1.PlaytesthubService.SyncFromAGS:input_type -> playtesthub.v1.SyncFromAGSRequest
-	54, // 77: playtesthub.v1.PlaytesthubService.GetCodePool:input_type -> playtesthub.v1.GetCodePoolRequest
-	14, // 78: playtesthub.v1.PlaytesthubService.GetPublicPlaytest:output_type -> playtesthub.v1.GetPublicPlaytestResponse
-	16, // 79: playtesthub.v1.PlaytesthubService.GetPlaytestForPlayer:output_type -> playtesthub.v1.GetPlaytestForPlayerResponse
-	18, // 80: playtesthub.v1.PlaytesthubService.AdminGetPlaytest:output_type -> playtesthub.v1.AdminGetPlaytestResponse
-	20, // 81: playtesthub.v1.PlaytesthubService.ListPlaytests:output_type -> playtesthub.v1.ListPlaytestsResponse
-	22, // 82: playtesthub.v1.PlaytesthubService.CreatePlaytest:output_type -> playtesthub.v1.CreatePlaytestResponse
-	24, // 83: playtesthub.v1.PlaytesthubService.EditPlaytest:output_type -> playtesthub.v1.EditPlaytestResponse
-	26, // 84: playtesthub.v1.PlaytesthubService.SoftDeletePlaytest:output_type -> playtesthub.v1.SoftDeletePlaytestResponse
-	28, // 85: playtesthub.v1.PlaytesthubService.TransitionPlaytestStatus:output_type -> playtesthub.v1.TransitionPlaytestStatusResponse
-	34, // 86: playtesthub.v1.PlaytesthubService.ExchangeDiscordCode:output_type -> playtesthub.v1.ExchangeDiscordCodeResponse
-	30, // 87: playtesthub.v1.PlaytesthubService.Signup:output_type -> playtesthub.v1.SignupResponse
-	32, // 88: playtesthub.v1.PlaytesthubService.GetApplicantStatus:output_type -> playtesthub.v1.GetApplicantStatusResponse
-	36, // 89: playtesthub.v1.PlaytesthubService.AcceptNDA:output_type -> playtesthub.v1.AcceptNDAResponse
-	38, // 90: playtesthub.v1.PlaytesthubService.GetGrantedCode:output_type -> playtesthub.v1.GetGrantedCodeResponse
-	40, // 91: playtesthub.v1.PlaytesthubService.ListApplicants:output_type -> playtesthub.v1.ListApplicantsResponse
-	42, // 92: playtesthub.v1.PlaytesthubService.ApproveApplicant:output_type -> playtesthub.v1.ApproveApplicantResponse
-	44, // 93: playtesthub.v1.PlaytesthubService.RejectApplicant:output_type -> playtesthub.v1.RejectApplicantResponse
-	46, // 94: playtesthub.v1.PlaytesthubService.RetryDM:output_type -> playtesthub.v1.RetryDMResponse
-	49, // 95: playtesthub.v1.PlaytesthubService.UploadCodes:output_type -> playtesthub.v1.UploadCodesResponse
-	51, // 96: playtesthub.v1.PlaytesthubService.TopUpCodes:output_type -> playtesthub.v1.TopUpCodesResponse
-	53, // 97: playtesthub.v1.PlaytesthubService.SyncFromAGS:output_type -> playtesthub.v1.SyncFromAGSResponse
-	55, // 98: playtesthub.v1.PlaytesthubService.GetCodePool:output_type -> playtesthub.v1.GetCodePoolResponse
-	78, // [78:99] is the sub-list for method output_type
-	57, // [57:78] is the sub-list for method input_type
-	57, // [57:57] is the sub-list for extension type_name
-	57, // [57:57] is the sub-list for extension extendee
-	0,  // [0:57] is the sub-list for field type_name
+	0,   // 0: playtesthub.v1.Playtest.platforms:type_name -> playtesthub.v1.Platform
+	78,  // 1: playtesthub.v1.Playtest.starts_at:type_name -> google.protobuf.Timestamp
+	78,  // 2: playtesthub.v1.Playtest.ends_at:type_name -> google.protobuf.Timestamp
+	1,   // 3: playtesthub.v1.Playtest.status:type_name -> playtesthub.v1.PlaytestStatus
+	2,   // 4: playtesthub.v1.Playtest.distribution_model:type_name -> playtesthub.v1.DistributionModel
+	78,  // 5: playtesthub.v1.Playtest.created_at:type_name -> google.protobuf.Timestamp
+	78,  // 6: playtesthub.v1.Playtest.updated_at:type_name -> google.protobuf.Timestamp
+	78,  // 7: playtesthub.v1.Playtest.deleted_at:type_name -> google.protobuf.Timestamp
+	0,   // 8: playtesthub.v1.PublicPlaytest.platforms:type_name -> playtesthub.v1.Platform
+	78,  // 9: playtesthub.v1.PublicPlaytest.starts_at:type_name -> google.protobuf.Timestamp
+	78,  // 10: playtesthub.v1.PublicPlaytest.ends_at:type_name -> google.protobuf.Timestamp
+	0,   // 11: playtesthub.v1.PlayerPlaytest.platforms:type_name -> playtesthub.v1.Platform
+	78,  // 12: playtesthub.v1.PlayerPlaytest.starts_at:type_name -> google.protobuf.Timestamp
+	78,  // 13: playtesthub.v1.PlayerPlaytest.ends_at:type_name -> google.protobuf.Timestamp
+	1,   // 14: playtesthub.v1.PlayerPlaytest.status:type_name -> playtesthub.v1.PlaytestStatus
+	2,   // 15: playtesthub.v1.PlayerPlaytest.distribution_model:type_name -> playtesthub.v1.DistributionModel
+	0,   // 16: playtesthub.v1.Applicant.platforms:type_name -> playtesthub.v1.Platform
+	3,   // 17: playtesthub.v1.Applicant.status:type_name -> playtesthub.v1.ApplicantStatus
+	78,  // 18: playtesthub.v1.Applicant.approved_at:type_name -> google.protobuf.Timestamp
+	4,   // 19: playtesthub.v1.Applicant.last_dm_status:type_name -> playtesthub.v1.DmStatus
+	78,  // 20: playtesthub.v1.Applicant.last_dm_attempt_at:type_name -> google.protobuf.Timestamp
+	78,  // 21: playtesthub.v1.Applicant.created_at:type_name -> google.protobuf.Timestamp
+	78,  // 22: playtesthub.v1.NDAAcceptance.accepted_at:type_name -> google.protobuf.Timestamp
+	5,   // 23: playtesthub.v1.Code.state:type_name -> playtesthub.v1.CodeState
+	78,  // 24: playtesthub.v1.Code.reserved_at:type_name -> google.protobuf.Timestamp
+	78,  // 25: playtesthub.v1.Code.granted_at:type_name -> google.protobuf.Timestamp
+	78,  // 26: playtesthub.v1.Code.created_at:type_name -> google.protobuf.Timestamp
+	6,   // 27: playtesthub.v1.SurveyQuestion.type:type_name -> playtesthub.v1.SurveyQuestionType
+	14,  // 28: playtesthub.v1.SurveyQuestion.options:type_name -> playtesthub.v1.MultiChoiceOption
+	15,  // 29: playtesthub.v1.Survey.questions:type_name -> playtesthub.v1.SurveyQuestion
+	78,  // 30: playtesthub.v1.Survey.created_at:type_name -> google.protobuf.Timestamp
+	17,  // 31: playtesthub.v1.SurveyAnswer.multi_choice:type_name -> playtesthub.v1.SurveyMultiChoiceAnswer
+	18,  // 32: playtesthub.v1.SurveyResponse.answers:type_name -> playtesthub.v1.SurveyAnswer
+	78,  // 33: playtesthub.v1.SurveyResponse.submitted_at:type_name -> google.protobuf.Timestamp
+	78,  // 34: playtesthub.v1.AuditLogEntry.created_at:type_name -> google.protobuf.Timestamp
+	8,   // 35: playtesthub.v1.GetPublicPlaytestResponse.playtest:type_name -> playtesthub.v1.PublicPlaytest
+	9,   // 36: playtesthub.v1.GetPlaytestForPlayerResponse.playtest:type_name -> playtesthub.v1.PlayerPlaytest
+	7,   // 37: playtesthub.v1.AdminGetPlaytestResponse.playtest:type_name -> playtesthub.v1.Playtest
+	7,   // 38: playtesthub.v1.ListPlaytestsResponse.playtests:type_name -> playtesthub.v1.Playtest
+	0,   // 39: playtesthub.v1.CreatePlaytestRequest.platforms:type_name -> playtesthub.v1.Platform
+	78,  // 40: playtesthub.v1.CreatePlaytestRequest.starts_at:type_name -> google.protobuf.Timestamp
+	78,  // 41: playtesthub.v1.CreatePlaytestRequest.ends_at:type_name -> google.protobuf.Timestamp
+	2,   // 42: playtesthub.v1.CreatePlaytestRequest.distribution_model:type_name -> playtesthub.v1.DistributionModel
+	7,   // 43: playtesthub.v1.CreatePlaytestResponse.playtest:type_name -> playtesthub.v1.Playtest
+	0,   // 44: playtesthub.v1.EditPlaytestRequest.platforms:type_name -> playtesthub.v1.Platform
+	78,  // 45: playtesthub.v1.EditPlaytestRequest.starts_at:type_name -> google.protobuf.Timestamp
+	78,  // 46: playtesthub.v1.EditPlaytestRequest.ends_at:type_name -> google.protobuf.Timestamp
+	7,   // 47: playtesthub.v1.EditPlaytestResponse.playtest:type_name -> playtesthub.v1.Playtest
+	1,   // 48: playtesthub.v1.TransitionPlaytestStatusRequest.target_status:type_name -> playtesthub.v1.PlaytestStatus
+	7,   // 49: playtesthub.v1.TransitionPlaytestStatusResponse.playtest:type_name -> playtesthub.v1.Playtest
+	0,   // 50: playtesthub.v1.SignupRequest.platforms:type_name -> playtesthub.v1.Platform
+	10,  // 51: playtesthub.v1.SignupResponse.applicant:type_name -> playtesthub.v1.Applicant
+	10,  // 52: playtesthub.v1.GetApplicantStatusResponse.applicant:type_name -> playtesthub.v1.Applicant
+	11,  // 53: playtesthub.v1.AcceptNDAResponse.acceptance:type_name -> playtesthub.v1.NDAAcceptance
+	2,   // 54: playtesthub.v1.GetGrantedCodeResponse.distribution_model:type_name -> playtesthub.v1.DistributionModel
+	3,   // 55: playtesthub.v1.ListApplicantsRequest.status_filter:type_name -> playtesthub.v1.ApplicantStatus
+	10,  // 56: playtesthub.v1.ListApplicantsResponse.applicants:type_name -> playtesthub.v1.Applicant
+	10,  // 57: playtesthub.v1.ApproveApplicantResponse.applicant:type_name -> playtesthub.v1.Applicant
+	10,  // 58: playtesthub.v1.RejectApplicantResponse.applicant:type_name -> playtesthub.v1.Applicant
+	10,  // 59: playtesthub.v1.RetryDMResponse.applicant:type_name -> playtesthub.v1.Applicant
+	56,  // 60: playtesthub.v1.UploadCodesResponse.rejections:type_name -> playtesthub.v1.UploadCodesRejection
+	13,  // 61: playtesthub.v1.TopUpCodesResponse.pool:type_name -> playtesthub.v1.CodePoolStats
+	13,  // 62: playtesthub.v1.SyncFromAGSResponse.pool:type_name -> playtesthub.v1.CodePoolStats
+	13,  // 63: playtesthub.v1.GetCodePoolResponse.stats:type_name -> playtesthub.v1.CodePoolStats
+	12,  // 64: playtesthub.v1.GetCodePoolResponse.codes:type_name -> playtesthub.v1.Code
+	15,  // 65: playtesthub.v1.CreateSurveyRequest.questions:type_name -> playtesthub.v1.SurveyQuestion
+	16,  // 66: playtesthub.v1.CreateSurveyResponse.survey:type_name -> playtesthub.v1.Survey
+	15,  // 67: playtesthub.v1.EditSurveyRequest.questions:type_name -> playtesthub.v1.SurveyQuestion
+	16,  // 68: playtesthub.v1.EditSurveyResponse.survey:type_name -> playtesthub.v1.Survey
+	16,  // 69: playtesthub.v1.GetSurveyResponse.survey:type_name -> playtesthub.v1.Survey
+	18,  // 70: playtesthub.v1.SubmitSurveyResponseRequest.answers:type_name -> playtesthub.v1.SurveyAnswer
+	19,  // 71: playtesthub.v1.SubmitSurveyResponseResponse.response:type_name -> playtesthub.v1.SurveyResponse
+	19,  // 72: playtesthub.v1.ListSurveyResponsesResponse.responses:type_name -> playtesthub.v1.SurveyResponse
+	20,  // 73: playtesthub.v1.ListAuditLogResponse.entries:type_name -> playtesthub.v1.AuditLogEntry
+	21,  // 74: playtesthub.v1.PlaytesthubService.GetPublicPlaytest:input_type -> playtesthub.v1.GetPublicPlaytestRequest
+	23,  // 75: playtesthub.v1.PlaytesthubService.GetPlaytestForPlayer:input_type -> playtesthub.v1.GetPlaytestForPlayerRequest
+	25,  // 76: playtesthub.v1.PlaytesthubService.AdminGetPlaytest:input_type -> playtesthub.v1.AdminGetPlaytestRequest
+	27,  // 77: playtesthub.v1.PlaytesthubService.ListPlaytests:input_type -> playtesthub.v1.ListPlaytestsRequest
+	29,  // 78: playtesthub.v1.PlaytesthubService.CreatePlaytest:input_type -> playtesthub.v1.CreatePlaytestRequest
+	31,  // 79: playtesthub.v1.PlaytesthubService.EditPlaytest:input_type -> playtesthub.v1.EditPlaytestRequest
+	33,  // 80: playtesthub.v1.PlaytesthubService.SoftDeletePlaytest:input_type -> playtesthub.v1.SoftDeletePlaytestRequest
+	35,  // 81: playtesthub.v1.PlaytesthubService.TransitionPlaytestStatus:input_type -> playtesthub.v1.TransitionPlaytestStatusRequest
+	41,  // 82: playtesthub.v1.PlaytesthubService.ExchangeDiscordCode:input_type -> playtesthub.v1.ExchangeDiscordCodeRequest
+	37,  // 83: playtesthub.v1.PlaytesthubService.Signup:input_type -> playtesthub.v1.SignupRequest
+	39,  // 84: playtesthub.v1.PlaytesthubService.GetApplicantStatus:input_type -> playtesthub.v1.GetApplicantStatusRequest
+	43,  // 85: playtesthub.v1.PlaytesthubService.AcceptNDA:input_type -> playtesthub.v1.AcceptNDARequest
+	45,  // 86: playtesthub.v1.PlaytesthubService.GetGrantedCode:input_type -> playtesthub.v1.GetGrantedCodeRequest
+	47,  // 87: playtesthub.v1.PlaytesthubService.ListApplicants:input_type -> playtesthub.v1.ListApplicantsRequest
+	49,  // 88: playtesthub.v1.PlaytesthubService.ApproveApplicant:input_type -> playtesthub.v1.ApproveApplicantRequest
+	51,  // 89: playtesthub.v1.PlaytesthubService.RejectApplicant:input_type -> playtesthub.v1.RejectApplicantRequest
+	53,  // 90: playtesthub.v1.PlaytesthubService.RetryDM:input_type -> playtesthub.v1.RetryDMRequest
+	55,  // 91: playtesthub.v1.PlaytesthubService.UploadCodes:input_type -> playtesthub.v1.UploadCodesRequest
+	58,  // 92: playtesthub.v1.PlaytesthubService.TopUpCodes:input_type -> playtesthub.v1.TopUpCodesRequest
+	60,  // 93: playtesthub.v1.PlaytesthubService.SyncFromAGS:input_type -> playtesthub.v1.SyncFromAGSRequest
+	62,  // 94: playtesthub.v1.PlaytesthubService.GetCodePool:input_type -> playtesthub.v1.GetCodePoolRequest
+	64,  // 95: playtesthub.v1.PlaytesthubService.CreateSurvey:input_type -> playtesthub.v1.CreateSurveyRequest
+	66,  // 96: playtesthub.v1.PlaytesthubService.EditSurvey:input_type -> playtesthub.v1.EditSurveyRequest
+	68,  // 97: playtesthub.v1.PlaytesthubService.GetSurvey:input_type -> playtesthub.v1.GetSurveyRequest
+	70,  // 98: playtesthub.v1.PlaytesthubService.SubmitSurveyResponse:input_type -> playtesthub.v1.SubmitSurveyResponseRequest
+	72,  // 99: playtesthub.v1.PlaytesthubService.ListSurveyResponses:input_type -> playtesthub.v1.ListSurveyResponsesRequest
+	74,  // 100: playtesthub.v1.PlaytesthubService.ListAuditLog:input_type -> playtesthub.v1.ListAuditLogRequest
+	76,  // 101: playtesthub.v1.PlaytesthubService.RetryFailedDms:input_type -> playtesthub.v1.RetryFailedDmsRequest
+	22,  // 102: playtesthub.v1.PlaytesthubService.GetPublicPlaytest:output_type -> playtesthub.v1.GetPublicPlaytestResponse
+	24,  // 103: playtesthub.v1.PlaytesthubService.GetPlaytestForPlayer:output_type -> playtesthub.v1.GetPlaytestForPlayerResponse
+	26,  // 104: playtesthub.v1.PlaytesthubService.AdminGetPlaytest:output_type -> playtesthub.v1.AdminGetPlaytestResponse
+	28,  // 105: playtesthub.v1.PlaytesthubService.ListPlaytests:output_type -> playtesthub.v1.ListPlaytestsResponse
+	30,  // 106: playtesthub.v1.PlaytesthubService.CreatePlaytest:output_type -> playtesthub.v1.CreatePlaytestResponse
+	32,  // 107: playtesthub.v1.PlaytesthubService.EditPlaytest:output_type -> playtesthub.v1.EditPlaytestResponse
+	34,  // 108: playtesthub.v1.PlaytesthubService.SoftDeletePlaytest:output_type -> playtesthub.v1.SoftDeletePlaytestResponse
+	36,  // 109: playtesthub.v1.PlaytesthubService.TransitionPlaytestStatus:output_type -> playtesthub.v1.TransitionPlaytestStatusResponse
+	42,  // 110: playtesthub.v1.PlaytesthubService.ExchangeDiscordCode:output_type -> playtesthub.v1.ExchangeDiscordCodeResponse
+	38,  // 111: playtesthub.v1.PlaytesthubService.Signup:output_type -> playtesthub.v1.SignupResponse
+	40,  // 112: playtesthub.v1.PlaytesthubService.GetApplicantStatus:output_type -> playtesthub.v1.GetApplicantStatusResponse
+	44,  // 113: playtesthub.v1.PlaytesthubService.AcceptNDA:output_type -> playtesthub.v1.AcceptNDAResponse
+	46,  // 114: playtesthub.v1.PlaytesthubService.GetGrantedCode:output_type -> playtesthub.v1.GetGrantedCodeResponse
+	48,  // 115: playtesthub.v1.PlaytesthubService.ListApplicants:output_type -> playtesthub.v1.ListApplicantsResponse
+	50,  // 116: playtesthub.v1.PlaytesthubService.ApproveApplicant:output_type -> playtesthub.v1.ApproveApplicantResponse
+	52,  // 117: playtesthub.v1.PlaytesthubService.RejectApplicant:output_type -> playtesthub.v1.RejectApplicantResponse
+	54,  // 118: playtesthub.v1.PlaytesthubService.RetryDM:output_type -> playtesthub.v1.RetryDMResponse
+	57,  // 119: playtesthub.v1.PlaytesthubService.UploadCodes:output_type -> playtesthub.v1.UploadCodesResponse
+	59,  // 120: playtesthub.v1.PlaytesthubService.TopUpCodes:output_type -> playtesthub.v1.TopUpCodesResponse
+	61,  // 121: playtesthub.v1.PlaytesthubService.SyncFromAGS:output_type -> playtesthub.v1.SyncFromAGSResponse
+	63,  // 122: playtesthub.v1.PlaytesthubService.GetCodePool:output_type -> playtesthub.v1.GetCodePoolResponse
+	65,  // 123: playtesthub.v1.PlaytesthubService.CreateSurvey:output_type -> playtesthub.v1.CreateSurveyResponse
+	67,  // 124: playtesthub.v1.PlaytesthubService.EditSurvey:output_type -> playtesthub.v1.EditSurveyResponse
+	69,  // 125: playtesthub.v1.PlaytesthubService.GetSurvey:output_type -> playtesthub.v1.GetSurveyResponse
+	71,  // 126: playtesthub.v1.PlaytesthubService.SubmitSurveyResponse:output_type -> playtesthub.v1.SubmitSurveyResponseResponse
+	73,  // 127: playtesthub.v1.PlaytesthubService.ListSurveyResponses:output_type -> playtesthub.v1.ListSurveyResponsesResponse
+	75,  // 128: playtesthub.v1.PlaytesthubService.ListAuditLog:output_type -> playtesthub.v1.ListAuditLogResponse
+	77,  // 129: playtesthub.v1.PlaytesthubService.RetryFailedDms:output_type -> playtesthub.v1.RetryFailedDmsResponse
+	102, // [102:130] is the sub-list for method output_type
+	74,  // [74:102] is the sub-list for method input_type
+	74,  // [74:74] is the sub-list for extension type_name
+	74,  // [74:74] is the sub-list for extension extendee
+	0,   // [0:74] is the sub-list for field type_name
 }
 
 func init() { file_playtesthub_v1_playtesthub_proto_init() }
@@ -4111,15 +5730,21 @@ func file_playtesthub_v1_playtesthub_proto_init() {
 	file_playtesthub_v1_playtesthub_proto_msgTypes[2].OneofWrappers = []any{}
 	file_playtesthub_v1_playtesthub_proto_msgTypes[3].OneofWrappers = []any{}
 	file_playtesthub_v1_playtesthub_proto_msgTypes[5].OneofWrappers = []any{}
-	file_playtesthub_v1_playtesthub_proto_msgTypes[15].OneofWrappers = []any{}
-	file_playtesthub_v1_playtesthub_proto_msgTypes[37].OneofWrappers = []any{}
+	file_playtesthub_v1_playtesthub_proto_msgTypes[11].OneofWrappers = []any{
+		(*SurveyAnswer_Text)(nil),
+		(*SurveyAnswer_Rating)(nil),
+		(*SurveyAnswer_MultiChoice)(nil),
+	}
+	file_playtesthub_v1_playtesthub_proto_msgTypes[13].OneofWrappers = []any{}
+	file_playtesthub_v1_playtesthub_proto_msgTypes[22].OneofWrappers = []any{}
+	file_playtesthub_v1_playtesthub_proto_msgTypes[44].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_playtesthub_v1_playtesthub_proto_rawDesc), len(file_playtesthub_v1_playtesthub_proto_rawDesc)),
-			NumEnums:      6,
-			NumMessages:   50,
+			NumEnums:      7,
+			NumMessages:   71,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -370,6 +370,134 @@ service PlaytesthubService {
       }
     };
   }
+
+  // ---------------- M3 ----------------
+  //
+  // M3 RPCs are declared on the service so the gateway/OpenAPI surface
+  // and CLI codegen can land in phase 1. Handlers are not implemented
+  // until the milestone phases gated in docs/STATUS.md M3 — until then
+  // the embedded UnimplementedPlaytesthubServiceServer makes each call
+  // surface gRPC Unimplemented at runtime.
+
+  rpc CreateSurvey(CreateSurveyRequest) returns (CreateSurveyResponse) {
+    option (playtesthub.v1.action) = ACTION_CREATE;
+    option (playtesthub.v1.resource) = "ADMIN:NAMESPACE:{namespace}:EXTEND:APPUI";
+    option (google.api.http) = {
+      post: "/v1/admin/namespaces/{namespace}/playtests/{playtest_id}/survey"
+      body: "*"
+    };
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Create the survey for a playtest (admin; first-version only — second call returns AlreadyExists)"
+      description: "Natural-key on playtest_id. Server mints question UUIDs and multi-choice option UUIDs. Bounds: ≤50 questions, prompt ≤1,000 chars, multi-choice 2–20 options with label ≤200 chars (schema.md §\"Survey entity spec\")."
+      security: {
+        security_requirement: {
+          key: "Bearer"
+          value: {}
+        }
+      }
+    };
+  }
+
+  rpc EditSurvey(EditSurveyRequest) returns (EditSurveyResponse) {
+    option (playtesthub.v1.action) = ACTION_UPDATE;
+    option (playtesthub.v1.resource) = "ADMIN:NAMESPACE:{namespace}:EXTEND:APPUI";
+    option (google.api.http) = {
+      patch: "/v1/admin/namespaces/{namespace}/playtests/{playtest_id}/survey"
+      body: "*"
+    };
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Edit the survey for a playtest (admin; bumps version each call)"
+      description: "Always creates a new Survey row with version = previous + 1. Question UUIDs are preserved for kept questions (client passes the existing id) and minted for new ones (id empty). Multi-choice option ids likewise — keeps histogram aggregation keys stable across edits per schema.md."
+      security: {
+        security_requirement: {
+          key: "Bearer"
+          value: {}
+        }
+      }
+    };
+  }
+
+  rpc GetSurvey(GetSurveyRequest) returns (GetSurveyResponse) {
+    option (google.api.http) = {get: "/v1/player/playtests/{playtest_id}/survey"};
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Get the current survey for a playtest (authenticated player)"
+      description: "Returns the version pointed at by Playtest.surveyId. NotFound when the playtest has no survey."
+      security: {
+        security_requirement: {
+          key: "Bearer"
+          value: {}
+        }
+      }
+    };
+  }
+
+  rpc SubmitSurveyResponse(SubmitSurveyResponseRequest) returns (SubmitSurveyResponseResponse) {
+    option (google.api.http) = {
+      post: "/v1/player/playtests/{playtest_id}/survey:submit"
+      body: "*"
+    };
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Submit a one-shot survey response (authenticated player; APPROVED + NDA-current applicants only)"
+      description: "Natural-key on (playtestId, userId). Second submit returns gRPC AlreadyExists with empty body per errors.md row 31. The server records against the survey_id the client submitted — a concurrent EditSurvey does not invalidate an in-flight submit (PRD §5.6)."
+      security: {
+        security_requirement: {
+          key: "Bearer"
+          value: {}
+        }
+      }
+    };
+  }
+
+  rpc ListSurveyResponses(ListSurveyResponsesRequest) returns (ListSurveyResponsesResponse) {
+    option (playtesthub.v1.action) = ACTION_READ;
+    option (playtesthub.v1.resource) = "ADMIN:NAMESPACE:{namespace}:EXTEND:APPUI";
+    option (google.api.http) = {get: "/v1/admin/namespaces/{namespace}/playtests/{playtest_id}/survey/responses"};
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "List survey responses for a playtest (admin; cursor pagination on (submittedAt, id))"
+      description: "Default page_size 50, max 200. Optional survey_id_filter narrows to a single Survey version for per-version aggregate split."
+      security: {
+        security_requirement: {
+          key: "Bearer"
+          value: {}
+        }
+      }
+    };
+  }
+
+  rpc ListAuditLog(ListAuditLogRequest) returns (ListAuditLogResponse) {
+    option (playtesthub.v1.action) = ACTION_READ;
+    option (playtesthub.v1.resource) = "ADMIN:NAMESPACE:{namespace}:EXTEND:APPUI";
+    option (google.api.http) = {get: "/v1/admin/namespaces/{namespace}/playtests/{playtest_id}/auditLog"};
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "List audit log entries for a playtest (admin; cursor pagination on (createdAt, id))"
+      description: "actor_filter='system' maps to actorUserId IS NULL per PRD §4.7. action_filter is exact-match on the action string. before_json / after_json carry the JSONB columns verbatim — the client renders the diff."
+      security: {
+        security_requirement: {
+          key: "Bearer"
+          value: {}
+        }
+      }
+    };
+  }
+
+  rpc RetryFailedDms(RetryFailedDmsRequest) returns (RetryFailedDmsResponse) {
+    option (playtesthub.v1.action) = ACTION_UPDATE;
+    option (playtesthub.v1.resource) = "ADMIN:NAMESPACE:{namespace}:EXTEND:APPUI";
+    option (google.api.http) = {
+      post: "/v1/admin/namespaces/{namespace}/playtests/{playtest_id}/applicants:retryFailedDms"
+      body: "*"
+    };
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Bulk-enqueue every failed-DM applicant for retry (admin; not idempotent)"
+      description: "Walks every applicant with last_dm_status=FAILED for the playtest and enqueues each through the same DM-queue path as approve, respecting the 10k cap and configured drain rate. Overflowed rows stay FAILED with last_dm_error='dm_queue_overflow' (PRD §5.5)."
+      security: {
+        security_requirement: {
+          key: "Bearer"
+          value: {}
+        }
+      }
+    };
+  }
 }
 
 // ---------------- enums ----------------
@@ -530,6 +658,103 @@ message CodePoolStats {
   int32 unused = 2;
   int32 reserved = 3;
   int32 granted = 4;
+}
+
+// ---------------- M3 entities ----------------
+
+// SurveyQuestionType — discriminator for the typed-question shape.
+// `text` (free-text textarea), `rating` (fixed 1–5), `multi_choice`
+// (2–20 labelled options).
+enum SurveyQuestionType {
+  SURVEY_QUESTION_TYPE_UNSPECIFIED = 0;
+  SURVEY_QUESTION_TYPE_TEXT = 1;
+  SURVEY_QUESTION_TYPE_RATING = 2;
+  SURVEY_QUESTION_TYPE_MULTI_CHOICE = 3;
+}
+
+// MultiChoiceOption — one entry on a multi_choice question. `id` is
+// server-minted on first save and preserved across EditSurvey version
+// bumps so histogram aggregation keys stay stable (schema.md §"Survey
+// entity spec"). On EditSurvey, clients pass the existing `id` for
+// kept options and leave it empty for new options.
+message MultiChoiceOption {
+  string id = 1;
+  string label = 2;
+}
+
+// SurveyQuestion — one entry in a Survey's ordered question array.
+// `id` server-minted on first save; preserved across edits for kept
+// questions (clients pass it back), empty for new questions.
+// `options` populated only for SURVEY_QUESTION_TYPE_MULTI_CHOICE; the
+// server rejects on save if outside 2–20 entries. `allow_multiple`
+// distinguishes single-select (radio) from multi-select (checkbox)
+// rendering on the player side.
+message SurveyQuestion {
+  string id = 1;
+  SurveyQuestionType type = 2;
+  string prompt = 3;
+  bool required = 4;
+  repeated MultiChoiceOption options = 5;
+  bool allow_multiple = 6;
+}
+
+// Survey — one row per (playtest, version). Editing a survey writes
+// a new row with version = previous + 1; the prior versions are
+// retained so SurveyResponse rows can be aggregated per-version
+// (PRD §5.6).
+message Survey {
+  string id = 1;
+  string playtest_id = 2;
+  int32 version = 3;
+  repeated SurveyQuestion questions = 4;
+  google.protobuf.Timestamp created_at = 5;
+}
+
+// SurveyAnswer — one entry per answered question on a SurveyResponse.
+// The oneof keeps text, rating, and multi-choice payloads typed and
+// mutually exclusive. multi_choice carries either one option_id
+// (radio) or many (checkbox) — matched to the question's
+// allow_multiple flag at submit time.
+message SurveyMultiChoiceAnswer {
+  repeated string option_ids = 1;
+}
+message SurveyAnswer {
+  string question_id = 1;
+  oneof value {
+    string text = 2;
+    int32 rating = 3;
+    SurveyMultiChoiceAnswer multi_choice = 4;
+  }
+}
+
+// SurveyResponse — one row per (playtest, user). UNIQUE(playtestId,
+// userId) at the DB level enforces one-shot semantics regardless of
+// survey version bumps (schema.md §"Survey entity spec"). `survey_id`
+// pins the Survey row (version) the client fetched and submitted
+// against.
+message SurveyResponse {
+  string id = 1;
+  string playtest_id = 2;
+  string user_id = 3;
+  string survey_id = 4;
+  repeated SurveyAnswer answers = 5;
+  google.protobuf.Timestamp submitted_at = 6;
+}
+
+// AuditLogEntry — one row from the AuditLog table (schema.md §"AuditLog
+// table"). before_json / after_json carry the JSONB payload columns
+// serialized as opaque JSON strings — the client renders the diff and
+// the wire shape stays stable as schema.md grows new payload variants.
+// actor_user_id absent ⇄ actorUserId IS NULL (system-emitted event).
+message AuditLogEntry {
+  string id = 1;
+  string namespace = 2;
+  optional string playtest_id = 3;
+  optional string actor_user_id = 4;
+  string action = 5;
+  string before_json = 6;
+  string after_json = 7;
+  google.protobuf.Timestamp created_at = 8;
 }
 
 // ---------------- request / response messages ----------------
@@ -781,6 +1006,101 @@ message GetCodePoolResponse {
   // Raw code values included — admin surfaces are exempt from the §6
   // log-redaction rule (PRD §5.7).
   repeated Code codes = 2;
+}
+
+// ---------------- M3 request / response messages ----------------
+
+message CreateSurveyRequest {
+  string namespace = 1;
+  string playtest_id = 2;
+  // Ordered question array. Server mints UUIDs for every question +
+  // option (any client-supplied id is ignored on Create — see EditSurvey
+  // for the preserve-on-edit path). Bounds enforced server-side per
+  // schema.md.
+  repeated SurveyQuestion questions = 3;
+}
+message CreateSurveyResponse {
+  Survey survey = 1;
+}
+
+message EditSurveyRequest {
+  string namespace = 1;
+  string playtest_id = 2;
+  // Ordered question array. For each entry: `id` non-empty → preserve
+  // (must match an existing question's id on the current version);
+  // `id` empty → mint a new UUID. Same rule applies to MultiChoiceOption.id.
+  // The server bumps version each call.
+  repeated SurveyQuestion questions = 3;
+}
+message EditSurveyResponse {
+  Survey survey = 1;
+}
+
+message GetSurveyRequest {
+  string playtest_id = 1;
+}
+message GetSurveyResponse {
+  Survey survey = 1;
+}
+
+message SubmitSurveyResponseRequest {
+  string playtest_id = 1;
+  // The Survey.id (version) the client fetched and is submitting
+  // against. Pinned to defeat mid-fill version race per PRD §5.6.
+  string survey_id = 2;
+  repeated SurveyAnswer answers = 3;
+}
+message SubmitSurveyResponseResponse {
+  SurveyResponse response = 1;
+}
+
+message ListSurveyResponsesRequest {
+  string namespace = 1;
+  string playtest_id = 2;
+  // Empty → all versions. Set to a Survey.id to narrow to a single
+  // version for per-version aggregate split (PRD §5.6 cross-version
+  // viewer).
+  string survey_id_filter = 3;
+  // Opaque cursor; absent → start of stream.
+  string page_token = 4;
+  // 0 → server default (50). Max 200.
+  int32 page_size = 5;
+}
+message ListSurveyResponsesResponse {
+  repeated SurveyResponse responses = 1;
+  string next_page_token = 2;
+}
+
+message ListAuditLogRequest {
+  string namespace = 1;
+  string playtest_id = 2;
+  // Empty → no actor filter. 'system' maps to actorUserId IS NULL per
+  // PRD §4.7 / §5.7.
+  string actor_filter = 3;
+  // Empty → no action filter. Otherwise exact-match on the action
+  // string (schema.md audit-action catalogue).
+  string action_filter = 4;
+  // Opaque cursor; absent → start of stream.
+  string page_token = 5;
+  // 0 → server default (50). Max 200.
+  int32 page_size = 6;
+}
+message ListAuditLogResponse {
+  repeated AuditLogEntry entries = 1;
+  string next_page_token = 2;
+}
+
+message RetryFailedDmsRequest {
+  string namespace = 1;
+  string playtest_id = 2;
+}
+message RetryFailedDmsResponse {
+  // Number of applicants successfully enqueued onto the DM queue.
+  int32 enqueued = 1;
+  // Number of applicants whose enqueue was rejected by the queue cap;
+  // these stay last_dm_status=FAILED with last_dm_error='dm_queue_overflow'
+  // (PRD §5.5).
+  int32 overflow = 2;
 }
 
 // ---------------- swagger root ----------------

@@ -40,6 +40,13 @@ const (
 	PlaytesthubService_TopUpCodes_FullMethodName               = "/playtesthub.v1.PlaytesthubService/TopUpCodes"
 	PlaytesthubService_SyncFromAGS_FullMethodName              = "/playtesthub.v1.PlaytesthubService/SyncFromAGS"
 	PlaytesthubService_GetCodePool_FullMethodName              = "/playtesthub.v1.PlaytesthubService/GetCodePool"
+	PlaytesthubService_CreateSurvey_FullMethodName             = "/playtesthub.v1.PlaytesthubService/CreateSurvey"
+	PlaytesthubService_EditSurvey_FullMethodName               = "/playtesthub.v1.PlaytesthubService/EditSurvey"
+	PlaytesthubService_GetSurvey_FullMethodName                = "/playtesthub.v1.PlaytesthubService/GetSurvey"
+	PlaytesthubService_SubmitSurveyResponse_FullMethodName     = "/playtesthub.v1.PlaytesthubService/SubmitSurveyResponse"
+	PlaytesthubService_ListSurveyResponses_FullMethodName      = "/playtesthub.v1.PlaytesthubService/ListSurveyResponses"
+	PlaytesthubService_ListAuditLog_FullMethodName             = "/playtesthub.v1.PlaytesthubService/ListAuditLog"
+	PlaytesthubService_RetryFailedDms_FullMethodName           = "/playtesthub.v1.PlaytesthubService/RetryFailedDms"
 )
 
 // PlaytesthubServiceClient is the client API for PlaytesthubService service.
@@ -79,6 +86,13 @@ type PlaytesthubServiceClient interface {
 	TopUpCodes(ctx context.Context, in *TopUpCodesRequest, opts ...grpc.CallOption) (*TopUpCodesResponse, error)
 	SyncFromAGS(ctx context.Context, in *SyncFromAGSRequest, opts ...grpc.CallOption) (*SyncFromAGSResponse, error)
 	GetCodePool(ctx context.Context, in *GetCodePoolRequest, opts ...grpc.CallOption) (*GetCodePoolResponse, error)
+	CreateSurvey(ctx context.Context, in *CreateSurveyRequest, opts ...grpc.CallOption) (*CreateSurveyResponse, error)
+	EditSurvey(ctx context.Context, in *EditSurveyRequest, opts ...grpc.CallOption) (*EditSurveyResponse, error)
+	GetSurvey(ctx context.Context, in *GetSurveyRequest, opts ...grpc.CallOption) (*GetSurveyResponse, error)
+	SubmitSurveyResponse(ctx context.Context, in *SubmitSurveyResponseRequest, opts ...grpc.CallOption) (*SubmitSurveyResponseResponse, error)
+	ListSurveyResponses(ctx context.Context, in *ListSurveyResponsesRequest, opts ...grpc.CallOption) (*ListSurveyResponsesResponse, error)
+	ListAuditLog(ctx context.Context, in *ListAuditLogRequest, opts ...grpc.CallOption) (*ListAuditLogResponse, error)
+	RetryFailedDms(ctx context.Context, in *RetryFailedDmsRequest, opts ...grpc.CallOption) (*RetryFailedDmsResponse, error)
 }
 
 type playtesthubServiceClient struct {
@@ -299,6 +313,76 @@ func (c *playtesthubServiceClient) GetCodePool(ctx context.Context, in *GetCodeP
 	return out, nil
 }
 
+func (c *playtesthubServiceClient) CreateSurvey(ctx context.Context, in *CreateSurveyRequest, opts ...grpc.CallOption) (*CreateSurveyResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CreateSurveyResponse)
+	err := c.cc.Invoke(ctx, PlaytesthubService_CreateSurvey_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *playtesthubServiceClient) EditSurvey(ctx context.Context, in *EditSurveyRequest, opts ...grpc.CallOption) (*EditSurveyResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(EditSurveyResponse)
+	err := c.cc.Invoke(ctx, PlaytesthubService_EditSurvey_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *playtesthubServiceClient) GetSurvey(ctx context.Context, in *GetSurveyRequest, opts ...grpc.CallOption) (*GetSurveyResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetSurveyResponse)
+	err := c.cc.Invoke(ctx, PlaytesthubService_GetSurvey_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *playtesthubServiceClient) SubmitSurveyResponse(ctx context.Context, in *SubmitSurveyResponseRequest, opts ...grpc.CallOption) (*SubmitSurveyResponseResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SubmitSurveyResponseResponse)
+	err := c.cc.Invoke(ctx, PlaytesthubService_SubmitSurveyResponse_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *playtesthubServiceClient) ListSurveyResponses(ctx context.Context, in *ListSurveyResponsesRequest, opts ...grpc.CallOption) (*ListSurveyResponsesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListSurveyResponsesResponse)
+	err := c.cc.Invoke(ctx, PlaytesthubService_ListSurveyResponses_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *playtesthubServiceClient) ListAuditLog(ctx context.Context, in *ListAuditLogRequest, opts ...grpc.CallOption) (*ListAuditLogResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListAuditLogResponse)
+	err := c.cc.Invoke(ctx, PlaytesthubService_ListAuditLog_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *playtesthubServiceClient) RetryFailedDms(ctx context.Context, in *RetryFailedDmsRequest, opts ...grpc.CallOption) (*RetryFailedDmsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RetryFailedDmsResponse)
+	err := c.cc.Invoke(ctx, PlaytesthubService_RetryFailedDms_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // PlaytesthubServiceServer is the server API for PlaytesthubService service.
 // All implementations should embed UnimplementedPlaytesthubServiceServer
 // for forward compatibility.
@@ -336,6 +420,13 @@ type PlaytesthubServiceServer interface {
 	TopUpCodes(context.Context, *TopUpCodesRequest) (*TopUpCodesResponse, error)
 	SyncFromAGS(context.Context, *SyncFromAGSRequest) (*SyncFromAGSResponse, error)
 	GetCodePool(context.Context, *GetCodePoolRequest) (*GetCodePoolResponse, error)
+	CreateSurvey(context.Context, *CreateSurveyRequest) (*CreateSurveyResponse, error)
+	EditSurvey(context.Context, *EditSurveyRequest) (*EditSurveyResponse, error)
+	GetSurvey(context.Context, *GetSurveyRequest) (*GetSurveyResponse, error)
+	SubmitSurveyResponse(context.Context, *SubmitSurveyResponseRequest) (*SubmitSurveyResponseResponse, error)
+	ListSurveyResponses(context.Context, *ListSurveyResponsesRequest) (*ListSurveyResponsesResponse, error)
+	ListAuditLog(context.Context, *ListAuditLogRequest) (*ListAuditLogResponse, error)
+	RetryFailedDms(context.Context, *RetryFailedDmsRequest) (*RetryFailedDmsResponse, error)
 }
 
 // UnimplementedPlaytesthubServiceServer should be embedded to have
@@ -407,6 +498,27 @@ func (UnimplementedPlaytesthubServiceServer) SyncFromAGS(context.Context, *SyncF
 }
 func (UnimplementedPlaytesthubServiceServer) GetCodePool(context.Context, *GetCodePoolRequest) (*GetCodePoolResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetCodePool not implemented")
+}
+func (UnimplementedPlaytesthubServiceServer) CreateSurvey(context.Context, *CreateSurveyRequest) (*CreateSurveyResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CreateSurvey not implemented")
+}
+func (UnimplementedPlaytesthubServiceServer) EditSurvey(context.Context, *EditSurveyRequest) (*EditSurveyResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method EditSurvey not implemented")
+}
+func (UnimplementedPlaytesthubServiceServer) GetSurvey(context.Context, *GetSurveyRequest) (*GetSurveyResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetSurvey not implemented")
+}
+func (UnimplementedPlaytesthubServiceServer) SubmitSurveyResponse(context.Context, *SubmitSurveyResponseRequest) (*SubmitSurveyResponseResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SubmitSurveyResponse not implemented")
+}
+func (UnimplementedPlaytesthubServiceServer) ListSurveyResponses(context.Context, *ListSurveyResponsesRequest) (*ListSurveyResponsesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListSurveyResponses not implemented")
+}
+func (UnimplementedPlaytesthubServiceServer) ListAuditLog(context.Context, *ListAuditLogRequest) (*ListAuditLogResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListAuditLog not implemented")
+}
+func (UnimplementedPlaytesthubServiceServer) RetryFailedDms(context.Context, *RetryFailedDmsRequest) (*RetryFailedDmsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RetryFailedDms not implemented")
 }
 func (UnimplementedPlaytesthubServiceServer) testEmbeddedByValue() {}
 
@@ -806,6 +918,132 @@ func _PlaytesthubService_GetCodePool_Handler(srv interface{}, ctx context.Contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _PlaytesthubService_CreateSurvey_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateSurveyRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PlaytesthubServiceServer).CreateSurvey(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PlaytesthubService_CreateSurvey_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PlaytesthubServiceServer).CreateSurvey(ctx, req.(*CreateSurveyRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PlaytesthubService_EditSurvey_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(EditSurveyRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PlaytesthubServiceServer).EditSurvey(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PlaytesthubService_EditSurvey_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PlaytesthubServiceServer).EditSurvey(ctx, req.(*EditSurveyRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PlaytesthubService_GetSurvey_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetSurveyRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PlaytesthubServiceServer).GetSurvey(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PlaytesthubService_GetSurvey_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PlaytesthubServiceServer).GetSurvey(ctx, req.(*GetSurveyRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PlaytesthubService_SubmitSurveyResponse_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SubmitSurveyResponseRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PlaytesthubServiceServer).SubmitSurveyResponse(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PlaytesthubService_SubmitSurveyResponse_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PlaytesthubServiceServer).SubmitSurveyResponse(ctx, req.(*SubmitSurveyResponseRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PlaytesthubService_ListSurveyResponses_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListSurveyResponsesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PlaytesthubServiceServer).ListSurveyResponses(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PlaytesthubService_ListSurveyResponses_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PlaytesthubServiceServer).ListSurveyResponses(ctx, req.(*ListSurveyResponsesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PlaytesthubService_ListAuditLog_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListAuditLogRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PlaytesthubServiceServer).ListAuditLog(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PlaytesthubService_ListAuditLog_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PlaytesthubServiceServer).ListAuditLog(ctx, req.(*ListAuditLogRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PlaytesthubService_RetryFailedDms_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RetryFailedDmsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PlaytesthubServiceServer).RetryFailedDms(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PlaytesthubService_RetryFailedDms_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PlaytesthubServiceServer).RetryFailedDms(ctx, req.(*RetryFailedDmsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // PlaytesthubService_ServiceDesc is the grpc.ServiceDesc for PlaytesthubService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -896,6 +1134,34 @@ var PlaytesthubService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetCodePool",
 			Handler:    _PlaytesthubService_GetCodePool_Handler,
+		},
+		{
+			MethodName: "CreateSurvey",
+			Handler:    _PlaytesthubService_CreateSurvey_Handler,
+		},
+		{
+			MethodName: "EditSurvey",
+			Handler:    _PlaytesthubService_EditSurvey_Handler,
+		},
+		{
+			MethodName: "GetSurvey",
+			Handler:    _PlaytesthubService_GetSurvey_Handler,
+		},
+		{
+			MethodName: "SubmitSurveyResponse",
+			Handler:    _PlaytesthubService_SubmitSurveyResponse_Handler,
+		},
+		{
+			MethodName: "ListSurveyResponses",
+			Handler:    _PlaytesthubService_ListSurveyResponses_Handler,
+		},
+		{
+			MethodName: "ListAuditLog",
+			Handler:    _PlaytesthubService_ListAuditLog_Handler,
+		},
+		{
+			MethodName: "RetryFailedDms",
+			Handler:    _PlaytesthubService_RetryFailedDms_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
