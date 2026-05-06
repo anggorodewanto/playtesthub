@@ -1,0 +1,102 @@
+# Builds the player Svelte bundle and deploys it to GitHub Pages.
+#
+# Repo Variables consumed (Settings → Secrets and variables → Actions →
+# Variables tab — these are public values, not secrets):
+#   PLAYER_GRPC_GATEWAY_URL  e.g. https://<env>.gamingservices.accelbyte.io/<base-path>
+#   PLAYER_IAM_BASE_URL      e.g. https://<env>.gamingservices.accelbyte.io
+#   PLAYER_DISCORD_CLIENT_ID Discord developer-portal application id
+#
+# A missing variable fails the build before deploy so a half-configured
+# config.json never reaches Pages — the player loader hard-fails on
+# malformed config per PRD §5.8.
+name: pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "player/**"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# A new commit cancels any in-flight Pages deploy so the latest main wins.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "22"
+
+jobs:
+  build:
+    name: build player
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: player
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: player/package-lock.json
+
+      - run: npm ci
+
+      - name: Verify required Repository Variables are set
+        env:
+          GW: ${{ vars.PLAYER_GRPC_GATEWAY_URL }}
+          IAM: ${{ vars.PLAYER_IAM_BASE_URL }}
+          DISCORD: ${{ vars.PLAYER_DISCORD_CLIENT_ID }}
+        run: |
+          missing=0
+          for v in GW IAM DISCORD; do
+            if [ -z "${!v}" ]; then
+              echo "::error::Repository Variable for $v is unset — set PLAYER_GRPC_GATEWAY_URL / PLAYER_IAM_BASE_URL / PLAYER_DISCORD_CLIENT_ID under Settings → Secrets and variables → Actions → Variables." >&2
+              missing=1
+            fi
+          done
+          [ $missing -eq 0 ]
+
+      - run: npm run test
+
+      - name: Emit player/public/config.json from Repository Variables
+        env:
+          PLAYER_GRPC_GATEWAY_URL: ${{ vars.PLAYER_GRPC_GATEWAY_URL }}
+          PLAYER_IAM_BASE_URL: ${{ vars.PLAYER_IAM_BASE_URL }}
+          PLAYER_DISCORD_CLIENT_ID: ${{ vars.PLAYER_DISCORD_CLIENT_ID }}
+        run: |
+          jq -n \
+            --arg gw "$PLAYER_GRPC_GATEWAY_URL" \
+            --arg iam "$PLAYER_IAM_BASE_URL" \
+            --arg cid "$PLAYER_DISCORD_CLIENT_ID" \
+            '{grpcGatewayUrl: $gw, iamBaseUrl: $iam, discordClientId: $cid}' \
+            > public/config.json
+
+      - name: Build with VITE_BASE pinned to the repo Pages subpath
+        env:
+          VITE_BASE: /${{ github.event.repository.name }}/
+        run: npm run build
+
+      - name: Upload Pages artifact (player/dist)
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: player/dist
+
+  deploy:
+    name: deploy to Pages
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

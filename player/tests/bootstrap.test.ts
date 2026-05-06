@@ -30,4 +30,22 @@ describe('bridgePathCallback', () => {
     bridgePathCallback(mockLoc('/callback', ''), hist);
     expect(replaceState).toHaveBeenCalledWith(null, '', '/#/callback');
   });
+
+  it('honours a non-root base path (e.g. GitHub Pages /<repo>/) for both match and rewrite target', () => {
+    const replaceState = vi.fn();
+    const hist = { replaceState } as unknown as History;
+    bridgePathCallback(
+      mockLoc('/playtesthub/callback', '?code=A&state=B'),
+      hist,
+      '/playtesthub/',
+    );
+    expect(replaceState).toHaveBeenCalledWith(null, '', '/playtesthub/#/callback?code=A&state=B');
+  });
+
+  it('no-ops on the root /callback when configured for a subpath base', () => {
+    const replaceState = vi.fn();
+    const hist = { replaceState } as unknown as History;
+    bridgePathCallback(mockLoc('/callback', '?code=A'), hist, '/playtesthub/');
+    expect(replaceState).not.toHaveBeenCalled();
+  });
 });

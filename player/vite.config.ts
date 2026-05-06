@@ -14,8 +14,14 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
   const backend = env.VITE_BACKEND_URL;
   const basePath = env.VITE_BACKEND_BASE_PATH || '/playtesthub';
+  // GitHub Pages serves the bundle under `/<repo>/` — set VITE_BASE to that
+  // subpath at build time. Empty/unset → root-served deploy (Vercel, custom
+  // domain, or local `npm run dev`). Trailing slash is required by Vite +
+  // BASE_URL consumers (loadConfig, bridgePathCallback).
+  const base = env.VITE_BASE || '/';
 
   return {
+    base,
     plugins: [svelte(), tailwindcss()],
     build: {
       outDir: 'dist',

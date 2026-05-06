@@ -10,7 +10,10 @@ bridgePathCallback();
 const target = document.getElementById('app');
 if (!target) throw new Error('playtesthub: #app mount point missing from index.html');
 
-const configUrl = import.meta.env.VITE_CONFIG_URL ?? '/config.json';
+// Default config.json lives next to the bundle — under the Vite
+// compile-time base. `VITE_CONFIG_URL` is still honoured for builds
+// that want to point at an external host.
+const configUrl = import.meta.env.VITE_CONFIG_URL ?? `${import.meta.env.BASE_URL}config.json`;
 
 loadConfig(configUrl).then(
   (config) => {
