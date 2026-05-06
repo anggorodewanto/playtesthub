@@ -169,6 +169,7 @@ For wire-level error contracts (which `ExchangeDiscordCode` errors map to which 
 
 ## Cross-references
 
+- [`deploy-player-pages.md`](deploy-player-pages.md) — companion runbook for shipping the player on GitHub Pages. Adds the Pages-shaped `${PLAYER_ORIGIN}` value (= `https://<owner>.github.io`) and the corresponding callback URL (= `https://<owner>.github.io/<repo>/callback`) to the byte-exact rule above.
 - [`discord-login.md`](discord-login.md) — descriptive companion: verified URL shapes, AGS source-code references, the verified successful payload.
 - [`docs/engineering.md`](../engineering.md) § "Discord federation via platform-token grant" — flow table + architectural rationale (why platform-token grant, not auth-code federation).
 - [`docs/PRD.md`](../PRD.md) §5.2 — Discord login as a player requirement.
