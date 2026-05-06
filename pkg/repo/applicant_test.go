@@ -88,6 +88,47 @@ func TestApplicantGetByPlaytestUser_RoundTrip(t *testing.T) {
 	}
 }
 
+// TestApplicantInsert_DiscordUserID_RoundTrips verifies the migration
+// 0004 column persists + scans on the round-trip. NULL is the expected
+// shape for non-Discord-federated signups; setting the snowflake is
+// the routable-recipient case the DM worker depends on.
+func TestApplicantInsert_DiscordUserID_RoundTrips(t *testing.T) {
+	truncateAll(t)
+	pt := seedPlaytest(t, "apl-discord-user-id")
+	store := repo.NewPgApplicantStore(testPool)
+	ctx := context.Background()
+
+	// NULL case.
+	gotNil, err := store.Insert(ctx, newApplicant(pt.ID, uuid.New()))
+	if err != nil {
+		t.Fatalf("Insert nil: %v", err)
+	}
+	if gotNil.DiscordUserID != nil {
+		t.Errorf("nil case: discord_user_id = %v, want nil", gotNil.DiscordUserID)
+	}
+
+	// Set case.
+	snowflake := "987654321098765432"
+	a := newApplicant(pt.ID, uuid.New())
+	a.DiscordUserID = &snowflake
+	gotSet, err := store.Insert(ctx, a)
+	if err != nil {
+		t.Fatalf("Insert set: %v", err)
+	}
+	if gotSet.DiscordUserID == nil || *gotSet.DiscordUserID != snowflake {
+		t.Errorf("set case: discord_user_id = %v, want %q", gotSet.DiscordUserID, snowflake)
+	}
+
+	// Re-read via GetByID to prove the scan path works for both rows.
+	roundTrip, err := store.GetByID(ctx, gotSet.ID)
+	if err != nil {
+		t.Fatalf("GetByID: %v", err)
+	}
+	if roundTrip.DiscordUserID == nil || *roundTrip.DiscordUserID != snowflake {
+		t.Errorf("GetByID: discord_user_id = %v, want %q", roundTrip.DiscordUserID, snowflake)
+	}
+}
+
 func TestApplicantGetByPlaytestUser_NotFound(t *testing.T) {
 	truncateAll(t)
 	pt := seedPlaytest(t, "apl-miss")

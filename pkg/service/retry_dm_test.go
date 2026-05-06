@@ -44,11 +44,13 @@ func seedFailedDMApplicant(rig approveTestRig, pt *repo.Playtest, userID uuid.UU
 	failed := dmStatusFailed
 	reason := "discord: 500"
 	now := time.Now()
+	snowflake := "discord:snowflake"
 	a := &repo.Applicant{
 		ID:              uuid.New(),
 		PlaytestID:      pt.ID,
 		UserID:          userID,
-		DiscordHandle:   "discord:snowflake",
+		DiscordHandle:   "DisplayName",
+		DiscordUserID:   &snowflake,
 		Platforms:       []string{"STEAM"},
 		Status:          applicantStatusApproved,
 		ApprovedAt:      &now,
@@ -95,8 +97,8 @@ func TestRetryDM_HappyPath_EnqueuesManualJob(t *testing.T) {
 	if !j.Manual {
 		t.Fatalf("manual=false; RetryDM must mark Manual=true")
 	}
-	if j.DiscordUserID != a.DiscordHandle {
-		t.Fatalf("recipient = %q, want applicant.discord_handle %q", j.DiscordUserID, a.DiscordHandle)
+	if a.DiscordUserID == nil || j.DiscordUserID != *a.DiscordUserID {
+		t.Fatalf("recipient = %q, want applicant.discord_user_id %v", j.DiscordUserID, a.DiscordUserID)
 	}
 }
 

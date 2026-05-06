@@ -35,10 +35,15 @@ const (
 // every column — service-layer response builders are responsible for
 // stripping fields before returning to the player (PRD §5.2 §5.4).
 type Applicant struct {
-	ID              uuid.UUID
-	PlaytestID      uuid.UUID
-	UserID          uuid.UUID
-	DiscordHandle   string
+	ID            uuid.UUID
+	PlaytestID    uuid.UUID
+	UserID        uuid.UUID
+	DiscordHandle string
+	// DiscordUserID is the Discord snowflake harvested from the IAM
+	// `platform_user_id` claim at signup. NULL for rows persisted
+	// before migration 0004; the DM queue treats NULL as
+	// `lastDmError='missing_recipient'` per docs/dm-queue.md.
+	DiscordUserID   *string
 	Platforms       []string
 	NDAVersionHash  *string
 	Status          string
@@ -126,7 +131,7 @@ func NewPgApplicantStore(pool *pgxpool.Pool) *PgApplicantStore {
 }
 
 const applicantColumns = `
-	id, playtest_id, user_id, discord_handle, platforms,
+	id, playtest_id, user_id, discord_handle, discord_user_id, platforms,
 	nda_version_hash, status, granted_code_id, approved_at,
 	rejection_reason, last_dm_status, last_dm_attempt_at,
 	last_dm_error, created_at`
@@ -138,15 +143,16 @@ const applicantColumns = `
 func (s *PgApplicantStore) Insert(ctx context.Context, a *Applicant) (*Applicant, error) {
 	const sql = `
 		INSERT INTO applicant (
-			playtest_id, user_id, discord_handle, platforms, nda_version_hash
+			playtest_id, user_id, discord_handle, discord_user_id, platforms, nda_version_hash
 		)
-		VALUES ($1, $2, $3, $4, $5)
+		VALUES ($1, $2, $3, $4, $5, $6)
 		RETURNING ` + applicantColumns
 
 	row := s.pool.QueryRow(ctx, sql,
 		a.PlaytestID,
 		a.UserID,
 		a.DiscordHandle,
+		stringPtr(a.DiscordUserID),
 		a.Platforms,
 		stringPtr(a.NDAVersionHash),
 	)
@@ -478,7 +484,7 @@ func (s *PgApplicantStore) ListLostDMOnRestart(ctx context.Context, namespace st
 // is unprefixed because every other applicant query is single-table.
 func applicantColumnsPrefixed(alias string) string {
 	cols := []string{
-		"id", "playtest_id", "user_id", "discord_handle", "platforms",
+		"id", "playtest_id", "user_id", "discord_handle", "discord_user_id", "platforms",
 		"nda_version_hash", "status", "granted_code_id", "approved_at",
 		"rejection_reason", "last_dm_status", "last_dm_attempt_at",
 		"last_dm_error", "created_at",
@@ -538,6 +544,7 @@ func truncateUTF8(s *string, maxBytes int) *string {
 func scanApplicant(row pgx.Row) (*Applicant, error) {
 	var (
 		a             Applicant
+		discordUserID pgtype.Text
 		ndaHash       pgtype.Text
 		grantedCode   pgtype.UUID
 		approvedAt    pgtype.Timestamptz
@@ -551,6 +558,7 @@ func scanApplicant(row pgx.Row) (*Applicant, error) {
 		&a.PlaytestID,
 		&a.UserID,
 		&a.DiscordHandle,
+		&discordUserID,
 		&a.Platforms,
 		&ndaHash,
 		&a.Status,
@@ -564,6 +572,10 @@ func scanApplicant(row pgx.Row) (*Applicant, error) {
 	)
 	if err != nil {
 		return nil, err
+	}
+	if discordUserID.Valid {
+		v := discordUserID.String
+		a.DiscordUserID = &v
 	}
 	if ndaHash.Valid {
 		v := ndaHash.String

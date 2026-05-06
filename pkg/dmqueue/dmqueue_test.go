@@ -203,6 +203,48 @@ func TestEnqueue_Overflow_MarksFailedSync(t *testing.T) {
 	}
 }
 
+// TestProcess_MissingRecipient_SkipsSenderAndMarksFailed: a Job with
+// no DiscordUserID (pre-migration-0004 row, or non-Discord-federated
+// signup) is short-circuited — Sender is never called and the
+// applicant is marked failed with reason=missing_recipient + audit.
+func TestProcess_MissingRecipient_SkipsSenderAndMarksFailed(t *testing.T) {
+	var senderCalls atomic.Int32
+	q, app, aud := newQueueForTest(SenderFunc(func(_ context.Context, _, _ string) error {
+		senderCalls.Add(1)
+		return nil
+	}))
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go q.Run(ctx)
+
+	j := mustJob(false)
+	j.DiscordUserID = ""
+	if err := q.Enqueue(ctx, j); err != nil {
+		t.Fatalf("Enqueue: %v", err)
+	}
+
+	waitFor(t, "applicant marked missing_recipient", func() bool {
+		for _, c := range app.snapshot() {
+			if c.ApplicantID == j.ApplicantID && c.Status == dmStatusFailed && c.ErrMsg != nil && *c.ErrMsg == ReasonMissingRecipient {
+				return true
+			}
+		}
+		return false
+	})
+	if got := senderCalls.Load(); got != 0 {
+		t.Fatalf("Sender invoked despite empty recipient: calls=%d", got)
+	}
+	failed := 0
+	for _, r := range aud.snapshot() {
+		if r.Action == repo.ActionApplicantDMFailed {
+			failed++
+		}
+	}
+	if failed != 1 {
+		t.Fatalf("want 1 applicant.dm_failed audit, got %d", failed)
+	}
+}
+
 // TestSendFailure_MarksFailedAndUsesErrAsReason: when Sender returns an
 // error, the queue stamps applicant.last_dm_error with the error
 // string verbatim (the repo handles UTF-8-safe truncation).

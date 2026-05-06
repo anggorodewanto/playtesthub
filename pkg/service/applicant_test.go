@@ -116,6 +116,29 @@ func TestSignup_DiscordLookupFails_FallsBackToRawID(t *testing.T) {
 	if got := applicants.rows[0].DiscordHandle; got != "99" {
 		t.Errorf("fallback handle = %q, want 99 (raw discord id)", got)
 	}
+	// The snowflake must persist independent of the lookup outcome —
+	// it's the routable identifier the DM worker depends on.
+	if got := applicants.rows[0].DiscordUserID; got == nil || *got != "99" {
+		t.Errorf("discord_user_id = %v, want 99", got)
+	}
+}
+
+func TestSignup_PersistsDiscordSnowflakeFromContext(t *testing.T) {
+	svr, store, applicants := newTestServer()
+	svr = svr.WithDiscordLookup(&fakeHandleLookup{handle: "Alice"})
+	store.rows = append(store.rows, openPlaytest("game"))
+
+	_, err := svr.Signup(signupCtx(uuid.New(), "1234567890"), &pb.SignupRequest{
+		Slug:      "game",
+		Platforms: []pb.Platform{pb.Platform_PLATFORM_STEAM},
+	})
+	if err != nil {
+		t.Fatalf("unexpected: %v", err)
+	}
+	got := applicants.rows[0].DiscordUserID
+	if got == nil || *got != "1234567890" {
+		t.Errorf("discord_user_id = %v, want 1234567890", got)
+	}
 }
 
 func TestSignup_NoDiscordIDInCtx_FallsBackToUserID(t *testing.T) {
@@ -136,6 +159,11 @@ func TestSignup_NoDiscordIDInCtx_FallsBackToUserID(t *testing.T) {
 	}
 	if got := applicants.rows[0].DiscordHandle; got != userID.String() {
 		t.Errorf("fallback handle = %q, want %s (AGS user id)", got, userID)
+	}
+	// Non-Discord-federated → no snowflake to persist; queue will skip
+	// with `lastDmError='missing_recipient'` (errors.md).
+	if got := applicants.rows[0].DiscordUserID; got != nil {
+		t.Errorf("discord_user_id = %v, want nil", got)
 	}
 }
 

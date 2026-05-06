@@ -53,6 +53,12 @@ On process restart the backend scans all `APPROVED` applicants and re-marks lost
 - Reuses per-applicant retry semantics (PRD §5.4 — RetryDM).
 - Admin UI exposes a **"Retry all failed DMs"** button on the Applicants page.
 
+## Missing recipient
+
+- A Job whose `discordUserId` is empty (the applicant row has `discord_user_id IS NULL`) is **short-circuited** before the Discord client is invoked.
+- Surface: `lastDmStatus='failed'` with `lastDmError='missing_recipient'` plus the standard `applicant.dm_failed` audit row.
+- Why nullable: `discord_user_id` lands in migration 0004; rows persisted before that (or signups from non-Discord-federated IAM tokens) carry NULL. The queue treats this as a permanent per-applicant failure rather than an outage. An operator backfilling `discord_user_id` can then run RetryDM to re-enqueue.
+
 ## `lastDmError` truncation
 
 - `lastDmError` is byte-truncated to **500 chars** (PRD §5.2 — Applicant entity).

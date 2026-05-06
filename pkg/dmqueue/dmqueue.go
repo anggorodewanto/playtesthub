@@ -42,9 +42,10 @@ const (
 // is the truncated Discord error string itself; these constants name
 // only the system-attributed reasons.
 const (
-	ReasonQueueOverflow = "dm_queue_overflow"
-	ReasonCircuitOpen   = "dm_circuit_open"
-	ReasonLostOnRestart = "lost_on_restart"
+	ReasonQueueOverflow    = "dm_queue_overflow"
+	ReasonCircuitOpen      = "dm_circuit_open"
+	ReasonLostOnRestart    = "lost_on_restart"
+	ReasonMissingRecipient = "missing_recipient"
 )
 
 const (
@@ -206,6 +207,14 @@ func (q *Queue) Sweep(ctx context.Context) (int, error) {
 // process is the per-job pipeline. Public-method-private-helper
 // pattern keeps the loop body small and the test surface focused.
 func (q *Queue) process(ctx context.Context, j Job) {
+	if j.DiscordUserID == "" {
+		// Pre-migration-0004 rows (or non-Discord-federated signups)
+		// carry no snowflake. Skip the Discord call: this is not an
+		// outage, just a missing recipient. Counts as a permanent
+		// per-applicant failure until the row is backfilled.
+		q.markFailed(ctx, j, ReasonMissingRecipient)
+		return
+	}
 	if q.checkCircuit(ctx) {
 		q.markFailed(ctx, j, ReasonCircuitOpen)
 		return

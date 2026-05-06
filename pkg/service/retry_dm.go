@@ -91,19 +91,21 @@ func (s *PlaytesthubServiceServer) RetryDM(ctx context.Context, req *pb.RetryDMR
 }
 
 // buildDMJob assembles the queue Job from an applicant + playtest.
-// The recipient is applicant.discord_handle: for users whose signup
-// hit the Discord lookup-failure path it is the raw snowflake (PRD §10
-// M1 — usable for DM delivery); for users whose lookup succeeded it
-// is the human display name and the DM will fail with a generic
-// Discord error, which the admin sees in the "DM failed" filter and
-// resolves out-of-band. The snowflake-storage gap will be closed in a
-// follow-up migration; the queue contract is unchanged either way.
+// The recipient is applicant.discord_user_id (the Discord snowflake
+// stamped at signup from the IAM `platform_user_id` claim per
+// migration 0004). Rows persisted before that migration carry NULL —
+// the queue surfaces those as `lastDmError='missing_recipient'`
+// (docs/errors.md) without invoking the Discord client.
 func buildDMJob(a *repo.Applicant, pt *repo.Playtest, manual bool) dmqueue.Job {
+	var recipient string
+	if a.DiscordUserID != nil {
+		recipient = *a.DiscordUserID
+	}
 	return dmqueue.Job{
 		ApplicantID:   a.ID,
 		PlaytestID:    a.PlaytestID,
 		UserID:        a.UserID,
-		DiscordUserID: a.DiscordHandle,
+		DiscordUserID: recipient,
 		Message:       fmt.Sprintf("You're approved for %q. Open the playtest to view your code.", pt.Title),
 		Manual:        manual,
 	}

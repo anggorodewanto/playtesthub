@@ -244,11 +244,19 @@ func buildPlaytesthubServer(cfg *config.Config, dbPool *pgxpool.Pool, httpClient
 	surveyResponseStore := repo.NewPgSurveyResponseStore(dbPool)
 	txRunner := repo.NewPgTxRunner(dbPool)
 
+	botClient := discord.NewBotClient(cfg.DiscordBotToken)
+	var dmSender dmqueue.Sender = dmqueue.SenderFunc(noopDMSender)
+	if botClient != nil {
+		dmSender = botClient
+		logger.Info("dm sender: real Discord bot client")
+	} else {
+		logger.Info("dm sender: noop (DISCORD_BOT_TOKEN unset; queue + audit pipeline still exercised)")
+	}
 	dmQueue := dmqueue.New(dmqueue.Config{
 		MaxDepth:        cfg.DMQueueMaxDepth,
 		DrainRatePerSec: cfg.DMDrainRatePerSec,
 		Namespace:       cfg.AGSNamespace,
-	}, dmqueue.SenderFunc(noopDMSender), applicantStore, auditStore, logger)
+	}, dmSender, applicantStore, auditStore, logger)
 
 	// AGS_CAMPAIGN initial-create wires through pkg/ags. The SDK-backed
 	// adapter (phase 8.1) is enabled when AuthEnabled is true; AGS_STORE_ID
@@ -347,7 +355,7 @@ func buildPlaytesthubServer(cfg *config.Config, dbPool *pgxpool.Pool, httpClient
 		WithAGSClient(agsClient).
 		WithAGSCodeBatchSize(cfg.AGSCodeBatchSize).
 		WithLogger(logger)
-	if botClient := discord.NewBotClient(cfg.DiscordBotToken); botClient != nil {
+	if botClient != nil {
 		svcServer = svcServer.WithDiscordLookup(botClient)
 	}
 	return svcServer.WithDiscordExchangeProxy(service.DiscordExchangeProxy{
@@ -358,10 +366,9 @@ func buildPlaytesthubServer(cfg *config.Config, dbPool *pgxpool.Pool, httpClient
 	}), dmQueue, platformLogin
 }
 
-// noopDMSender is the placeholder Sender wired in M2 phase 7. It
-// returns nil (success) so the queue + worker + audit/marking pipeline
-// is exercised end-to-end without making outbound Discord calls. The
-// real Discord DM client lands in M3 (PRD §M3 — "Discord DM
-// notification on approval"); swapping it in is a one-line change at
-// this construction site.
+// noopDMSender is the fallback Sender used when DISCORD_BOT_TOKEN is
+// empty (dev / e2e / smoke). It returns nil (success) so the queue +
+// worker + audit/marking pipeline is exercised end-to-end without
+// making outbound Discord calls. Production with a configured bot
+// token uses *discord.BotClient (M3 phase 7).
 func noopDMSender(_ context.Context, _, _ string) error { return nil }

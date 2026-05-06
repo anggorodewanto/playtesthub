@@ -68,6 +68,7 @@ func (s *PlaytesthubServiceServer) Signup(ctx context.Context, req *pb.SignupReq
 		PlaytestID:    pt.ID,
 		UserID:        userID,
 		DiscordHandle: s.resolveDiscordHandle(ctx, userID),
+		DiscordUserID: discordSnowflakePtr(ctx),
 		Platforms:     platforms,
 	}
 	got, err := s.applicant.Insert(ctx, a)
@@ -227,6 +228,21 @@ func (s *PlaytesthubServiceServer) lookupExistingApplicant(ctx context.Context, 
 		return nil, false, status.Errorf(codes.Internal, "fetching applicant: %v", err)
 	}
 	return got, true, nil
+}
+
+// discordSnowflakePtr returns the Discord snowflake from the IAM
+// `platform_user_id` claim threaded through the auth interceptor, or
+// nil when the caller is not Discord-federated. Persisted as
+// applicant.discord_user_id (migration 0004) so the DM worker has a
+// routable identifier independent of the human-readable
+// applicant.discord_handle. Per docs/dm-queue.md: NULL → the queue
+// records `lastDmError='missing_recipient'` without invoking Discord.
+func discordSnowflakePtr(ctx context.Context) *string {
+	id, ok := iampkg.DiscordIDFromContext(ctx)
+	if !ok || id == "" {
+		return nil
+	}
+	return &id
 }
 
 // resolveDiscordHandle calls the bot-token lookup with the Discord
