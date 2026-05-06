@@ -77,6 +77,11 @@ AGS_NAMESPACE=<your-game-namespace>
 AGS_IAM_CLIENT_ID=<from step 3>
 AGS_IAM_CLIENT_SECRET=<from step 3>
 DISCORD_BOT_TOKEN=<bot token, separate from OAuth app — used by pkg/discord for handle lookup at signup per PRD §10 M1>
+
+# Required when the player is hosted off-origin (GitHub Pages,
+# Vercel, custom domain). Empty here means cross-origin preflights
+# fail with 501. See docs/runbooks/deploy-player-pages.md § 3.
+CORS_ALLOWED_ORIGINS=https://<your-player-origin>
 ```
 
 `.env.template` is the canonical list of required variables.

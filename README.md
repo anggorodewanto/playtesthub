@@ -149,16 +149,22 @@ buf lint
 
 CI runs the same gates on every PR — see [`.github/workflows/ci.yml`](.github/workflows/ci.yml). Browser-based a11y (`@axe-core/playwright` per [`docs/engineering.md` §5](docs/engineering.md#5-ci-gates)) is tracked under STATUS phase 12.1.
 
-## Deploy to AGS Extend
+## Deploy
 
-1. **Create the Extend Service Extension app** in the AGS Admin Portal. Set the env vars and secrets per [PRD §5.9](docs/PRD.md#59-runtime-configuration-go-backend).
-2. **Build + push** with [`extend-helper-cli`](https://github.com/AccelByte/extend-helper-cli):
-   ```bash
-   extend-helper-cli image-upload --login \
-     --namespace <namespace> --app <app-name> --image-tag v0.0.1
-   ```
-3. **Deploy** the pushed image from **App Detail → Image Version History → Deploy**.
-4. **Admin UI** — `extend-helper-cli appui create` + `appui upload` (Internal Shared Cloud only today; see [`docs/engineering.md` §8](docs/engineering.md#8-temporary-ags-platform-workarounds)).
+Three deployable surfaces. Each has its own host and its own runbook.
+
+1. **Backend (Extend Service Extension)** — Go binary + Postgres on AGS Extend.
+   1. Create the Extend Service Extension app in the AGS Admin Portal. Set the env vars and secrets per [PRD §5.9](docs/PRD.md#59-runtime-configuration-go-backend) — including `CORS_ALLOWED_ORIGINS` if the player will be hosted off-origin.
+   2. Build + push with [`extend-helper-cli`](https://github.com/AccelByte/extend-helper-cli):
+      ```bash
+      extend-helper-cli image-upload --login \
+        --namespace <namespace> --app <app-name> --image-tag v0.0.1
+      ```
+   3. Deploy the pushed image from **App Detail → Image Version History → Deploy**, or via `extend-helper-cli deploy-app --wait`.
+2. **Player frontend (Svelte → GitHub Pages)** — static bundle, hash-routed, Discord-federated. Auto-deploys on push to `main` via [`.github/workflows/pages.yml`](.github/workflows/pages.yml). Setup is one-time per fork — enable Pages with the workflow build source, set three repo Variables, allowlist the Pages origin in the backend's `CORS_ALLOWED_ORIGINS`, register the Pages callback URL with Discord + AGS. Walk-through in [`docs/runbooks/deploy-player-pages.md`](docs/runbooks/deploy-player-pages.md). Vercel + custom-domain variants are noted in that runbook's § Out of scope.
+3. **Admin UI (Extend App UI)** — React Module Federation remote hosted by AccelByte. `extend-helper-cli appui create` + `appui upload` (Internal Shared Cloud only today — see [`docs/engineering.md` §8](docs/engineering.md#8-temporary-ags-platform-workarounds)).
+
+For first-time AGS + Discord setup (IAM client, platform credential, redirect URIs), follow [`docs/runbooks/setup-ags-discord.md`](docs/runbooks/setup-ags-discord.md) before any of the above.
 
 ## Contributing
 

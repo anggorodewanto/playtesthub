@@ -247,7 +247,7 @@ State machine (reserve → finalize → reclaim per §4.1 step 6):
 ### 5.9 Runtime configuration (Go backend)
 - The Go backend reads all configuration from **environment variables only** — no config files.
 - **Required env vars** (MVP): `DATABASE_URL`, `DISCORD_BOT_TOKEN` (via Extend secrets), `AGS_IAM_CLIENT_ID`, `AGS_IAM_CLIENT_SECRET`, `AGS_BASE_URL`, `AGS_NAMESPACE`.
-- **Optional env vars with defaults**: `RESERVATION_TTL_SECONDS` (default `60`), `RECLAIM_INTERVAL_SECONDS` (default `30`), `LEADER_LEASE_TTL_SECONDS` (default `30`), `LEADER_HEARTBEAT_SECONDS` (default `10`), `AGS_CODE_BATCH_SIZE` (default `1000`), `DM_TIMEOUT_SECONDS` (default `5`), `DM_DRAIN_RATE_PER_SEC` (default `5`) — DM worker drain rate, `DB_MAX_CONNECTIONS` (default `10`) — recommended connection pool size per replica.
+- **Optional env vars with defaults**: `RESERVATION_TTL_SECONDS` (default `60`), `RECLAIM_INTERVAL_SECONDS` (default `30`), `LEADER_LEASE_TTL_SECONDS` (default `30`), `LEADER_HEARTBEAT_SECONDS` (default `10`), `AGS_CODE_BATCH_SIZE` (default `1000`), `DM_TIMEOUT_SECONDS` (default `5`), `DM_DRAIN_RATE_PER_SEC` (default `5`) — DM worker drain rate, `DB_MAX_CONNECTIONS` (default `10`) — recommended connection pool size per replica, `CORS_ALLOWED_ORIGINS` (default empty — no CORS handling) — comma-separated list of browser origins permitted to call the grpc-gateway HTTP surface; required when the player is hosted off-origin (GitHub Pages, Vercel, custom domain) so cross-origin preflights resolve. Empty matches the vanilla grpc-gateway behaviour (501 on OPTIONS) which is fine for same-origin dev.
 - Missing required env vars are a **hard failure at startup** — the backend logs the missing key names and exits.
 
 ## 6. Non-functional requirements
