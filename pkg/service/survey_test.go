@@ -124,8 +124,119 @@ func (f *fakeSurveyResponseStore) GetByPlaytestUser(_ context.Context, playtestI
 	return nil, repo.ErrNotFound
 }
 
-func (f *fakeSurveyResponseStore) ListResponses(_ context.Context, _ repo.SurveyResponsePageQuery) (*repo.SurveyResponsePage, error) {
-	return &repo.SurveyResponsePage{}, nil
+// ListResponses mirrors the production cursor pagination on
+// (submittedAt, id) DESC, DESC + the optional surveyId filter +
+// invalid-token surfacing. Limit follows the same default/cap as the
+// repo layer so handler-level tests can assert pagination behaviour.
+func (f *fakeSurveyResponseStore) ListResponses(_ context.Context, q repo.SurveyResponsePageQuery) (*repo.SurveyResponsePage, error) {
+	if q.PageToken != "" {
+		if _, err := decodeFakeSurveyResponseToken(q.PageToken); err != nil {
+			return nil, repo.ErrInvalidSurveyResponseToken
+		}
+	}
+
+	matched := make([]*repo.SurveyResponse, 0, len(f.rows))
+	for _, r := range f.rows {
+		if r.PlaytestID != q.PlaytestID {
+			continue
+		}
+		if q.SurveyID != uuid.Nil && r.SurveyID != q.SurveyID {
+			continue
+		}
+		matched = append(matched, r)
+	}
+
+	// Order by (submittedAt, id) DESC, DESC.
+	sortSurveyResponses(matched)
+
+	cursor := decodeFakeCursor(q.PageToken)
+	if cursor != nil {
+		filtered := matched[:0]
+		for _, r := range matched {
+			if r.SubmittedAt.Before(cursor.at) {
+				filtered = append(filtered, r)
+				continue
+			}
+			if r.SubmittedAt.Equal(cursor.at) && r.ID.String() < cursor.id.String() {
+				filtered = append(filtered, r)
+			}
+		}
+		matched = filtered
+	}
+
+	limit := q.Limit
+	if limit <= 0 {
+		limit = repo.ListPagedDefaultLimit
+	}
+	if limit > repo.ListPagedMaxLimit {
+		limit = repo.ListPagedMaxLimit
+	}
+
+	page := &repo.SurveyResponsePage{}
+	if len(matched) > limit {
+		last := matched[limit-1]
+		page.Rows = make([]*repo.SurveyResponse, limit)
+		for i := range page.Rows {
+			c := *matched[i]
+			page.Rows[i] = &c
+		}
+		page.NextPageToken = encodeFakeCursor(last.SubmittedAt, last.ID)
+		return page, nil
+	}
+	page.Rows = make([]*repo.SurveyResponse, len(matched))
+	for i := range page.Rows {
+		c := *matched[i]
+		page.Rows[i] = &c
+	}
+	return page, nil
+}
+
+type fakeCursor struct {
+	at time.Time
+	id uuid.UUID
+}
+
+func sortSurveyResponses(rows []*repo.SurveyResponse) {
+	for i := 1; i < len(rows); i++ {
+		for j := i; j > 0; j-- {
+			a, b := rows[j-1], rows[j]
+			if a.SubmittedAt.Before(b.SubmittedAt) || (a.SubmittedAt.Equal(b.SubmittedAt) && a.ID.String() < b.ID.String()) {
+				rows[j-1], rows[j] = rows[j], rows[j-1]
+				continue
+			}
+			break
+		}
+	}
+}
+
+func encodeFakeCursor(at time.Time, id uuid.UUID) string {
+	// Cheap deterministic encoding — only the matching decoder reads it.
+	return at.UTC().Format(time.RFC3339Nano) + "|" + id.String()
+}
+
+func decodeFakeCursor(token string) *fakeCursor {
+	c, _ := decodeFakeSurveyResponseToken(token)
+	return c
+}
+
+func decodeFakeSurveyResponseToken(token string) (*fakeCursor, error) {
+	if token == "" {
+		return nil, nil
+	}
+	for i := 0; i < len(token); i++ {
+		if token[i] == '|' {
+			at, err := time.Parse(time.RFC3339Nano, token[:i])
+			if err != nil {
+				return nil, repo.ErrInvalidSurveyResponseToken
+			}
+			id, err := uuid.Parse(token[i+1:])
+			if err != nil {
+				return nil, repo.ErrInvalidSurveyResponseToken
+			}
+			return &fakeCursor{at: at, id: id}, nil
+		}
+	}
+	return nil, repo.ErrInvalidSurveyResponseToken
 }
 
 // surveyTestRig bundles the test server with every fake store the
@@ -1073,4 +1184,209 @@ func TestSubmitSurveyResponse_RedactionCanary_NoFreeTextInAudit(t *testing.T) {
 			t.Fatalf("audit row %q leaks the free-text answer: before=%s after=%s", row.Action, row.Before, row.After)
 		}
 	}
+}
+
+// ---------------- ListSurveyResponses ---------------------------------------
+
+// seedSurveyResponsesForList drops `count` SurveyResponse rows on the
+// playtest with monotonically increasing submittedAt + the same surveyId,
+// so the (submittedAt, id) DESC ordering is unambiguous.
+func seedSurveyResponsesForList(rig surveyTestRig, playtestID, surveyID uuid.UUID, count int) []*repo.SurveyResponse {
+	out := make([]*repo.SurveyResponse, 0, count)
+	base := time.Now().Add(-time.Duration(count) * time.Minute)
+	for i := 0; i < count; i++ {
+		row := &repo.SurveyResponse{
+			ID:          uuid.New(),
+			PlaytestID:  playtestID,
+			UserID:      uuid.New(),
+			SurveyID:    surveyID,
+			Answers:     []byte(`{"answers":[]}`),
+			SubmittedAt: base.Add(time.Duration(i) * time.Minute),
+		}
+		rig.responses.rows = append(rig.responses.rows, row)
+		out = append(out, row)
+	}
+	return out
+}
+
+func TestListSurveyResponses_HappyPath_NewestFirst(t *testing.T) {
+	rig := withSurveyStores(t)
+	pt, survey, _ := seedSurveyForSubmit(t, rig, "list-resp", []*pb.SurveyQuestion{
+		textQ("hi", false),
+	})
+	seedSurveyResponsesForList(rig, pt.ID, uuid.MustParse(survey.GetId()), 3)
+
+	resp, err := rig.svr.ListSurveyResponses(authCtx(uuid.New()), &pb.ListSurveyResponsesRequest{
+		Namespace:  testNamespace,
+		PlaytestId: pt.ID.String(),
+	})
+	if err != nil {
+		t.Fatalf("ListSurveyResponses: %v", err)
+	}
+	if got := len(resp.GetResponses()); got != 3 {
+		t.Fatalf("responses = %d, want 3", got)
+	}
+	// Newest first.
+	prev := time.Now().Add(time.Hour)
+	for i, r := range resp.GetResponses() {
+		got := r.GetSubmittedAt().AsTime()
+		if got.After(prev) {
+			t.Errorf("responses[%d].submittedAt %s out of order vs prev %s", i, got, prev)
+		}
+		prev = got
+	}
+}
+
+func TestListSurveyResponses_PaginatesAcrossPages(t *testing.T) {
+	rig := withSurveyStores(t)
+	pt, survey, _ := seedSurveyForSubmit(t, rig, "list-page", []*pb.SurveyQuestion{
+		textQ("hi", false),
+	})
+	seedSurveyResponsesForList(rig, pt.ID, uuid.MustParse(survey.GetId()), 5)
+
+	first, err := rig.svr.ListSurveyResponses(authCtx(uuid.New()), &pb.ListSurveyResponsesRequest{
+		Namespace:  testNamespace,
+		PlaytestId: pt.ID.String(),
+		PageSize:   2,
+	})
+	if err != nil {
+		t.Fatalf("first page: %v", err)
+	}
+	if len(first.GetResponses()) != 2 {
+		t.Fatalf("first page len = %d, want 2", len(first.GetResponses()))
+	}
+	if first.GetNextPageToken() == "" {
+		t.Fatal("expected non-empty next_page_token after first page")
+	}
+
+	second, err := rig.svr.ListSurveyResponses(authCtx(uuid.New()), &pb.ListSurveyResponsesRequest{
+		Namespace:  testNamespace,
+		PlaytestId: pt.ID.String(),
+		PageSize:   2,
+		PageToken:  first.GetNextPageToken(),
+	})
+	if err != nil {
+		t.Fatalf("second page: %v", err)
+	}
+	if len(second.GetResponses()) != 2 {
+		t.Errorf("second page len = %d, want 2", len(second.GetResponses()))
+	}
+
+	// Distinct rows across pages.
+	seen := make(map[string]struct{})
+	for _, r := range first.GetResponses() {
+		seen[r.GetId()] = struct{}{}
+	}
+	for _, r := range second.GetResponses() {
+		if _, dup := seen[r.GetId()]; dup {
+			t.Errorf("response %s duplicated across pages", r.GetId())
+		}
+	}
+}
+
+func TestListSurveyResponses_SurveyIDFilter(t *testing.T) {
+	rig := withSurveyStores(t)
+	pt, v1, _ := seedSurveyForSubmit(t, rig, "list-filter", []*pb.SurveyQuestion{
+		textQ("v1", false),
+	})
+	v2, err := rig.svr.EditSurvey(authCtx(uuid.New()), &pb.EditSurveyRequest{
+		Namespace:  testNamespace,
+		PlaytestId: pt.ID.String(),
+		Questions:  []*pb.SurveyQuestion{textQ("v2", false)},
+	})
+	if err != nil {
+		t.Fatalf("seed v2: %v", err)
+	}
+
+	seedSurveyResponsesForList(rig, pt.ID, uuid.MustParse(v1.GetId()), 2)
+	seedSurveyResponsesForList(rig, pt.ID, uuid.MustParse(v2.GetSurvey().GetId()), 3)
+
+	resp, err := rig.svr.ListSurveyResponses(authCtx(uuid.New()), &pb.ListSurveyResponsesRequest{
+		Namespace:      testNamespace,
+		PlaytestId:     pt.ID.String(),
+		SurveyIdFilter: v2.GetSurvey().GetId(),
+	})
+	if err != nil {
+		t.Fatalf("ListSurveyResponses: %v", err)
+	}
+	if got := len(resp.GetResponses()); got != 3 {
+		t.Fatalf("filtered count = %d, want 3", got)
+	}
+	for _, r := range resp.GetResponses() {
+		if r.GetSurveyId() != v2.GetSurvey().GetId() {
+			t.Errorf("response.surveyId = %s, want %s", r.GetSurveyId(), v2.GetSurvey().GetId())
+		}
+	}
+}
+
+func TestListSurveyResponses_BadPageToken_InvalidArgument(t *testing.T) {
+	rig := withSurveyStores(t)
+	pt := openPlaytest("bad-tok")
+	rig.playtests.rows = append(rig.playtests.rows, pt)
+
+	_, err := rig.svr.ListSurveyResponses(authCtx(uuid.New()), &pb.ListSurveyResponsesRequest{
+		Namespace:  testNamespace,
+		PlaytestId: pt.ID.String(),
+		PageToken:  "not-a-cursor",
+	})
+	requireStatus(t, err, codes.InvalidArgument)
+	requireMsgContains(t, err, "page_token")
+}
+
+func TestListSurveyResponses_BadSurveyIDFilter_InvalidArgument(t *testing.T) {
+	rig := withSurveyStores(t)
+	pt := openPlaytest("bad-filter")
+	rig.playtests.rows = append(rig.playtests.rows, pt)
+
+	_, err := rig.svr.ListSurveyResponses(authCtx(uuid.New()), &pb.ListSurveyResponsesRequest{
+		Namespace:      testNamespace,
+		PlaytestId:     pt.ID.String(),
+		SurveyIdFilter: "nope",
+	})
+	requireStatus(t, err, codes.InvalidArgument)
+	requireMsgContains(t, err, "survey_id_filter")
+}
+
+func TestListSurveyResponses_SoftDeletedPlaytest_NotFound(t *testing.T) {
+	rig := withSurveyStores(t)
+	pt := openPlaytest("gone")
+	now := time.Now()
+	pt.DeletedAt = &now
+	rig.playtests.rows = append(rig.playtests.rows, pt)
+
+	_, err := rig.svr.ListSurveyResponses(authCtx(uuid.New()), &pb.ListSurveyResponsesRequest{
+		Namespace:  testNamespace,
+		PlaytestId: pt.ID.String(),
+	})
+	requireStatus(t, err, codes.NotFound)
+}
+
+func TestListSurveyResponses_BadPlaytestID_InvalidArgument(t *testing.T) {
+	rig := withSurveyStores(t)
+	_, err := rig.svr.ListSurveyResponses(authCtx(uuid.New()), &pb.ListSurveyResponsesRequest{
+		Namespace:  testNamespace,
+		PlaytestId: "not-a-uuid",
+	})
+	requireStatus(t, err, codes.InvalidArgument)
+}
+
+func TestListSurveyResponses_Unauthenticated(t *testing.T) {
+	rig := withSurveyStores(t)
+	_, err := rig.svr.ListSurveyResponses(context.Background(), &pb.ListSurveyResponsesRequest{
+		Namespace:  testNamespace,
+		PlaytestId: uuid.New().String(),
+	})
+	requireStatus(t, err, codes.Unauthenticated)
+}
+
+func TestListSurveyResponses_NoStore_Internal(t *testing.T) {
+	svr, pt, _ := newTestServer()
+	row := openPlaytest("nostore")
+	pt.rows = append(pt.rows, row)
+
+	_, err := svr.ListSurveyResponses(authCtx(uuid.New()), &pb.ListSurveyResponsesRequest{
+		Namespace:  testNamespace,
+		PlaytestId: row.ID.String(),
+	})
+	requireStatus(t, err, codes.Internal)
 }

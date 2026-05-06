@@ -12,7 +12,7 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-const surveyUsage = `survey: action required (one of: create, edit, get, submit)`
+const surveyUsage = `survey: action required (one of: create, edit, get, submit, responses)`
 
 // runSurvey dispatches `pth survey <action> ...`. cli.md §6.3 (M3).
 //
@@ -36,6 +36,8 @@ func runSurvey(ctx context.Context, stdout, stderr io.Writer, g *Globals, args [
 		return runSurveyGet(ctx, stdout, stderr, g, rest, factory)
 	case "submit":
 		return runSurveySubmit(ctx, stdout, stderr, g, rest, factory)
+	case "responses":
+		return runSurveyResponses(ctx, stdout, stderr, g, rest, factory)
 	default:
 		fmt.Fprintf(stderr, "survey: unknown action %q\n", action)
 		return exitLocalError
@@ -171,6 +173,42 @@ func loadSurveyAnswers(stderr io.Writer, label, path string) ([]*pb.SurveyAnswer
 		out = append(out, a)
 	}
 	return out, exitOK
+}
+
+// runSurveyResponses lists submitted survey responses for a playtest.
+// Admin token required; cursor pagination on (submittedAt, id) DESC,
+// optional --survey filter narrows to a single Survey version.
+// cli.md §6.3.
+func runSurveyResponses(ctx context.Context, stdout, stderr io.Writer, g *Globals, args []string, factory playtestClientFactory) int {
+	fs := flag.NewFlagSet("survey responses", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	playtestID := fs.String("playtest", "", "playtest id (required)")
+	surveyID := fs.String("survey", "", "narrow to a specific Survey version (optional)")
+	cursor := fs.String("cursor", "", "opaque page_token from a prior response")
+	pageSize := fs.Int("page-size", 0, "page size (0 → server default 50)")
+	dryRun := fs.Bool("dry-run", false, "print the request JSON and exit without dialling")
+	if err := fs.Parse(args); err != nil {
+		return exitLocalError
+	}
+	if *playtestID == "" {
+		fmt.Fprintln(stderr, "survey responses: --playtest is required")
+		return exitLocalError
+	}
+	if g.Namespace == "" {
+		fmt.Fprintln(stderr, "survey responses: --namespace (or PTH_NAMESPACE) is required")
+		return exitLocalError
+	}
+	req := &pb.ListSurveyResponsesRequest{
+		Namespace:      g.Namespace,
+		PlaytestId:     *playtestID,
+		SurveyIdFilter: *surveyID,
+		PageToken:      *cursor,
+		PageSize:       int32(*pageSize),
+	}
+	return invokePlaytest(ctx, stdout, stderr, g, factory, "ListSurveyResponses", req, *dryRun,
+		func(c pb.PlaytesthubServiceClient, cctx context.Context) (proto.Message, error) {
+			return c.ListSurveyResponses(cctx, req)
+		})
 }
 
 func runSurveyGet(ctx context.Context, stdout, stderr io.Writer, g *Globals, args []string, factory playtestClientFactory) int {

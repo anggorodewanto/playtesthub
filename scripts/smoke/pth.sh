@@ -377,6 +377,18 @@ survey_submit_dry=$("$PTH_BIN" --profile smoke-pth \
 [[ "$(jq -r '.answers[1].rating' <<<"$survey_submit_dry")" == "4" ]] \
     || fail "survey submit dry-run answers[1].rating mismatch: $survey_submit_dry"
 
+log "pth survey responses --dry-run prints the request body"
+survey_responses_dry=$("$PTH_BIN" --namespace smoke --profile smoke-pth \
+    survey responses --playtest p-smoke --survey s-smoke --page-size 7 --dry-run)
+[[ "$(jq -r '.namespace' <<<"$survey_responses_dry")" == "smoke" ]] \
+    || fail "survey responses dry-run namespace mismatch: $survey_responses_dry"
+[[ "$(jq -r '.playtest_id' <<<"$survey_responses_dry")" == "p-smoke" ]] \
+    || fail "survey responses dry-run playtest_id mismatch: $survey_responses_dry"
+[[ "$(jq -r '.survey_id_filter' <<<"$survey_responses_dry")" == "s-smoke" ]] \
+    || fail "survey responses dry-run survey_id_filter mismatch: $survey_responses_dry"
+[[ "$(jq -r '.page_size' <<<"$survey_responses_dry")" == "7" ]] \
+    || fail "survey responses dry-run page_size mismatch: $survey_responses_dry"
+
 # --- pth describe (unconditional) -------------------------------------
 # Phase 10.6 (docs/STATUS.md): the CI diff-check on
 # cmd/pth/testdata/describe.golden.json owns the byte-exact assertion.

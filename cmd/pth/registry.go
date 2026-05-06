@@ -357,6 +357,19 @@ var catalogue = []commandSpec{
 		Example:       "pth --profile player survey get --playtest 01J0...",
 	},
 	{
+		Name:          "survey responses",
+		Milestone:     "M3",
+		Description:   "Admin: list submitted survey responses for a playtest. Cursor pagination on (submittedAt, id) DESC; optional --survey narrows to one version (cli.md §6.3).",
+		RequiredFlags: []flagSpec{playtestFlag()},
+		OptionalFlags: []flagSpec{
+			{Name: "--survey", Description: "narrow to a specific Survey version (id from `survey get`)", ValueType: "string"},
+			{Name: "--cursor", Description: "opaque page_token from a prior response", ValueType: "string"},
+			{Name: "--page-size", Description: "page size (0 → server default 50)", ValueType: "int"},
+			dryRunFlag(),
+		},
+		Example: "pth --namespace mygame --profile admin survey responses --playtest 01J0...",
+	},
+	{
 		Name:        "survey submit",
 		Milestone:   "M3",
 		Description: "Player: submit one-shot survey answers (APPROVED + NDA-current; second submit is AlreadyExists with empty body) (cli.md §6.3).",

@@ -780,6 +780,41 @@
       "example": "pth --profile player survey get --playtest 01J0..."
     },
     {
+      "name": "survey responses",
+      "milestone": "M3",
+      "description": "Admin: list submitted survey responses for a playtest. Cursor pagination on (submittedAt, id) DESC; optional --survey narrows to one version (cli.md §6.3).",
+      "requiredFlags": [
+        {
+          "name": "--playtest",
+          "description": "playtest id (ULID)",
+          "valueType": "string"
+        }
+      ],
+      "optionalFlags": [
+        {
+          "name": "--survey",
+          "description": "narrow to a specific Survey version (id from `survey get`)",
+          "valueType": "string"
+        },
+        {
+          "name": "--cursor",
+          "description": "opaque page_token from a prior response",
+          "valueType": "string"
+        },
+        {
+          "name": "--page-size",
+          "description": "page size (0 → server default 50)",
+          "valueType": "int"
+        },
+        {
+          "name": "--dry-run",
+          "description": "print the request JSON and exit without dialling",
+          "valueType": "bool"
+        }
+      ],
+      "example": "pth --namespace mygame --profile admin survey responses --playtest 01J0..."
+    },
+    {
       "name": "survey submit",
       "milestone": "M3",
       "description": "Player: submit one-shot survey answers (APPROVED + NDA-current; second submit is AlreadyExists with empty body) (cli.md §6.3).",

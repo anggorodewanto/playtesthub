@@ -140,6 +140,8 @@ Commands (M1 phase 10 + M2 phase 12):
   survey get --playtest <id>       Player: fetch the current survey for a playtest.
   survey submit --playtest <id> --survey <id> --from <json|->
                                    Player: submit one-shot survey answers (APPROVED + NDA-current).
+  survey responses --playtest <id> [--survey <sid>] [--cursor <c>] [--page-size N]
+                                   Admin: list submitted survey responses (newest first).
   auth login --password            Log in via AGS IAM ROPC grant. Stores token under --profile.
     --username <u> [--password-stdin]
   auth login --discord             Log in via Discord OAuth (cli.md §7.1).

@@ -712,6 +712,73 @@ func validateMultiChoicePicks(qIdx int, q surveyQuestionRow, picked []string) er
 	return nil
 }
 
+// ListSurveyResponses returns one page of SurveyResponse rows for the
+// playtest, ordered (submittedAt, id) DESC, DESC per repo.SurveyResponseStore.
+// Optional `survey_id_filter` narrows to a single Survey version
+// (per-version aggregate split per PRD §5.6). Soft-deleted playtests
+// are NotFound; admin endpoint, requires actor + namespace match.
+//
+// Pagination: page_size 0 → server default (50), capped at 200 by the
+// repo layer. Malformed page_token → InvalidArgument (mirrors
+// ListApplicants).
+func (s *PlaytesthubServiceServer) ListSurveyResponses(ctx context.Context, req *pb.ListSurveyResponsesRequest) (*pb.ListSurveyResponsesResponse, error) {
+	if _, err := requireActor(ctx); err != nil {
+		return nil, err
+	}
+	if err := s.checkNamespace(req.GetNamespace()); err != nil {
+		return nil, err
+	}
+	if s.surveyResponse == nil {
+		return nil, status.Error(codes.Internal, "survey response store not configured")
+	}
+	playtestID, err := uuid.Parse(req.GetPlaytestId())
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "playtest_id is not a uuid: %v", err)
+	}
+
+	pt, err := s.playtest.GetByID(ctx, s.namespace, playtestID)
+	if errors.Is(err, repo.ErrNotFound) {
+		return nil, status.Error(codes.NotFound, "playtest not found")
+	}
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "fetching playtest: %v", err)
+	}
+	if pt.DeletedAt != nil {
+		return nil, status.Error(codes.NotFound, "playtest not found")
+	}
+
+	var surveyFilter uuid.UUID
+	if raw := req.GetSurveyIdFilter(); raw != "" {
+		surveyFilter, err = uuid.Parse(raw)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "survey_id_filter is not a uuid: %v", err)
+		}
+	}
+
+	page, err := s.surveyResponse.ListResponses(ctx, repo.SurveyResponsePageQuery{
+		PlaytestID: playtestID,
+		SurveyID:   surveyFilter,
+		PageToken:  req.GetPageToken(),
+		Limit:      int(req.GetPageSize()),
+	})
+	if errors.Is(err, repo.ErrInvalidSurveyResponseToken) {
+		return nil, status.Error(codes.InvalidArgument, "page_token is malformed")
+	}
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "listing survey responses: %v", err)
+	}
+
+	out := make([]*pb.SurveyResponse, 0, len(page.Rows))
+	for _, r := range page.Rows {
+		rendered, renderErr := surveyResponseToProto(r)
+		if renderErr != nil {
+			return nil, status.Errorf(codes.Internal, "rendering survey response: %v", renderErr)
+		}
+		out = append(out, rendered)
+	}
+	return &pb.ListSurveyResponsesResponse{Responses: out, NextPageToken: page.NextPageToken}, nil
+}
+
 // surveyResponseToProto renders a stored SurveyResponse as the wire
 // message. Re-decodes the JSONB document into the proto oneof shape so
 // the consumer receives the typed answers, not the on-disk JSON.
