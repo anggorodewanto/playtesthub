@@ -85,6 +85,15 @@ jobs:
           VITE_BASE: /${{ github.event.repository.name }}/
         run: npm run build
 
+      # Pages doesn't natively rewrite unknown paths to the SPA shell —
+      # without this, the Discord OAuth bounce to /<repo>/callback hits
+      # Pages' default 404 page before the bundle (and bridgePathCallback)
+      # ever runs. Copying index.html → 404.html makes Pages serve the
+      # bundle for any unknown path under /<repo>/, the JS picks up
+      # window.location.pathname and the hash-router takes over from there.
+      - name: SPA fallback — copy index.html → 404.html
+        run: cp dist/index.html dist/404.html
+
       - name: Upload Pages artifact (player/dist)
         uses: actions/upload-pages-artifact@v3
         with:
