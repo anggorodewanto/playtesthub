@@ -54,6 +54,8 @@ func run(ctx context.Context, stdout, stderr io.Writer, args []string, getenv en
 		return runApplicant(ctx, stdout, stderr, g, cmdArgs, factory)
 	case "code":
 		return runCode(ctx, stdout, stderr, g, cmdArgs, factory)
+	case "survey":
+		return runSurvey(ctx, stdout, stderr, g, cmdArgs, factory)
 	case "flow":
 		return runFlow(ctx, stdout, stderr, g, cmdArgs, defaultFlowProfileFactory(getenv))
 	case "help", "-h", "--help":
@@ -131,6 +133,11 @@ Commands (M1 phase 10 + M2 phase 12):
   code sync-from-ags --playtest <id>
                                    Admin: re-sync the local code pool from AGS (AGS_CAMPAIGN only).
   code pool --playtest <id>        Admin: show CodePoolStats + raw code values.
+  survey create --playtest <id> --from <json|->
+                                   Admin: create the first survey for a playtest (M3 phase 3).
+  survey edit --playtest <id> --from <json|->
+                                   Admin: edit the survey, bumping version and preserving question/option ids.
+  survey get --playtest <id>       Player: fetch the current survey for a playtest.
   auth login --password            Log in via AGS IAM ROPC grant. Stores token under --profile.
     --username <u> [--password-stdin]
   auth login --discord             Log in via Discord OAuth (cli.md §7.1).

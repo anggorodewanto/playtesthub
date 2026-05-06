@@ -59,6 +59,7 @@ type PlaytesthubServiceServer struct {
 	nda              repo.NDAAcceptanceStore
 	audit            repo.AuditLogStore
 	code             repo.CodeStore
+	survey           repo.SurveyStore
 	txRunner         repo.TxRunner
 	discord          discord.HandleLookup
 	discordExchange  DiscordExchangeProxy

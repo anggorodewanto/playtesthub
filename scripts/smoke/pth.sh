@@ -308,6 +308,54 @@ status_dry=$("$PTH_BIN" applicant status --slug demo-01 --dry-run)
 [[ "$(jq -r '.slug' <<<"$status_dry")" == "demo-01" ]] \
     || fail "applicant status dry-run slug mismatch: $status_dry"
 
+# --- pth survey (dry-run; unconditional) ------------------------------
+# Phase 3 (docs/STATUS.md M3): assert the create/edit/get wrappers wire
+# the right namespace + playtest_id + questions body without dialling.
+# Live round-trip (admin token + real playtest) is gated below on the
+# PTH_E2E_* secrets path, in line with M1/M2 wrappers.
+log "pth survey create --dry-run prints the request body"
+survey_questions_file="$(mktemp -t pth-survey.XXXXXX.json)"
+cat >"$survey_questions_file" <<'EOF'
+[
+  {
+    "type": "SURVEY_QUESTION_TYPE_TEXT",
+    "prompt": "How was the matchmaking?",
+    "required": true
+  },
+  {
+    "type": "SURVEY_QUESTION_TYPE_MULTI_CHOICE",
+    "prompt": "Which platforms did you play on?",
+    "allowMultiple": true,
+    "options": [
+      {"label": "Steam"},
+      {"label": "Xbox"}
+    ]
+  }
+]
+EOF
+trap 'rm -f "$survey_questions_file"; cleanup' EXIT INT TERM
+survey_create_dry=$("$PTH_BIN" --namespace smoke --profile smoke-pth \
+    survey create --playtest p-smoke --from "$survey_questions_file" --dry-run)
+[[ "$(jq -r '.namespace' <<<"$survey_create_dry")" == "smoke" ]] \
+    || fail "survey create dry-run namespace mismatch: $survey_create_dry"
+[[ "$(jq -r '.playtest_id' <<<"$survey_create_dry")" == "p-smoke" ]] \
+    || fail "survey create dry-run playtest_id mismatch: $survey_create_dry"
+[[ "$(jq -r '.questions | length' <<<"$survey_create_dry")" == "2" ]] \
+    || fail "survey create dry-run questions length mismatch: $survey_create_dry"
+[[ "$(jq -r '.questions[0].prompt' <<<"$survey_create_dry")" == "How was the matchmaking?" ]] \
+    || fail "survey create dry-run questions[0].prompt mismatch: $survey_create_dry"
+
+log "pth survey edit --dry-run prints the request body"
+survey_edit_dry=$("$PTH_BIN" --namespace smoke --profile smoke-pth \
+    survey edit --playtest p-smoke --from "$survey_questions_file" --dry-run)
+[[ "$(jq -r '.playtest_id' <<<"$survey_edit_dry")" == "p-smoke" ]] \
+    || fail "survey edit dry-run playtest_id mismatch: $survey_edit_dry"
+
+log "pth survey get --dry-run"
+survey_get_dry=$("$PTH_BIN" survey get --playtest p-smoke --dry-run)
+[[ "$(jq -r '.playtest_id' <<<"$survey_get_dry")" == "p-smoke" ]] \
+    || fail "survey get dry-run playtest_id mismatch: $survey_get_dry"
+
 # --- pth describe (unconditional) -------------------------------------
 # Phase 10.6 (docs/STATUS.md): the CI diff-check on
 # cmd/pth/testdata/describe.golden.json owns the byte-exact assertion.
@@ -384,6 +432,20 @@ m2_required=(
 for name in "${m2_required[@]}"; do
     jq -e --arg n "$name" '.commands[] | select(.name == $n)' <<<"$describe_out" >/dev/null \
         || fail "describe missing M2 command: $name"
+done
+
+# M3 phase 3: survey CRUD wrappers must surface in the catalogue. Same
+# defence-in-depth check as the M2 set above; the byte-exact assertion
+# lives in cmd/pth/testdata/describe.golden.json.
+log "pth describe contains every M3 phase 3 survey subcommand"
+m3_required=(
+    "survey create"
+    "survey edit"
+    "survey get"
+)
+for name in "${m3_required[@]}"; do
+    jq -e --arg n "$name" '.commands[] | select(.name == $n)' <<<"$describe_out" >/dev/null \
+        || fail "describe missing M3 command: $name"
 done
 
 # --- pth auth login --password (gated on PTH_E2E_* secrets) -----------

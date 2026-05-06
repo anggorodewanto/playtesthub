@@ -710,6 +710,76 @@
       "example": "pth --namespace mygame --profile admin playtest transition --id 01J0... --to OPEN"
     },
     {
+      "name": "survey create",
+      "milestone": "M3",
+      "description": "Admin: create the first-version survey for a playtest. Server mints question + option UUIDs (cli.md §6.3).",
+      "requiredFlags": [
+        {
+          "name": "--playtest",
+          "description": "playtest id (ULID)",
+          "valueType": "string"
+        },
+        {
+          "name": "--from",
+          "description": "path to JSON array of SurveyQuestion entries ('-' reads stdin)",
+          "valueType": "string"
+        }
+      ],
+      "optionalFlags": [
+        {
+          "name": "--dry-run",
+          "description": "print the request JSON and exit without dialling",
+          "valueType": "bool"
+        }
+      ],
+      "example": "pth --namespace mygame --profile admin survey create --playtest 01J0... --from ./questions.json"
+    },
+    {
+      "name": "survey edit",
+      "milestone": "M3",
+      "description": "Admin: edit the survey, bumping version and preserving question/option UUIDs for kept entries (cli.md §6.3).",
+      "requiredFlags": [
+        {
+          "name": "--playtest",
+          "description": "playtest id (ULID)",
+          "valueType": "string"
+        },
+        {
+          "name": "--from",
+          "description": "path to JSON array of SurveyQuestion entries ('-' reads stdin)",
+          "valueType": "string"
+        }
+      ],
+      "optionalFlags": [
+        {
+          "name": "--dry-run",
+          "description": "print the request JSON and exit without dialling",
+          "valueType": "bool"
+        }
+      ],
+      "example": "pth --namespace mygame --profile admin survey edit --playtest 01J0... --from ./questions.json"
+    },
+    {
+      "name": "survey get",
+      "milestone": "M3",
+      "description": "Player: fetch the current survey version for a playtest (cli.md §6.3).",
+      "requiredFlags": [
+        {
+          "name": "--playtest",
+          "description": "playtest id (ULID)",
+          "valueType": "string"
+        }
+      ],
+      "optionalFlags": [
+        {
+          "name": "--dry-run",
+          "description": "print the request JSON and exit without dialling",
+          "valueType": "bool"
+        }
+      ],
+      "example": "pth --profile player survey get --playtest 01J0..."
+    },
+    {
       "name": "user create",
       "milestone": "M1",
       "description": "Create N AGS test users via /iam/v4/admin/.../test_users. Admin token required (cli.md §6.1).",

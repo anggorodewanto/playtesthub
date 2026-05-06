@@ -23,7 +23,7 @@ func runUser(ctx context.Context, stdout, stderr io.Writer, g *Globals, args []s
 	}
 	action, rest := args[0], args[1:]
 	switch action {
-	case "create":
+	case "create": //nolint:goconst // "create" is a CLI dispatch label; not worth a shared constant
 		return runUserCreate(ctx, stdout, stderr, g, rest, deps)
 	case "delete":
 		return runUserDelete(ctx, stdout, stderr, g, rest, deps)

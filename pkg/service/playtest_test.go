@@ -115,6 +115,18 @@ func (f *fakePlaytestStore) SoftDelete(_ context.Context, namespace string, id u
 	return repo.ErrNotFound
 }
 
+func (f *fakePlaytestStore) SetSurveyID(_ context.Context, namespace string, playtestID, surveyID uuid.UUID) error {
+	for _, r := range f.rows {
+		if r.Namespace == namespace && r.ID == playtestID && r.DeletedAt == nil {
+			id := surveyID
+			r.SurveyID = &id
+			r.UpdatedAt = time.Now()
+			return nil
+		}
+	}
+	return repo.ErrNotFound
+}
+
 func (f *fakePlaytestStore) TransitionStatus(_ context.Context, namespace string, id uuid.UUID, from, to string) (*repo.Playtest, error) {
 	for _, r := range f.rows {
 		if r.Namespace == namespace && r.ID == id && r.DeletedAt == nil {

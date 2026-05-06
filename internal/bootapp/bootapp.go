@@ -240,6 +240,7 @@ func buildPlaytesthubServer(cfg *config.Config, dbPool *pgxpool.Pool, httpClient
 	ndaStore := repo.NewPgNDAAcceptanceStore(dbPool)
 	auditStore := repo.NewPgAuditLogStore(dbPool)
 	codeStore := repo.NewPgCodeStore(dbPool)
+	surveyStore := repo.NewPgSurveyStore(dbPool)
 	txRunner := repo.NewPgTxRunner(dbPool)
 
 	dmQueue := dmqueue.New(dmqueue.Config{
@@ -338,6 +339,7 @@ func buildPlaytesthubServer(cfg *config.Config, dbPool *pgxpool.Pool, httpClient
 		WithNDAStore(ndaStore).
 		WithAuditLogStore(auditStore).
 		WithCodeStore(codeStore).
+		WithSurveyStore(surveyStore).
 		WithTxRunner(txRunner).
 		WithDMQueue(dmQueue).
 		WithAGSClient(agsClient).

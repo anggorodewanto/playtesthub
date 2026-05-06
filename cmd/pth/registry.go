@@ -327,6 +327,36 @@ var catalogue = []commandSpec{
 		Example:       "pth --namespace mygame --profile admin playtest transition --id 01J0... --to OPEN",
 	},
 	{
+		Name:        "survey create",
+		Milestone:   "M3",
+		Description: "Admin: create the first-version survey for a playtest. Server mints question + option UUIDs (cli.md §6.3).",
+		RequiredFlags: []flagSpec{
+			playtestFlag(),
+			{Name: "--from", Description: "path to JSON array of SurveyQuestion entries ('-' reads stdin)", ValueType: "string"},
+		},
+		OptionalFlags: []flagSpec{dryRunFlag()},
+		Example:       "pth --namespace mygame --profile admin survey create --playtest 01J0... --from ./questions.json",
+	},
+	{
+		Name:        "survey edit",
+		Milestone:   "M3",
+		Description: "Admin: edit the survey, bumping version and preserving question/option UUIDs for kept entries (cli.md §6.3).",
+		RequiredFlags: []flagSpec{
+			playtestFlag(),
+			{Name: "--from", Description: "path to JSON array of SurveyQuestion entries ('-' reads stdin)", ValueType: "string"},
+		},
+		OptionalFlags: []flagSpec{dryRunFlag()},
+		Example:       "pth --namespace mygame --profile admin survey edit --playtest 01J0... --from ./questions.json",
+	},
+	{
+		Name:          "survey get",
+		Milestone:     "M3",
+		Description:   "Player: fetch the current survey version for a playtest (cli.md §6.3).",
+		RequiredFlags: []flagSpec{playtestFlag()},
+		OptionalFlags: []flagSpec{dryRunFlag()},
+		Example:       "pth --profile player survey get --playtest 01J0...",
+	},
+	{
 		Name:        "user create",
 		Milestone:   "M1",
 		Description: "Create N AGS test users via /iam/v4/admin/.../test_users. Admin token required (cli.md §6.1).",

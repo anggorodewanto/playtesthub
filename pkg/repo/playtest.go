@@ -56,6 +56,13 @@ type PlaytestStore interface {
 	Update(ctx context.Context, p *Playtest) (*Playtest, error)
 	SoftDelete(ctx context.Context, namespace string, id uuid.UUID) error
 	TransitionStatus(ctx context.Context, namespace string, id uuid.UUID, from, to string) (*Playtest, error)
+	// SetSurveyID points playtest.survey_id at the given Survey row.
+	// Survey CRUD (M3 phase 3) calls this immediately after inserting
+	// or version-bumping a survey so GetSurvey can resolve the current
+	// version through the playtest pointer (schema.md §"Survey entity
+	// spec"). Returns ErrNotFound when the playtest is missing or
+	// soft-deleted.
+	SetSurveyID(ctx context.Context, namespace string, playtestID, surveyID uuid.UUID) error
 }
 
 // PgPlaytestStore is the Postgres-backed PlaytestStore.
@@ -245,6 +252,32 @@ func (s *PgPlaytestStore) SoftDelete(ctx context.Context, namespace string, id u
 	}
 	if err != nil {
 		return fmt.Errorf("soft-deleting playtest: %w", err)
+	}
+	return nil
+}
+
+// SetSurveyID points the playtest's survey_id at the supplied Survey
+// row. Used by CreateSurvey / EditSurvey (M3 phase 3) after the survey
+// row is inserted so subsequent GetSurvey calls resolve through the
+// playtest pointer per schema.md §"Survey entity spec". Refuses to
+// modify soft-deleted rows (ErrNotFound).
+func (s *PgPlaytestStore) SetSurveyID(ctx context.Context, namespace string, playtestID, surveyID uuid.UUID) error {
+	const sql = `
+		UPDATE playtest
+		   SET survey_id = $3,
+		       updated_at = NOW()
+		 WHERE namespace = $1
+		   AND id = $2
+		   AND deleted_at IS NULL
+		RETURNING id`
+
+	var got uuid.UUID
+	err := s.pool.QueryRow(ctx, sql, namespace, playtestID, surveyID).Scan(&got)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ErrNotFound
+	}
+	if err != nil {
+		return fmt.Errorf("setting playtest survey_id: %w", err)
 	}
 	return nil
 }

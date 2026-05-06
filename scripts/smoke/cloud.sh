@@ -100,6 +100,28 @@ for probe in "${m2_probes[@]}"; do
         || fail "expected 401 from ${name}, got ${code} (${method} ${url})"
 done
 
+# M3 phase 3 RPC reachability gate (STATUS.md M3 phase 3): each survey
+# CRUD route must reach the auth interceptor — anything other than 401
+# means the route never registered (404) or auth regressed.
+declare -a m3_probes=(
+    "CreateSurvey         POST  ${BASE}/v1/admin/namespaces/${NS}/playtests/${PT}/survey                    {}"
+    "EditSurvey           PATCH ${BASE}/v1/admin/namespaces/${NS}/playtests/${PT}/survey                    {}"
+    "GetSurvey            GET   ${BASE}/v1/player/playtests/${PT}/survey                                    -"
+)
+
+for probe in "${m3_probes[@]}"; do
+    read -r name method url body <<<"$probe"
+    log "M3 ${name} requires auth (expect 401)"
+    if [[ "$body" == "-" ]]; then
+        code=$(curl -s -o /dev/null -w '%{http_code}' -X "$method" "$url")
+    else
+        code=$(curl -s -o /dev/null -w '%{http_code}' -X "$method" \
+            -H 'Content-Type: application/json' -d "$body" "$url")
+    fi
+    [[ "$code" == "401" ]] \
+        || fail "expected 401 from ${name}, got ${code} (${method} ${url})"
+done
+
 # Phase 9.3 / verified end-to-end in 9.4: ExchangeDiscordCode is unauth
 # and posts a Discord OAuth code to AGS IAM's platform-token grant.
 # Bogus probe — sends an obviously-fake code, expects a 400 because the
