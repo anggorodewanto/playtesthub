@@ -100,9 +100,9 @@ for probe in "${m2_probes[@]}"; do
         || fail "expected 401 from ${name}, got ${code} (${method} ${url})"
 done
 
-# M3 phase 3 RPC reachability gate (STATUS.md M3 phase 3): each survey
-# CRUD route must reach the auth interceptor — anything other than 401
-# means the route never registered (404) or auth regressed.
+# M3 RPC reachability gate (STATUS.md M3 phase 14): each route must
+# reach the auth interceptor — anything other than 401 means the route
+# never registered (404) or auth regressed. Mirrors M2 phase 15.
 declare -a m3_probes=(
     "CreateSurvey         POST  ${BASE}/v1/admin/namespaces/${NS}/playtests/${PT}/survey                    {}"
     "EditSurvey           PATCH ${BASE}/v1/admin/namespaces/${NS}/playtests/${PT}/survey                    {}"
