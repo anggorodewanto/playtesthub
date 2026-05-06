@@ -71,7 +71,7 @@ func TestMain(m *testing.M) {
 func truncateAll(t *testing.T) {
 	t.Helper()
 	_, err := testPool.Exec(context.Background(),
-		`TRUNCATE playtest, code, applicant, audit_log, leader_lease, nda_acceptance RESTART IDENTITY CASCADE`)
+		`TRUNCATE playtest, code, applicant, audit_log, leader_lease, nda_acceptance, survey, survey_response RESTART IDENTITY CASCADE`)
 	if err != nil {
 		t.Fatalf("truncate: %v", err)
 	}

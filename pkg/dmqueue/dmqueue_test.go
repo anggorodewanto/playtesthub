@@ -80,6 +80,10 @@ func (f *fakeAuditStore) ListByPlaytest(context.Context, uuid.UUID, int) ([]*rep
 	return nil, nil
 }
 
+func (f *fakeAuditStore) List(context.Context, repo.AuditLogPageQuery) (*repo.AuditLogPage, error) {
+	return &repo.AuditLogPage{}, nil
+}
+
 func (f *fakeAuditStore) snapshot() []*repo.AuditLog {
 	f.mu.Lock()
 	defer f.mu.Unlock()

@@ -93,6 +93,10 @@ func (f *fakeAuditLogStore) ListByPlaytest(_ context.Context, playtestID uuid.UU
 	return out, nil
 }
 
+func (f *fakeAuditLogStore) List(_ context.Context, _ repo.AuditLogPageQuery) (*repo.AuditLogPage, error) {
+	return &repo.AuditLogPage{}, nil
+}
+
 // countAction returns the number of captured rows whose action equals
 // the supplied value. Test helper for AGS_CAMPAIGN audit assertions.
 func (f *fakeAuditLogStore) countAction(action string) int {
