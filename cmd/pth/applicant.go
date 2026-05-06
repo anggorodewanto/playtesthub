@@ -32,7 +32,7 @@ func runApplicant(ctx context.Context, stdout, stderr io.Writer, g *Globals, arg
 		return runApplicantStatus(ctx, stdout, stderr, g, rest, factory)
 	case "accept-nda":
 		return runApplicantAcceptNDA(ctx, stdout, stderr, g, rest, factory)
-	case "list":
+	case actionList:
 		return runApplicantList(ctx, stdout, stderr, g, rest, factory)
 	case "approve":
 		return runApplicantApprove(ctx, stdout, stderr, g, rest, factory)

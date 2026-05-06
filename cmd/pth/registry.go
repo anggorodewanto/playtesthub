@@ -114,6 +114,20 @@ var catalogue = []commandSpec{
 		Example:       "pth --profile player applicant status --slug summer-stress-test",
 	},
 	{
+		Name:          "audit list",
+		Milestone:     "M3",
+		Description:   "Admin: list audit log rows for a playtest. Cursor pagination on (createdAt, id) DESC; --actor='system' filters system-emitted rows (cli.md §6.3, PRD §4.7).",
+		RequiredFlags: []flagSpec{playtestFlag()},
+		OptionalFlags: []flagSpec{
+			{Name: "--actor", Description: "actor filter: 'system' (rows where actor_user_id IS NULL) or a UUID", ValueType: "string"},
+			{Name: "--action", Description: "action filter: exact match on the action string (schema.md audit-action catalogue)", ValueType: "string"},
+			{Name: "--cursor", Description: "opaque page_token from a prior response", ValueType: "string"},
+			{Name: "--page-size", Description: "page size (0 → server default 50)", ValueType: "int"},
+			dryRunFlag(),
+		},
+		Example: "pth --namespace mygame --profile admin audit list --playtest 01J0... --actor system",
+	},
+	{
 		Name:        "auth login --discord",
 		Milestone:   "M1",
 		Description: "Discord-federated login. Browser → loopback → backend ExchangeDiscordCode (cli.md §7.1).",

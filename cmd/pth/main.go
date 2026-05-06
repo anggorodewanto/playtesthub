@@ -56,6 +56,8 @@ func run(ctx context.Context, stdout, stderr io.Writer, args []string, getenv en
 		return runCode(ctx, stdout, stderr, g, cmdArgs, factory)
 	case "survey":
 		return runSurvey(ctx, stdout, stderr, g, cmdArgs, factory)
+	case "audit":
+		return runAudit(ctx, stdout, stderr, g, cmdArgs, factory)
 	case "flow":
 		return runFlow(ctx, stdout, stderr, g, cmdArgs, defaultFlowProfileFactory(getenv))
 	case "help", "-h", "--help":
@@ -142,6 +144,8 @@ Commands (M1 phase 10 + M2 phase 12):
                                    Player: submit one-shot survey answers (APPROVED + NDA-current).
   survey responses --playtest <id> [--survey <sid>] [--cursor <c>] [--page-size N]
                                    Admin: list submitted survey responses (newest first).
+  audit list --playtest <id> [--actor <a>] [--action <a>] [--cursor <c>] [--page-size N]
+                                   Admin: list audit log rows (newest first; --actor='system' for system rows).
   auth login --password            Log in via AGS IAM ROPC grant. Stores token under --profile.
     --username <u> [--password-stdin]
   auth login --discord             Log in via Discord OAuth (cli.md §7.1).

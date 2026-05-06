@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"sort"
 	"testing"
 	"time"
 
@@ -93,8 +94,132 @@ func (f *fakeAuditLogStore) ListByPlaytest(_ context.Context, playtestID uuid.UU
 	return out, nil
 }
 
-func (f *fakeAuditLogStore) List(_ context.Context, _ repo.AuditLogPageQuery) (*repo.AuditLogPage, error) {
-	return &repo.AuditLogPage{}, nil
+// List mirrors PgAuditLogStore.List: composing filters over a (createdAt,
+// id) DESC ordering, with cursor pagination round-tripped. The in-memory
+// shape is a thin reimplementation rather than a stub-returning-empty so
+// the service-layer ListAuditLog tests cover the same query shapes the
+// SQL impl is asked to satisfy.
+func (f *fakeAuditLogStore) List(_ context.Context, q repo.AuditLogPageQuery) (*repo.AuditLogPage, error) {
+	cursor, err := decodeFakeAuditCursor(q.PageToken)
+	if err != nil {
+		return nil, err
+	}
+	limit := q.Limit
+	if limit <= 0 {
+		limit = 50
+	}
+	if limit > 200 {
+		limit = 200
+	}
+
+	filtered, err := filterFakeAuditRows(f.rows, q)
+	if err != nil {
+		return nil, err
+	}
+	sortFakeAuditRows(filtered)
+	filtered = applyFakeAuditCursor(filtered, cursor)
+
+	page := &repo.AuditLogPage{}
+	if len(filtered) > limit {
+		page.Rows = filtered[:limit]
+		last := page.Rows[limit-1]
+		page.NextPageToken = encodeFakeAuditCursor(last.CreatedAt.Format(time.RFC3339Nano), last.ID.String())
+		return page, nil
+	}
+	page.Rows = filtered
+	return page, nil
+}
+
+func filterFakeAuditRows(rows []*repo.AuditLog, q repo.AuditLogPageQuery) ([]*repo.AuditLog, error) {
+	out := make([]*repo.AuditLog, 0, len(rows))
+	for _, r := range rows {
+		if r.PlaytestID == nil || *r.PlaytestID != q.PlaytestID {
+			continue
+		}
+		ok, err := matchesFakeAuditActor(r, q)
+		if err != nil {
+			return nil, err
+		}
+		if !ok {
+			continue
+		}
+		if q.ActionFilter != "" && r.Action != q.ActionFilter {
+			continue
+		}
+		out = append(out, r)
+	}
+	return out, nil
+}
+
+func matchesFakeAuditActor(r *repo.AuditLog, q repo.AuditLogPageQuery) (bool, error) {
+	if q.ActorUserID != nil {
+		return r.ActorUserID != nil && *r.ActorUserID == *q.ActorUserID, nil
+	}
+	if q.ActorFilter == "system" {
+		return r.ActorUserID == nil, nil
+	}
+	if q.ActorFilter == "" {
+		return true, nil
+	}
+	parsed, err := uuid.Parse(q.ActorFilter)
+	if err != nil {
+		return false, err
+	}
+	return r.ActorUserID != nil && *r.ActorUserID == parsed, nil
+}
+
+func sortFakeAuditRows(rows []*repo.AuditLog) {
+	sort.Slice(rows, func(i, j int) bool {
+		if !rows[i].CreatedAt.Equal(rows[j].CreatedAt) {
+			return rows[i].CreatedAt.After(rows[j].CreatedAt)
+		}
+		return rows[i].ID.String() > rows[j].ID.String()
+	})
+}
+
+func applyFakeAuditCursor(rows []*repo.AuditLog, cursor *fakeAuditCursor) []*repo.AuditLog {
+	if cursor == nil {
+		return rows
+	}
+	for i, r := range rows {
+		if r.CreatedAt.Equal(cursor.createdAt) && r.ID == cursor.id {
+			return rows[i+1:]
+		}
+		if r.CreatedAt.Before(cursor.createdAt) {
+			return rows[i:]
+		}
+	}
+	return rows
+}
+
+type fakeAuditCursor struct {
+	createdAt time.Time
+	id        uuid.UUID
+}
+
+func encodeFakeAuditCursor(createdAt, id string) string {
+	return createdAt + "|" + id
+}
+
+func decodeFakeAuditCursor(token string) (*fakeAuditCursor, error) {
+	if token == "" {
+		return nil, nil
+	}
+	for i := 0; i < len(token); i++ {
+		if token[i] != '|' {
+			continue
+		}
+		ts, err := time.Parse(time.RFC3339Nano, token[:i])
+		if err != nil {
+			return nil, repo.ErrInvalidAuditLogToken
+		}
+		id, err := uuid.Parse(token[i+1:])
+		if err != nil {
+			return nil, repo.ErrInvalidAuditLogToken
+		}
+		return &fakeAuditCursor{createdAt: ts, id: id}, nil
+	}
+	return nil, repo.ErrInvalidAuditLogToken
 }
 
 // countAction returns the number of captured rows whose action equals

@@ -192,6 +192,46 @@
       "example": "pth --profile player applicant status --slug summer-stress-test"
     },
     {
+      "name": "audit list",
+      "milestone": "M3",
+      "description": "Admin: list audit log rows for a playtest. Cursor pagination on (createdAt, id) DESC; --actor='system' filters system-emitted rows (cli.md §6.3, PRD §4.7).",
+      "requiredFlags": [
+        {
+          "name": "--playtest",
+          "description": "playtest id (ULID)",
+          "valueType": "string"
+        }
+      ],
+      "optionalFlags": [
+        {
+          "name": "--actor",
+          "description": "actor filter: 'system' (rows where actor_user_id IS NULL) or a UUID",
+          "valueType": "string"
+        },
+        {
+          "name": "--action",
+          "description": "action filter: exact match on the action string (schema.md audit-action catalogue)",
+          "valueType": "string"
+        },
+        {
+          "name": "--cursor",
+          "description": "opaque page_token from a prior response",
+          "valueType": "string"
+        },
+        {
+          "name": "--page-size",
+          "description": "page size (0 → server default 50)",
+          "valueType": "int"
+        },
+        {
+          "name": "--dry-run",
+          "description": "print the request JSON and exit without dialling",
+          "valueType": "bool"
+        }
+      ],
+      "example": "pth --namespace mygame --profile admin audit list --playtest 01J0... --actor system"
+    },
+    {
       "name": "auth login --discord",
       "milestone": "M1",
       "description": "Discord-federated login. Browser → loopback → backend ExchangeDiscordCode (cli.md §7.1).",

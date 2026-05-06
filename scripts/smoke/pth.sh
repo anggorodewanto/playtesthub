@@ -389,6 +389,23 @@ survey_responses_dry=$("$PTH_BIN" --namespace smoke --profile smoke-pth \
 [[ "$(jq -r '.page_size' <<<"$survey_responses_dry")" == "7" ]] \
     || fail "survey responses dry-run page_size mismatch: $survey_responses_dry"
 
+# --- pth audit (dry-run; unconditional) -------------------------------
+# Phase 6 (docs/STATUS.md M3): assert the audit list wrapper wires
+# namespace + playtest_id + filter fields without dialling.
+log "pth audit list --dry-run prints the request body"
+audit_list_dry=$("$PTH_BIN" --namespace smoke --profile smoke-pth \
+    audit list --playtest p-smoke --actor system --action playtest.create --page-size 11 --dry-run)
+[[ "$(jq -r '.namespace' <<<"$audit_list_dry")" == "smoke" ]] \
+    || fail "audit list dry-run namespace mismatch: $audit_list_dry"
+[[ "$(jq -r '.playtest_id' <<<"$audit_list_dry")" == "p-smoke" ]] \
+    || fail "audit list dry-run playtest_id mismatch: $audit_list_dry"
+[[ "$(jq -r '.actor_filter' <<<"$audit_list_dry")" == "system" ]] \
+    || fail "audit list dry-run actor_filter mismatch: $audit_list_dry"
+[[ "$(jq -r '.action_filter' <<<"$audit_list_dry")" == "playtest.create" ]] \
+    || fail "audit list dry-run action_filter mismatch: $audit_list_dry"
+[[ "$(jq -r '.page_size' <<<"$audit_list_dry")" == "11" ]] \
+    || fail "audit list dry-run page_size mismatch: $audit_list_dry"
+
 # --- pth describe (unconditional) -------------------------------------
 # Phase 10.6 (docs/STATUS.md): the CI diff-check on
 # cmd/pth/testdata/describe.golden.json owns the byte-exact assertion.
@@ -476,6 +493,8 @@ m3_required=(
     "survey edit"
     "survey get"
     "survey submit"
+    "survey responses"
+    "audit list"
 )
 for name in "${m3_required[@]}"; do
     jq -e --arg n "$name" '.commands[] | select(.name == $n)' <<<"$describe_out" >/dev/null \

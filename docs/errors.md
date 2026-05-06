@@ -47,5 +47,7 @@ Consolidated from prose in PRD §4.1, §4.3, §4.6, §5.1, §5.4, §5.6 for impl
 | `ExchangeDiscordCode`     | AGS IAM rejected with `error=unauthorized_client` (backend confidential client lacks the Discord-grant scope) — STATUS.md M1 phase 9.3 | `Internal`           | (implementation-defined; message SHOULD reference Discord federation misconfiguration but MUST NOT leak the AGS `error_description`) |
 | `ExchangeDiscordCode`     | AGS IAM unreachable (network error / TCP reset / TLS failure) — STATUS.md M1 phase 9.3        | `Unavailable`        | (implementation-defined; message SHOULD reference AGS IAM unreachability) |
 | `ExchangeDiscordCode`     | AGS IAM responded HTTP 5xx with no `discord.com` + `invalid_grant` marker in the body (genuine AGS outage) — STATUS.md M1 phase 9.3 | `Unavailable`        | (implementation-defined; message SHOULD reference upstream AGS unavailability) |
+| `ListAuditLog`            | malformed `page_token` (does not decode to a `(createdAt, id)` cursor) — STATUS.md M3 phase 6 | `InvalidArgument`    | `page_token is malformed`                                                  |
+| `ListAuditLog`            | `actor_filter` is neither `system` nor a UUID — STATUS.md M3 phase 6                          | `InvalidArgument`    | (implementation-defined; message MUST reference `actor_filter`)            |
 
 Rows marked "implementation-defined" fix the gRPC code contractually; the exact message string may be refined during implementation but MUST reference the cited condition. All other rows are byte-exact and MUST match verbatim.

@@ -36,7 +36,7 @@ func runPlaytest(ctx context.Context, stdout, stderr io.Writer, g *Globals, args
 		return runPlaytestGetPlayer(ctx, stdout, stderr, g, rest, factory)
 	case actionGet:
 		return runPlaytestGet(ctx, stdout, stderr, g, rest, factory)
-	case "list":
+	case actionList:
 		return runPlaytestList(ctx, stdout, stderr, g, rest, factory)
 	case actionCreate:
 		return runPlaytestCreate(ctx, stdout, stderr, g, rest, factory)

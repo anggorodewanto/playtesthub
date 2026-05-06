@@ -8,4 +8,5 @@ const (
 	actionCreate = "create"
 	actionEdit   = "edit"
 	actionGet    = "get"
+	actionList   = "list"
 )

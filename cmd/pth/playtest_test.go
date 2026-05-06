@@ -48,6 +48,7 @@ type stubPlaytestClient struct {
 	topUpCodesFunc      func(ctx context.Context, in *pb.TopUpCodesRequest, opts ...grpc.CallOption) (*pb.TopUpCodesResponse, error)
 	syncFromAGSFunc     func(ctx context.Context, in *pb.SyncFromAGSRequest, opts ...grpc.CallOption) (*pb.SyncFromAGSResponse, error)
 	getCodePoolFunc     func(ctx context.Context, in *pb.GetCodePoolRequest, opts ...grpc.CallOption) (*pb.GetCodePoolResponse, error)
+	listAuditLogFunc    func(ctx context.Context, in *pb.ListAuditLogRequest, opts ...grpc.CallOption) (*pb.ListAuditLogResponse, error)
 
 	calls int
 }
@@ -150,6 +151,11 @@ func (s *stubPlaytestClient) SyncFromAGS(ctx context.Context, in *pb.SyncFromAGS
 func (s *stubPlaytestClient) GetCodePool(ctx context.Context, in *pb.GetCodePoolRequest, opts ...grpc.CallOption) (*pb.GetCodePoolResponse, error) {
 	s.calls++
 	return s.getCodePoolFunc(ctx, in, opts...)
+}
+
+func (s *stubPlaytestClient) ListAuditLog(ctx context.Context, in *pb.ListAuditLogRequest, opts ...grpc.CallOption) (*pb.ListAuditLogResponse, error) {
+	s.calls++
+	return s.listAuditLogFunc(ctx, in, opts...)
 }
 
 func factoryFor(client pb.PlaytesthubServiceClient) playtestClientFactory {
