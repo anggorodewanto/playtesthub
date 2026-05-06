@@ -9,6 +9,7 @@ describe('parseRoute', () => {
     ['#/playtest/demo/', { name: 'landing', slug: 'demo' }],
     ['#/playtest/demo/signup', { name: 'signup', slug: 'demo' }],
     ['#/playtest/demo/pending', { name: 'pending', slug: 'demo' }],
+    ['#/playtest/demo/survey', { name: 'survey', slug: 'demo' }],
     [
       '#/callback?code=abc&state=xyz',
       { name: 'callback', params: { code: 'abc', state: 'xyz' } },

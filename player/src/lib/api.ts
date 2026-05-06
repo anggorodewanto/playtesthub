@@ -43,6 +43,7 @@ export type PlayerPlaytest = {
   ndaRequired: boolean;
   ndaText: string;
   currentNdaVersionHash: string;
+  surveyId?: string;
   distributionModel: DistributionModel;
 };
 
@@ -209,4 +210,81 @@ export async function fetchGrantedCode(
     `/v1/player/playtests/${encodeURIComponent(playtestId)}/grantedCode`,
     { method: 'GET', authed: true },
   );
+}
+
+// Survey wire types — mirror proto/playtesthub/v1 SurveyQuestion /
+// SurveyAnswer / Survey via the grpc-gateway camelCase JSON shape
+// (see gateway/apidocs/api.swagger.json definitions v1Survey* +
+// PlaytesthubServiceSubmitSurveyResponseBody).
+export type SurveyQuestionType =
+  | 'SURVEY_QUESTION_TYPE_UNSPECIFIED'
+  | 'SURVEY_QUESTION_TYPE_TEXT'
+  | 'SURVEY_QUESTION_TYPE_RATING'
+  | 'SURVEY_QUESTION_TYPE_MULTI_CHOICE';
+
+export type MultiChoiceOption = {
+  id: string;
+  label: string;
+};
+
+export type SurveyQuestion = {
+  id: string;
+  type: SurveyQuestionType;
+  prompt: string;
+  required?: boolean;
+  options?: MultiChoiceOption[];
+  allowMultiple?: boolean;
+};
+
+export type Survey = {
+  id: string;
+  playtestId: string;
+  version: number;
+  questions: SurveyQuestion[];
+  createdAt?: string;
+};
+
+// SurveyAnswerInput is the player-form ⇄ wire shape for one answered
+// question. Exactly one of `text`/`rating`/`multiChoice` is set per
+// entry — server enforces the oneof on submit.
+export type SurveyAnswerInput =
+  | { questionId: string; text: string }
+  | { questionId: string; rating: number }
+  | { questionId: string; multiChoice: { optionIds: string[] } };
+
+export type SurveyResponse = {
+  id: string;
+  playtestId: string;
+  userId: string;
+  surveyId: string;
+  answers: SurveyAnswerInput[];
+  submittedAt?: string;
+};
+
+export async function fetchSurvey(config: Config, playtestId: string): Promise<Survey> {
+  const body = await doJson<{ survey: Survey }>(
+    config,
+    `/v1/player/playtests/${encodeURIComponent(playtestId)}/survey`,
+    { method: 'GET', authed: true },
+  );
+  return body.survey;
+}
+
+export async function submitSurveyResponse(
+  config: Config,
+  playtestId: string,
+  surveyId: string,
+  answers: SurveyAnswerInput[],
+): Promise<SurveyResponse | null> {
+  const body = await doJson<{ response?: SurveyResponse }>(
+    config,
+    `/v1/player/playtests/${encodeURIComponent(playtestId)}/survey:submit`,
+    {
+      method: 'POST',
+      authed: true,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ surveyId, answers }),
+    },
+  );
+  return body.response ?? null;
 }

@@ -5,6 +5,7 @@ export type Route =
   | { name: 'signup'; slug: string }
   | { name: 'nda'; slug: string }
   | { name: 'pending'; slug: string }
+  | { name: 'survey'; slug: string }
   | { name: 'callback'; params: Record<string, string> }
   | { name: 'not-found' };
 
@@ -29,6 +30,7 @@ export function parseRoute(hash: string): Route {
     if (sub === 'signup') return { name: 'signup', slug };
     if (sub === 'nda') return { name: 'nda', slug };
     if (sub === 'pending') return { name: 'pending', slug };
+    if (sub === 'survey') return { name: 'survey', slug };
     return { name: 'not-found' };
   }
 
@@ -52,6 +54,7 @@ export const playtestPath = (slug: string): string => `/playtest/${slug}`;
 export const signupPath = (slug: string): string => `/playtest/${slug}/signup`;
 export const ndaPath = (slug: string): string => `/playtest/${slug}/nda`;
 export const pendingPath = (slug: string): string => `/playtest/${slug}/pending`;
+export const surveyPath = (slug: string): string => `/playtest/${slug}/survey`;
 
 export const route: Readable<Route> = readable<Route>(
   typeof window === 'undefined' ? { name: 'not-found' } : parseRoute(window.location.hash),

@@ -5,7 +5,9 @@ import {
   fetchApplicantStatus,
   fetchGrantedCode,
   fetchPublicPlaytest,
+  fetchSurvey,
   submitSignup,
+  submitSurveyResponse,
 } from '../src/lib/api';
 import { setAccessToken, TOKEN_STORAGE_KEY } from '../src/lib/auth';
 
@@ -164,6 +166,107 @@ describe('fetchGrantedCode', () => {
     await expect(fetchGrantedCode(config, 'pt-uuid-1')).rejects.toMatchObject({
       name: 'ApiError',
       status: 404,
+    });
+  });
+});
+
+describe('fetchSurvey', () => {
+  it('GETs /v1/player/playtests/:id/survey with bearer and unwraps survey', async () => {
+    setAccessToken('tok');
+    const fetchMock = vi.fn().mockResolvedValue(
+      respond(200, {
+        survey: {
+          id: 'srv-1',
+          playtestId: 'pt-1',
+          version: 2,
+          questions: [
+            { id: 'q-1', type: 'SURVEY_QUESTION_TYPE_TEXT', prompt: 'p', required: true },
+          ],
+        },
+      }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const survey = await fetchSurvey(config, 'pt-1');
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('https://api.example.com/playtesthub/v1/player/playtests/pt-1/survey');
+    expect(init.method).toBe('GET');
+    expect(init.headers['Authorization']).toBe('Bearer tok');
+    expect(survey.id).toBe('srv-1');
+    expect(survey.version).toBe(2);
+    expect(survey.questions).toHaveLength(1);
+  });
+
+  it('bubbles 404 (no survey on playtest) as ApiError', async () => {
+    setAccessToken('tok');
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(respond(404, '{"message":"not found"}')));
+    await expect(fetchSurvey(config, 'pt-1')).rejects.toMatchObject({
+      name: 'ApiError',
+      status: 404,
+    });
+  });
+});
+
+describe('submitSurveyResponse', () => {
+  it('POSTs the submit body with surveyId + answers and returns the recorded response', async () => {
+    setAccessToken('tok');
+    const fetchMock = vi.fn().mockResolvedValue(
+      respond(200, {
+        response: {
+          id: 'r-1',
+          playtestId: 'pt-1',
+          userId: 'u-1',
+          surveyId: 'srv-1',
+          answers: [],
+        },
+      }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const result = await submitSurveyResponse(config, 'pt-1', 'srv-1', [
+      { questionId: 'q-text', text: 'good' },
+      { questionId: 'q-rating', rating: 5 },
+      { questionId: 'q-multi', multiChoice: { optionIds: ['o-1', 'o-2'] } },
+    ]);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe(
+      'https://api.example.com/playtesthub/v1/player/playtests/pt-1/survey:submit',
+    );
+    expect(init.method).toBe('POST');
+    expect(init.headers['Authorization']).toBe('Bearer tok');
+    expect(init.headers['Content-Type']).toBe('application/json');
+    const body = JSON.parse(init.body);
+    expect(body.surveyId).toBe('srv-1');
+    expect(body.answers[2]).toEqual({
+      questionId: 'q-multi',
+      multiChoice: { optionIds: ['o-1', 'o-2'] },
+    });
+    expect(result?.surveyId).toBe('srv-1');
+  });
+
+  it('returns null when AlreadyExists (409) sends an empty body per errors.md row 31', async () => {
+    setAccessToken('tok');
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response('', { status: 200, headers: { 'Content-Type': 'application/json' } }),
+      ),
+    );
+    // 200-with-empty body is the relaxed wire shape (server sends nil
+    // SurveyResponse on the gRPC side; gateway flattens to an empty JSON).
+    // submitSurveyResponse must tolerate an absent `response` key.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(respond(200, {})),
+    );
+    const result = await submitSurveyResponse(config, 'pt-1', 'srv-1', []);
+    expect(result).toBeNull();
+  });
+
+  it('bubbles 409 from gateway as ApiError so the route can render the duplicate thanks view', async () => {
+    setAccessToken('tok');
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(respond(409, '{"message":"already"}')));
+    await expect(submitSurveyResponse(config, 'pt-1', 'srv-1', [])).rejects.toMatchObject({
+      name: 'ApiError',
+      status: 409,
     });
   });
 });

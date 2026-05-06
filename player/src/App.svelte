@@ -5,6 +5,7 @@
   import Signup from './routes/Signup.svelte';
   import Nda from './routes/Nda.svelte';
   import Pending from './routes/Pending.svelte';
+  import Survey from './routes/Survey.svelte';
   import Callback from './routes/Callback.svelte';
 
   let { config }: { config: Config } = $props();
@@ -18,6 +19,8 @@
   <Nda {config} slug={$route.slug} />
 {:else if $route.name === 'pending'}
   <Pending {config} slug={$route.slug} />
+{:else if $route.name === 'survey'}
+  <Survey {config} slug={$route.slug} />
 {:else if $route.name === 'callback'}
   <Callback {config} params={$route.params} />
 {:else}
