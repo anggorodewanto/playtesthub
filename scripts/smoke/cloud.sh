@@ -107,6 +107,7 @@ declare -a m3_probes=(
     "CreateSurvey         POST  ${BASE}/v1/admin/namespaces/${NS}/playtests/${PT}/survey                    {}"
     "EditSurvey           PATCH ${BASE}/v1/admin/namespaces/${NS}/playtests/${PT}/survey                    {}"
     "GetSurvey            GET   ${BASE}/v1/player/playtests/${PT}/survey                                    -"
+    "SubmitSurveyResponse POST  ${BASE}/v1/player/playtests/${PT}/survey:submit                             {}"
 )
 
 for probe in "${m3_probes[@]}"; do

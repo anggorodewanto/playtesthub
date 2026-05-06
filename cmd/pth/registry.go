@@ -357,6 +357,18 @@ var catalogue = []commandSpec{
 		Example:       "pth --profile player survey get --playtest 01J0...",
 	},
 	{
+		Name:        "survey submit",
+		Milestone:   "M3",
+		Description: "Player: submit one-shot survey answers (APPROVED + NDA-current; second submit is AlreadyExists with empty body) (cli.md §6.3).",
+		RequiredFlags: []flagSpec{
+			playtestFlag(),
+			{Name: "--survey", Description: "survey id the answers target (the version fetched via `survey get`)", ValueType: "string"},
+			{Name: "--from", Description: "path to JSON array of SurveyAnswer entries ('-' reads stdin)", ValueType: "string"},
+		},
+		OptionalFlags: []flagSpec{dryRunFlag()},
+		Example:       "pth --profile player survey submit --playtest 01J0... --survey 01K0... --from ./answers.json",
+	},
+	{
 		Name:        "user create",
 		Milestone:   "M1",
 		Description: "Create N AGS test users via /iam/v4/admin/.../test_users. Admin token required (cli.md §6.1).",

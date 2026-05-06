@@ -356,6 +356,27 @@ survey_get_dry=$("$PTH_BIN" survey get --playtest p-smoke --dry-run)
 [[ "$(jq -r '.playtest_id' <<<"$survey_get_dry")" == "p-smoke" ]] \
     || fail "survey get dry-run playtest_id mismatch: $survey_get_dry"
 
+log "pth survey submit --dry-run prints the request body"
+survey_answers_file="$(mktemp -t pth-survey-answers.XXXXXX.json)"
+cat >"$survey_answers_file" <<'EOF'
+[
+  {"questionId": "q1", "text": "free text answer"},
+  {"questionId": "q2", "rating": 4},
+  {"questionId": "q3", "multiChoice": {"optionIds": ["opt1","opt2"]}}
+]
+EOF
+trap 'rm -f "$survey_questions_file" "$survey_answers_file"; cleanup' EXIT INT TERM
+survey_submit_dry=$("$PTH_BIN" --profile smoke-pth \
+    survey submit --playtest p-smoke --survey s-smoke --from "$survey_answers_file" --dry-run)
+[[ "$(jq -r '.playtest_id' <<<"$survey_submit_dry")" == "p-smoke" ]] \
+    || fail "survey submit dry-run playtest_id mismatch: $survey_submit_dry"
+[[ "$(jq -r '.survey_id' <<<"$survey_submit_dry")" == "s-smoke" ]] \
+    || fail "survey submit dry-run survey_id mismatch: $survey_submit_dry"
+[[ "$(jq -r '.answers | length' <<<"$survey_submit_dry")" == "3" ]] \
+    || fail "survey submit dry-run answers length mismatch: $survey_submit_dry"
+[[ "$(jq -r '.answers[1].rating' <<<"$survey_submit_dry")" == "4" ]] \
+    || fail "survey submit dry-run answers[1].rating mismatch: $survey_submit_dry"
+
 # --- pth describe (unconditional) -------------------------------------
 # Phase 10.6 (docs/STATUS.md): the CI diff-check on
 # cmd/pth/testdata/describe.golden.json owns the byte-exact assertion.
@@ -442,6 +463,7 @@ m3_required=(
     "survey create"
     "survey edit"
     "survey get"
+    "survey submit"
 )
 for name in "${m3_required[@]}"; do
     jq -e --arg n "$name" '.commands[] | select(.name == $n)' <<<"$describe_out" >/dev/null \

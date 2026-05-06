@@ -780,6 +780,36 @@
       "example": "pth --profile player survey get --playtest 01J0..."
     },
     {
+      "name": "survey submit",
+      "milestone": "M3",
+      "description": "Player: submit one-shot survey answers (APPROVED + NDA-current; second submit is AlreadyExists with empty body) (cli.md §6.3).",
+      "requiredFlags": [
+        {
+          "name": "--playtest",
+          "description": "playtest id (ULID)",
+          "valueType": "string"
+        },
+        {
+          "name": "--survey",
+          "description": "survey id the answers target (the version fetched via `survey get`)",
+          "valueType": "string"
+        },
+        {
+          "name": "--from",
+          "description": "path to JSON array of SurveyAnswer entries ('-' reads stdin)",
+          "valueType": "string"
+        }
+      ],
+      "optionalFlags": [
+        {
+          "name": "--dry-run",
+          "description": "print the request JSON and exit without dialling",
+          "valueType": "bool"
+        }
+      ],
+      "example": "pth --profile player survey submit --playtest 01J0... --survey 01K0... --from ./answers.json"
+    },
+    {
       "name": "user create",
       "milestone": "M1",
       "description": "Create N AGS test users via /iam/v4/admin/.../test_users. Admin token required (cli.md §6.1).",

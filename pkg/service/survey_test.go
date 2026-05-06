@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	pb "github.com/anggorodewanto/playtesthub/pkg/pb/playtesthub/v1"
 	"github.com/anggorodewanto/playtesthub/pkg/repo"
@@ -90,13 +91,52 @@ func (f *fakeSurveyStore) GetByID(_ context.Context, surveyID uuid.UUID) (*repo.
 	return nil, repo.ErrNotFound
 }
 
+// fakeSurveyResponseStore mirrors PgSurveyResponseStore for unit
+// tests. Enforces UNIQUE (playtestId, userId) at the natural-key
+// level + returns the original row on replay (matches the production
+// SubmitOnce contract).
+type fakeSurveyResponseStore struct {
+	rows []*repo.SurveyResponse
+}
+
+func (f *fakeSurveyResponseStore) SubmitOnce(_ context.Context, r *repo.SurveyResponse) (*repo.SurveyResponse, bool, error) {
+	for _, existing := range f.rows {
+		if existing.PlaytestID == r.PlaytestID && existing.UserID == r.UserID {
+			clone := *existing
+			return &clone, true, nil
+		}
+	}
+	clone := *r
+	clone.ID = uuid.New()
+	clone.SubmittedAt = time.Now()
+	f.rows = append(f.rows, &clone)
+	out := clone
+	return &out, false, nil
+}
+
+func (f *fakeSurveyResponseStore) GetByPlaytestUser(_ context.Context, playtestID, userID uuid.UUID) (*repo.SurveyResponse, error) {
+	for _, r := range f.rows {
+		if r.PlaytestID == playtestID && r.UserID == userID {
+			clone := *r
+			return &clone, nil
+		}
+	}
+	return nil, repo.ErrNotFound
+}
+
+func (f *fakeSurveyResponseStore) ListResponses(_ context.Context, _ repo.SurveyResponsePageQuery) (*repo.SurveyResponsePage, error) {
+	return &repo.SurveyResponsePage{}, nil
+}
+
 // surveyTestRig bundles the test server with every fake store the
-// CreateSurvey / EditSurvey / GetSurvey handlers exercise.
+// CreateSurvey / EditSurvey / GetSurvey / SubmitSurveyResponse
+// handlers exercise.
 type surveyTestRig struct {
 	svr        *PlaytesthubServiceServer
 	playtests  *fakePlaytestStore
 	applicants *fakeApplicantStore
 	surveys    *fakeSurveyStore
+	responses  *fakeSurveyResponseStore
 	audit      *fakeAuditLogStore
 }
 
@@ -104,9 +144,10 @@ func withSurveyStores(t *testing.T) surveyTestRig {
 	t.Helper()
 	svr, pt, ap := newTestServer()
 	surveys := &fakeSurveyStore{}
+	responses := &fakeSurveyResponseStore{}
 	audit := &fakeAuditLogStore{}
-	svr = svr.WithSurveyStore(surveys).WithAuditLogStore(audit)
-	return surveyTestRig{svr: svr, playtests: pt, applicants: ap, surveys: surveys, audit: audit}
+	svr = svr.WithSurveyStore(surveys).WithSurveyResponseStore(responses).WithAuditLogStore(audit)
+	return surveyTestRig{svr: svr, playtests: pt, applicants: ap, surveys: surveys, responses: responses, audit: audit}
 }
 
 func textQ(prompt string, required bool) *pb.SurveyQuestion {
@@ -587,4 +628,449 @@ func TestCreateSurvey_NoSurveyStore_Internal(t *testing.T) {
 		Questions:  []*pb.SurveyQuestion{textQ("hi", false)},
 	})
 	requireStatus(t, err, codes.Internal)
+}
+
+// ---------------- SubmitSurveyResponse helpers ------------------------------
+
+// seedSurveyForSubmit primes a playtest + first-version survey + an
+// APPROVED applicant row. Returns the playtest, the created survey, and
+// the userID so tests can mint authCtx targeted at the right player.
+func seedSurveyForSubmit(t *testing.T, rig surveyTestRig, slug string, qs []*pb.SurveyQuestion) (*repo.Playtest, *pb.Survey, uuid.UUID) {
+	t.Helper()
+	pt := openPlaytest(slug)
+	rig.playtests.rows = append(rig.playtests.rows, pt)
+	resp, err := rig.svr.CreateSurvey(authCtx(uuid.New()), &pb.CreateSurveyRequest{
+		Namespace:  testNamespace,
+		PlaytestId: pt.ID.String(),
+		Questions:  qs,
+	})
+	if err != nil {
+		t.Fatalf("seed CreateSurvey: %v", err)
+	}
+	userID := uuid.New()
+	rig.applicants.rows = append(rig.applicants.rows, &repo.Applicant{
+		ID:         uuid.New(),
+		PlaytestID: pt.ID,
+		UserID:     userID,
+		Status:     applicantStatusApproved,
+		CreatedAt:  time.Now(),
+	})
+	return pt, resp.GetSurvey(), userID
+}
+
+func textAns(qID, text string) *pb.SurveyAnswer {
+	return &pb.SurveyAnswer{
+		QuestionId: qID,
+		Value:      &pb.SurveyAnswer_Text{Text: text},
+	}
+}
+
+func ratingAns(qID string, rating int32) *pb.SurveyAnswer {
+	return &pb.SurveyAnswer{
+		QuestionId: qID,
+		Value:      &pb.SurveyAnswer_Rating{Rating: rating},
+	}
+}
+
+func multiAns(qID string, optionIDs ...string) *pb.SurveyAnswer {
+	return &pb.SurveyAnswer{
+		QuestionId: qID,
+		Value: &pb.SurveyAnswer_MultiChoice{
+			MultiChoice: &pb.SurveyMultiChoiceAnswer{OptionIds: optionIDs},
+		},
+	}
+}
+
+// ---------------- SubmitSurveyResponse --------------------------------------
+
+func TestSubmitSurveyResponse_HappyPath_TextAndRating(t *testing.T) {
+	rig := withSurveyStores(t)
+	pt, survey, userID := seedSurveyForSubmit(t, rig, "submit-happy", []*pb.SurveyQuestion{
+		textQ("How was matchmaking?", true),
+		ratingQ("Rate the visuals (1-5)"),
+	})
+	textQID := survey.GetQuestions()[0].GetId()
+	ratingQID := survey.GetQuestions()[1].GetId()
+
+	resp, err := rig.svr.SubmitSurveyResponse(authCtx(userID), &pb.SubmitSurveyResponseRequest{
+		PlaytestId: pt.ID.String(),
+		SurveyId:   survey.GetId(),
+		Answers: []*pb.SurveyAnswer{
+			textAns(textQID, "Quick and balanced"),
+			ratingAns(ratingQID, 4),
+		},
+	})
+	if err != nil {
+		t.Fatalf("SubmitSurveyResponse: %v", err)
+	}
+	if resp.GetResponse().GetSurveyId() != survey.GetId() {
+		t.Errorf("response surveyId = %q, want %q", resp.GetResponse().GetSurveyId(), survey.GetId())
+	}
+	if got := len(resp.GetResponse().GetAnswers()); got != 2 {
+		t.Fatalf("answers = %d, want 2", got)
+	}
+	if got := resp.GetResponse().GetAnswers()[0].GetText(); got != "Quick and balanced" {
+		t.Errorf("answer[0].text = %q, want %q", got, "Quick and balanced")
+	}
+	if got := resp.GetResponse().GetAnswers()[1].GetRating(); got != 4 {
+		t.Errorf("answer[1].rating = %d, want 4", got)
+	}
+	if got := len(rig.responses.rows); got != 1 {
+		t.Errorf("response rows = %d, want 1", got)
+	}
+}
+
+func TestSubmitSurveyResponse_MultiChoice_AllowMultiple(t *testing.T) {
+	rig := withSurveyStores(t)
+	pt, survey, userID := seedSurveyForSubmit(t, rig, "multi-multi", []*pb.SurveyQuestion{
+		multiQ("Which platforms?", true, "Steam", "Xbox", "PSN"),
+	})
+	q := survey.GetQuestions()[0]
+	steamID := q.GetOptions()[0].GetId()
+	xboxID := q.GetOptions()[1].GetId()
+
+	resp, err := rig.svr.SubmitSurveyResponse(authCtx(userID), &pb.SubmitSurveyResponseRequest{
+		PlaytestId: pt.ID.String(),
+		SurveyId:   survey.GetId(),
+		Answers:    []*pb.SurveyAnswer{multiAns(q.GetId(), steamID, xboxID)},
+	})
+	if err != nil {
+		t.Fatalf("SubmitSurveyResponse: %v", err)
+	}
+	got := resp.GetResponse().GetAnswers()[0].GetMultiChoice().GetOptionIds()
+	if len(got) != 2 || got[0] != steamID || got[1] != xboxID {
+		t.Errorf("multi-choice answer wrong: got %v, want [%s %s]", got, steamID, xboxID)
+	}
+}
+
+func TestSubmitSurveyResponse_Replay_ReturnsAlreadyExistsEmptyBody(t *testing.T) {
+	rig := withSurveyStores(t)
+	pt, survey, userID := seedSurveyForSubmit(t, rig, "replay", []*pb.SurveyQuestion{
+		textQ("free text", false),
+	})
+	qID := survey.GetQuestions()[0].GetId()
+
+	if _, err := rig.svr.SubmitSurveyResponse(authCtx(userID), &pb.SubmitSurveyResponseRequest{
+		PlaytestId: pt.ID.String(),
+		SurveyId:   survey.GetId(),
+		Answers:    []*pb.SurveyAnswer{textAns(qID, "first")},
+	}); err != nil {
+		t.Fatalf("first submit: %v", err)
+	}
+
+	resp, err := rig.svr.SubmitSurveyResponse(authCtx(userID), &pb.SubmitSurveyResponseRequest{
+		PlaytestId: pt.ID.String(),
+		SurveyId:   survey.GetId(),
+		Answers:    []*pb.SurveyAnswer{textAns(qID, "second")},
+	})
+	requireStatus(t, err, codes.AlreadyExists)
+	if resp != nil {
+		t.Errorf("replay response body must be nil; got %v", resp)
+	}
+	// The original answer "first" must NOT leak via the second
+	// response (PRD §6 redaction); err.Message must not echo it
+	// either.
+	st, _ := status.FromError(err)
+	if strings.Contains(st.Message(), "first") || strings.Contains(st.Message(), "second") {
+		t.Errorf("replay error message leaks free-text answer content: %q", st.Message())
+	}
+}
+
+func TestSubmitSurveyResponse_NotApproved_FailedPrecondition(t *testing.T) {
+	rig := withSurveyStores(t)
+	pt, survey, _ := seedSurveyForSubmit(t, rig, "not-approved", []*pb.SurveyQuestion{
+		textQ("free text", false),
+	})
+	// Override the seeded applicant's status to PENDING.
+	rig.applicants.rows[0].Status = applicantStatusPending
+	userID := rig.applicants.rows[0].UserID
+
+	_, err := rig.svr.SubmitSurveyResponse(authCtx(userID), &pb.SubmitSurveyResponseRequest{
+		PlaytestId: pt.ID.String(),
+		SurveyId:   survey.GetId(),
+		Answers:    []*pb.SurveyAnswer{textAns(survey.GetQuestions()[0].GetId(), "hi")},
+	})
+	requireStatus(t, err, codes.FailedPrecondition)
+	requireMsgContains(t, err, "APPROVED")
+}
+
+func TestSubmitSurveyResponse_NDAReacceptRequired_FailedPrecondition(t *testing.T) {
+	rig := withSurveyStores(t)
+	pt, survey, userID := seedSurveyForSubmit(t, rig, "nda-stale", []*pb.SurveyQuestion{
+		textQ("free text", false),
+	})
+	pt.NDARequired = true
+	pt.NDAText = "v2"
+	pt.CurrentNDAVersionHash = hashNDA("v2")
+	rig.playtests.rows[0] = pt
+
+	staleHash := hashNDA("v1")
+	rig.applicants.rows[0].NDAVersionHash = &staleHash
+
+	_, err := rig.svr.SubmitSurveyResponse(authCtx(userID), &pb.SubmitSurveyResponseRequest{
+		PlaytestId: pt.ID.String(),
+		SurveyId:   survey.GetId(),
+		Answers:    []*pb.SurveyAnswer{textAns(survey.GetQuestions()[0].GetId(), "hi")},
+	})
+	requireStatus(t, err, codes.FailedPrecondition)
+	requireMsgContains(t, err, "NDA")
+}
+
+func TestSubmitSurveyResponse_NoApplicant_FailedPrecondition(t *testing.T) {
+	rig := withSurveyStores(t)
+	pt, survey, _ := seedSurveyForSubmit(t, rig, "no-app", []*pb.SurveyQuestion{
+		textQ("free text", false),
+	})
+	rig.applicants.rows = nil
+
+	_, err := rig.svr.SubmitSurveyResponse(authCtx(uuid.New()), &pb.SubmitSurveyResponseRequest{
+		PlaytestId: pt.ID.String(),
+		SurveyId:   survey.GetId(),
+		Answers:    []*pb.SurveyAnswer{textAns(survey.GetQuestions()[0].GetId(), "hi")},
+	})
+	requireStatus(t, err, codes.FailedPrecondition)
+	requireMsgContains(t, err, "signup")
+}
+
+func TestSubmitSurveyResponse_DraftPlaytest_NotFound(t *testing.T) {
+	rig := withSurveyStores(t)
+	pt, survey, userID := seedSurveyForSubmit(t, rig, "draft-pt", []*pb.SurveyQuestion{
+		textQ("free text", false),
+	})
+	rig.playtests.rows[0].Status = statusDraft
+
+	_, err := rig.svr.SubmitSurveyResponse(authCtx(userID), &pb.SubmitSurveyResponseRequest{
+		PlaytestId: pt.ID.String(),
+		SurveyId:   survey.GetId(),
+		Answers:    []*pb.SurveyAnswer{textAns(survey.GetQuestions()[0].GetId(), "hi")},
+	})
+	requireStatus(t, err, codes.NotFound)
+}
+
+func TestSubmitSurveyResponse_ClosedPlaytest_AllowsApprovedSubmit(t *testing.T) {
+	rig := withSurveyStores(t)
+	pt, survey, userID := seedSurveyForSubmit(t, rig, "closed-pt", []*pb.SurveyQuestion{
+		textQ("free text", false),
+	})
+	rig.playtests.rows[0].Status = statusClosed
+
+	if _, err := rig.svr.SubmitSurveyResponse(authCtx(userID), &pb.SubmitSurveyResponseRequest{
+		PlaytestId: pt.ID.String(),
+		SurveyId:   survey.GetId(),
+		Answers:    []*pb.SurveyAnswer{textAns(survey.GetQuestions()[0].GetId(), "hi")},
+	}); err != nil {
+		t.Fatalf("CLOSED + APPROVED should accept submit: %v", err)
+	}
+}
+
+func TestSubmitSurveyResponse_OldVersion_StillAccepted(t *testing.T) {
+	rig := withSurveyStores(t)
+	pt, v1, userID := seedSurveyForSubmit(t, rig, "mid-fill", []*pb.SurveyQuestion{
+		textQ("free text", false),
+	})
+	// Admin bumps to v2 between the player's GetSurvey and Submit.
+	if _, err := rig.svr.EditSurvey(authCtx(uuid.New()), &pb.EditSurveyRequest{
+		Namespace:  testNamespace,
+		PlaytestId: pt.ID.String(),
+		Questions:  []*pb.SurveyQuestion{textQ("v2 prompt", false)},
+	}); err != nil {
+		t.Fatalf("seed EditSurvey: %v", err)
+	}
+
+	if _, err := rig.svr.SubmitSurveyResponse(authCtx(userID), &pb.SubmitSurveyResponseRequest{
+		PlaytestId: pt.ID.String(),
+		SurveyId:   v1.GetId(), // submitting against the older version
+		Answers:    []*pb.SurveyAnswer{textAns(v1.GetQuestions()[0].GetId(), "from v1")},
+	}); err != nil {
+		t.Fatalf("submit against older version: %v", err)
+	}
+}
+
+func TestSubmitSurveyResponse_RequiredQuestionMissing_InvalidArgument(t *testing.T) {
+	rig := withSurveyStores(t)
+	pt, survey, userID := seedSurveyForSubmit(t, rig, "required", []*pb.SurveyQuestion{
+		textQ("required text", true),
+	})
+
+	_, err := rig.svr.SubmitSurveyResponse(authCtx(userID), &pb.SubmitSurveyResponseRequest{
+		PlaytestId: pt.ID.String(),
+		SurveyId:   survey.GetId(),
+		Answers:    []*pb.SurveyAnswer{},
+	})
+	requireStatus(t, err, codes.InvalidArgument)
+	requireMsgContains(t, err, "required")
+}
+
+func TestSubmitSurveyResponse_TextOverLimit_InvalidArgument(t *testing.T) {
+	rig := withSurveyStores(t)
+	pt, survey, userID := seedSurveyForSubmit(t, rig, "long", []*pb.SurveyQuestion{
+		textQ("free text", false),
+	})
+	long := strings.Repeat("x", surveyTextAnswerMax+1)
+	_, err := rig.svr.SubmitSurveyResponse(authCtx(userID), &pb.SubmitSurveyResponseRequest{
+		PlaytestId: pt.ID.String(),
+		SurveyId:   survey.GetId(),
+		Answers:    []*pb.SurveyAnswer{textAns(survey.GetQuestions()[0].GetId(), long)},
+	})
+	requireStatus(t, err, codes.InvalidArgument)
+	requireMsgContains(t, err, "4000-char cap")
+}
+
+func TestSubmitSurveyResponse_RatingOutOfRange_InvalidArgument(t *testing.T) {
+	rig := withSurveyStores(t)
+	pt, survey, userID := seedSurveyForSubmit(t, rig, "rating", []*pb.SurveyQuestion{
+		ratingQ("Rate it"),
+	})
+	_, err := rig.svr.SubmitSurveyResponse(authCtx(userID), &pb.SubmitSurveyResponseRequest{
+		PlaytestId: pt.ID.String(),
+		SurveyId:   survey.GetId(),
+		Answers:    []*pb.SurveyAnswer{ratingAns(survey.GetQuestions()[0].GetId(), 6)},
+	})
+	requireStatus(t, err, codes.InvalidArgument)
+	requireMsgContains(t, err, "1–5")
+}
+
+func TestSubmitSurveyResponse_MultiChoice_SingleSelectWithMany_InvalidArgument(t *testing.T) {
+	rig := withSurveyStores(t)
+	pt, survey, userID := seedSurveyForSubmit(t, rig, "single-many", []*pb.SurveyQuestion{
+		multiQ("Pick one", false, "A", "B"),
+	})
+	q := survey.GetQuestions()[0]
+	_, err := rig.svr.SubmitSurveyResponse(authCtx(userID), &pb.SubmitSurveyResponseRequest{
+		PlaytestId: pt.ID.String(),
+		SurveyId:   survey.GetId(),
+		Answers:    []*pb.SurveyAnswer{multiAns(q.GetId(), q.GetOptions()[0].GetId(), q.GetOptions()[1].GetId())},
+	})
+	requireStatus(t, err, codes.InvalidArgument)
+	requireMsgContains(t, err, "single-select")
+}
+
+func TestSubmitSurveyResponse_MultiChoice_UnknownOptionID_InvalidArgument(t *testing.T) {
+	rig := withSurveyStores(t)
+	pt, survey, userID := seedSurveyForSubmit(t, rig, "bogus-opt", []*pb.SurveyQuestion{
+		multiQ("Pick", false, "A", "B"),
+	})
+	_, err := rig.svr.SubmitSurveyResponse(authCtx(userID), &pb.SubmitSurveyResponseRequest{
+		PlaytestId: pt.ID.String(),
+		SurveyId:   survey.GetId(),
+		Answers:    []*pb.SurveyAnswer{multiAns(survey.GetQuestions()[0].GetId(), uuid.NewString())},
+	})
+	requireStatus(t, err, codes.InvalidArgument)
+	requireMsgContains(t, err, "does not match")
+}
+
+func TestSubmitSurveyResponse_RepeatedQuestionID_InvalidArgument(t *testing.T) {
+	rig := withSurveyStores(t)
+	pt, survey, userID := seedSurveyForSubmit(t, rig, "dup-q", []*pb.SurveyQuestion{
+		textQ("free text", false),
+	})
+	q := survey.GetQuestions()[0].GetId()
+	_, err := rig.svr.SubmitSurveyResponse(authCtx(userID), &pb.SubmitSurveyResponseRequest{
+		PlaytestId: pt.ID.String(),
+		SurveyId:   survey.GetId(),
+		Answers:    []*pb.SurveyAnswer{textAns(q, "first"), textAns(q, "second")},
+	})
+	requireStatus(t, err, codes.InvalidArgument)
+	requireMsgContains(t, err, "repeated")
+}
+
+func TestSubmitSurveyResponse_SurveyDoesNotBelongToPlaytest_InvalidArgument(t *testing.T) {
+	rig := withSurveyStores(t)
+	_, _, userID := seedSurveyForSubmit(t, rig, "pt-a", []*pb.SurveyQuestion{
+		textQ("free text", false),
+	})
+
+	// Second playtest with its own survey row.
+	other := openPlaytest("pt-b")
+	rig.playtests.rows = append(rig.playtests.rows, other)
+	otherSurvey, err := rig.svr.CreateSurvey(authCtx(uuid.New()), &pb.CreateSurveyRequest{
+		Namespace:  testNamespace,
+		PlaytestId: other.ID.String(),
+		Questions:  []*pb.SurveyQuestion{textQ("other prompt", false)},
+	})
+	if err != nil {
+		t.Fatalf("seed other CreateSurvey: %v", err)
+	}
+
+	pt := rig.playtests.rows[0]
+	_, err = rig.svr.SubmitSurveyResponse(authCtx(userID), &pb.SubmitSurveyResponseRequest{
+		PlaytestId: pt.ID.String(),
+		SurveyId:   otherSurvey.GetSurvey().GetId(),
+		Answers:    []*pb.SurveyAnswer{textAns(otherSurvey.GetSurvey().GetQuestions()[0].GetId(), "hi")},
+	})
+	requireStatus(t, err, codes.InvalidArgument)
+	requireMsgContains(t, err, "does not belong")
+}
+
+func TestSubmitSurveyResponse_NoSurveyConfigured_FailedPrecondition(t *testing.T) {
+	rig := withSurveyStores(t)
+	pt := openPlaytest("none")
+	rig.playtests.rows = append(rig.playtests.rows, pt)
+	userID := uuid.New()
+	rig.applicants.rows = append(rig.applicants.rows, &repo.Applicant{
+		ID:         uuid.New(),
+		PlaytestID: pt.ID,
+		UserID:     userID,
+		Status:     applicantStatusApproved,
+		CreatedAt:  time.Now(),
+	})
+
+	_, err := rig.svr.SubmitSurveyResponse(authCtx(userID), &pb.SubmitSurveyResponseRequest{
+		PlaytestId: pt.ID.String(),
+		SurveyId:   uuid.New().String(),
+		Answers:    nil,
+	})
+	requireStatus(t, err, codes.FailedPrecondition)
+	requireMsgContains(t, err, "no survey")
+}
+
+func TestSubmitSurveyResponse_BadUUIDs_InvalidArgument(t *testing.T) {
+	rig := withSurveyStores(t)
+	for _, tt := range []struct {
+		name string
+		req  *pb.SubmitSurveyResponseRequest
+	}{
+		{"bad playtest", &pb.SubmitSurveyResponseRequest{PlaytestId: "nope", SurveyId: uuid.New().String()}},
+		{"bad survey", &pb.SubmitSurveyResponseRequest{PlaytestId: uuid.New().String(), SurveyId: "nope"}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := rig.svr.SubmitSurveyResponse(authCtx(uuid.New()), tt.req)
+			requireStatus(t, err, codes.InvalidArgument)
+		})
+	}
+}
+
+func TestSubmitSurveyResponse_Unauthenticated(t *testing.T) {
+	rig := withSurveyStores(t)
+	_, err := rig.svr.SubmitSurveyResponse(context.Background(), &pb.SubmitSurveyResponseRequest{
+		PlaytestId: uuid.New().String(),
+		SurveyId:   uuid.New().String(),
+	})
+	requireStatus(t, err, codes.Unauthenticated)
+}
+
+// TestSubmitSurveyResponse_RedactionCanary mirrors M2 phase 5's
+// `code.upload` precedent — the audit log must NOT carry survey
+// free-text answers (PRD §6 redaction). This test verifies that no
+// audit row is written by SubmitSurveyResponse at all (M3 keeps the
+// submit path off the audit ledger; the Survey row + the
+// SurveyResponse row are the records of authority).
+func TestSubmitSurveyResponse_RedactionCanary_NoFreeTextInAudit(t *testing.T) {
+	rig := withSurveyStores(t)
+	pt, survey, userID := seedSurveyForSubmit(t, rig, "canary", []*pb.SurveyQuestion{
+		textQ("How was it?", false),
+	})
+	secret := "very-secret-feedback-NEVER-LOG-THIS"
+	if _, err := rig.svr.SubmitSurveyResponse(authCtx(userID), &pb.SubmitSurveyResponseRequest{
+		PlaytestId: pt.ID.String(),
+		SurveyId:   survey.GetId(),
+		Answers:    []*pb.SurveyAnswer{textAns(survey.GetQuestions()[0].GetId(), secret)},
+	}); err != nil {
+		t.Fatalf("SubmitSurveyResponse: %v", err)
+	}
+	for _, row := range rig.audit.rows {
+		if strings.Contains(string(row.Before), secret) || strings.Contains(string(row.After), secret) {
+			t.Fatalf("audit row %q leaks the free-text answer: before=%s after=%s", row.Action, row.Before, row.After)
+		}
+	}
 }

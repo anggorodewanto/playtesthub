@@ -12,14 +12,15 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-const surveyUsage = `survey: action required (one of: create, edit, get)`
+const surveyUsage = `survey: action required (one of: create, edit, get, submit)`
 
 // runSurvey dispatches `pth survey <action> ...`. cli.md §6.3 (M3).
 //
 // `create` and `edit` accept --from <path|-> as a JSON file containing
-// a list of SurveyQuestion entries. (cli.md §6.3 final form is YAML;
-// JSON ships first because it's protojson-trivial and unblocks the
-// smoke harness. The YAML wrapper lands with phase 12.)
+// a list of SurveyQuestion entries. `submit` takes a JSON array of
+// SurveyAnswer entries instead. (cli.md §6.3 final form is YAML; JSON
+// ships first because it's protojson-trivial and unblocks the smoke
+// harness. The YAML wrapper lands with phase 12.)
 func runSurvey(ctx context.Context, stdout, stderr io.Writer, g *Globals, args []string, factory playtestClientFactory) int {
 	if len(args) == 0 {
 		fmt.Fprintln(stderr, surveyUsage)
@@ -33,6 +34,8 @@ func runSurvey(ctx context.Context, stdout, stderr io.Writer, g *Globals, args [
 		return runSurveyEdit(ctx, stdout, stderr, g, rest, factory)
 	case actionGet:
 		return runSurveyGet(ctx, stdout, stderr, g, rest, factory)
+	case "submit":
+		return runSurveySubmit(ctx, stdout, stderr, g, rest, factory)
 	default:
 		fmt.Fprintf(stderr, "survey: unknown action %q\n", action)
 		return exitLocalError
@@ -101,6 +104,73 @@ func runSurveyEdit(ctx context.Context, stdout, stderr io.Writer, g *Globals, ar
 		func(c pb.PlaytesthubServiceClient, cctx context.Context) (proto.Message, error) {
 			return c.EditSurvey(cctx, req)
 		})
+}
+
+func runSurveySubmit(ctx context.Context, stdout, stderr io.Writer, g *Globals, args []string, factory playtestClientFactory) int {
+	fs := flag.NewFlagSet("survey submit", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	playtestID := fs.String("playtest", "", "playtest id (required)")
+	surveyID := fs.String("survey", "", "survey id the answers target (required)")
+	from := fs.String("from", "", "path to JSON file containing the answers array ('-' reads stdin)")
+	dryRun := fs.Bool("dry-run", false, "print the request JSON and exit without dialling")
+	if err := fs.Parse(args); err != nil {
+		return exitLocalError
+	}
+	if *playtestID == "" {
+		fmt.Fprintln(stderr, "survey submit: --playtest is required")
+		return exitLocalError
+	}
+	if *surveyID == "" {
+		fmt.Fprintln(stderr, "survey submit: --survey is required")
+		return exitLocalError
+	}
+	answers, code := loadSurveyAnswers(stderr, "survey submit", *from)
+	if code != exitOK {
+		return code
+	}
+	req := &pb.SubmitSurveyResponseRequest{
+		PlaytestId: *playtestID,
+		SurveyId:   *surveyID,
+		Answers:    answers,
+	}
+	return invokePlaytest(ctx, stdout, stderr, g, factory, "SubmitSurveyResponse", req, *dryRun,
+		func(c pb.PlaytesthubServiceClient, cctx context.Context) (proto.Message, error) {
+			return c.SubmitSurveyResponse(cctx, req)
+		})
+}
+
+// loadSurveyAnswers reads a JSON array of SurveyAnswer entries from a
+// file path (or stdin via "-"). Empty path is allowed for --dry-run
+// callers and yields a nil slice. Mirrors loadSurveyQuestions; the
+// server is the authority on bounds + per-question type checking.
+func loadSurveyAnswers(stderr io.Writer, label, path string) ([]*pb.SurveyAnswer, int) {
+	if path == "" {
+		return nil, exitOK
+	}
+	body, err := readFile(path)
+	if err != nil {
+		fmt.Fprintf(stderr, "%s: %v\n", label, err)
+		return nil, exitLocalError
+	}
+	if len(body) == 0 {
+		return nil, exitOK
+	}
+	var raw []json.RawMessage
+	if err := json.Unmarshal(body, &raw); err != nil {
+		fmt.Fprintf(stderr, "%s: --from must be a JSON array of SurveyAnswer objects: %v\n", label, err)
+		return nil, exitLocalError
+	}
+	out := make([]*pb.SurveyAnswer, 0, len(raw))
+	unmarshal := protojson.UnmarshalOptions{DiscardUnknown: true}
+	for i, item := range raw {
+		a := &pb.SurveyAnswer{}
+		if err := unmarshal.Unmarshal(item, a); err != nil {
+			fmt.Fprintf(stderr, "%s: answers[%d] is not a SurveyAnswer: %v\n", label, i, err)
+			return nil, exitLocalError
+		}
+		out = append(out, a)
+	}
+	return out, exitOK
 }
 
 func runSurveyGet(ctx context.Context, stdout, stderr io.Writer, g *Globals, args []string, factory playtestClientFactory) int {

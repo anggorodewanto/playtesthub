@@ -60,6 +60,7 @@ type PlaytesthubServiceServer struct {
 	audit            repo.AuditLogStore
 	code             repo.CodeStore
 	survey           repo.SurveyStore
+	surveyResponse   repo.SurveyResponseStore
 	txRunner         repo.TxRunner
 	discord          discord.HandleLookup
 	discordExchange  DiscordExchangeProxy
