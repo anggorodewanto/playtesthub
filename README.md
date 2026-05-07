@@ -65,12 +65,12 @@ Smoke check:
 
 ### Reproduce the golden flow
 
-The `pth` CLI is the canonical end-to-end harness — same surface a human or AI uses to drive the system, and the same path the e2e test exercises. The composite command **`pth flow golden-m2`** runs the entire M2 golden flow (admin creates an NDA-required STEAM_KEYS playtest → publishes → player signs up → accepts the NDA → admin uploads keys → admin approves → player retrieves the granted code) and emits one NDJSON line per step.
+The `pth` CLI is the canonical end-to-end harness — same surface a human or AI uses to drive the system, and the same path the e2e test exercises. The composite command **`pth flow golden-m3`** runs the full M3 golden flow (admin creates an NDA-required STEAM_KEYS playtest → publishes → player signs up → accepts the NDA → admin uploads keys → admin approves → player retrieves the granted code → admin authors a survey → player submits a response → admin lists responses) and emits one NDJSON line per step.
 
 ```bash
 go build -o pth ./cmd/pth
 
-# Profile A — admin (used to create + publish the playtest, upload keys, approve).
+# Profile A — admin (used to create + publish the playtest, upload keys, approve, author survey, list responses).
 export PTH_AGS_BASE_URL=https://your-namespace.gamingservices.accelbyte.io
 export PTH_IAM_CLIENT_ID=<confidential-iam-client-id>
 export PTH_IAM_CLIENT_SECRET=<confidential-iam-client-secret>
@@ -85,14 +85,15 @@ echo "$PASSWORD" | ./pth --profile "player-$USER_ID" user login-as \
   --user-id "$USER_ID" --username "$USERNAME" --password-stdin
 
 # Drive the golden flow. --codes-count synthesises a STEAM key for the upload step;
-# pass --codes-file <path> to supply a real CSV instead.
-./pth flow golden-m2 \
+# pass --codes-file <path> to supply a real CSV instead. The flow seeds a TEXT +
+# RATING survey question pair inline — no --from path needed.
+./pth flow golden-m3 \
   --slug "demo-$(date +%s)" \
   --admin-profile admin \
   --player-profile "player-$USER_ID"
 ```
 
-Expected output — seven NDJSON lines, all `status=OK`:
+Expected output — ten NDJSON lines, all `status=OK`:
 
 ```json
 {"step":"create-playtest","status":"OK","response":{"playtest":{"id":"…","status":"PLAYTEST_STATUS_DRAFT","nda_required":true}}}
@@ -102,6 +103,9 @@ Expected output — seven NDJSON lines, all `status=OK`:
 {"step":"upload-codes","status":"OK","response":{"accepted":1,"rejected":0}}
 {"step":"approve","status":"OK","response":{"applicant":{"status":"APPLICANT_STATUS_APPROVED"}}}
 {"step":"get-code","status":"OK","response":{"value":"GOLDEN-M2-DEMO-…","distribution_model":"DISTRIBUTION_MODEL_STEAM_KEYS"}}
+{"step":"create-survey","status":"OK","response":{"survey":{"id":"…","version":1,"questions":[{"id":"…","type":"SURVEY_QUESTION_TYPE_TEXT"},{"id":"…","type":"SURVEY_QUESTION_TYPE_RATING"}]}}}
+{"step":"submit-response","status":"OK","response":{"response":{"id":"…","submitted_at":"…"}}}
+{"step":"list-responses","status":"OK","response":{"responses":[{"id":"…","answers":[…]}]}}
 ```
 
 Tear down:
@@ -111,7 +115,7 @@ Tear down:
 ./pth user delete --user-id "$USER_ID" --yes
 ```
 
-The tests under [`e2e/golden_m1_test.go`](e2e/golden_m1_test.go) and [`e2e/golden_m2_test.go`](e2e/golden_m2_test.go) wrap the same sequences behind `go test ./e2e/...` for CI / operator verification — see [`docs/cli.md` §7.4](docs/cli.md).
+The tests under [`e2e/golden_m1_test.go`](e2e/golden_m1_test.go), [`e2e/golden_m2_test.go`](e2e/golden_m2_test.go), and [`e2e/golden_m3_test.go`](e2e/golden_m3_test.go) wrap the same sequences behind `go test ./e2e/...` for CI / operator verification — see [`docs/cli.md` §7.4](docs/cli.md).
 
 ## Architecture at a glance
 
@@ -140,7 +144,7 @@ golangci-lint run
 buf lint
 ./proto.sh && git diff --exit-code      # proto stubs in sync
 ./scripts/smoke/boot.sh                 # backend boots + RPCs reach handlers
-./pth flow golden-m2 ...                # canonical e2e (once env is configured)
+./pth flow golden-m3 ...                # canonical e2e (once env is configured)
 
 # Frontend
 ( cd player && npm test && npm run build )
