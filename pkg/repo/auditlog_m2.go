@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"time"
-	"unicode/utf8"
 
 	"github.com/google/uuid"
 )
@@ -114,7 +113,7 @@ func AppendApplicantDMSent(ctx context.Context, store AuditLogStore, namespace s
 // writing (matches the applicant.last_dm_error 500-byte rule).
 // System-emitted; no actor.
 func AppendApplicantDMFailed(ctx context.Context, store AuditLogStore, namespace string, playtestID, applicantID uuid.UUID, errMsg string, attemptAt time.Time) error {
-	truncated := truncateUTF8String(errMsg, applicantLastDMErrorMaxBytes)
+	truncated := truncateUTF8(errMsg, applicantLastDMErrorMaxBytes)
 	return appendAction(ctx, store, namespace, &playtestID, nil, ActionApplicantDMFailed, map[string]any{
 		"applicantId": applicantID.String(),
 		"error":       truncated,
@@ -200,15 +199,3 @@ func appendAction(ctx context.Context, store AuditLogStore, namespace string, pl
 	return nil
 }
 
-// truncateUTF8String is the string-keyed twin of truncateUTF8 used by
-// the DM-failed audit writer.
-func truncateUTF8String(s string, maxBytes int) string {
-	if len(s) <= maxBytes {
-		return s
-	}
-	cut := maxBytes
-	for cut > 0 && !utf8.RuneStart(s[cut]) {
-		cut--
-	}
-	return s[:cut]
-}

@@ -55,8 +55,7 @@ func runUserCreate(ctx context.Context, stdout, stderr io.Writer, g *Globals, ar
 		fmt.Fprintln(stderr, "user create: --count must be <= 100 (AGS limit)")
 		return exitLocalError
 	}
-	if g.Namespace == "" {
-		fmt.Fprintln(stderr, "user create: --namespace (or PTH_NAMESPACE) is required")
+	if !g.requireNamespace(stderr, "user create") {
 		return exitLocalError
 	}
 	body := &adminCreateTestUsersRequest{
@@ -128,8 +127,7 @@ func runUserDelete(ctx context.Context, stdout, stderr io.Writer, g *Globals, ar
 		fmt.Fprintln(stderr, "user delete: --id is required")
 		return exitLocalError
 	}
-	if g.Namespace == "" {
-		fmt.Fprintln(stderr, "user delete: --namespace (or PTH_NAMESPACE) is required")
+	if !g.requireNamespace(stderr, "user delete") {
 		return exitLocalError
 	}
 	if *dryRun {
@@ -184,8 +182,7 @@ func runUserLoginAs(ctx context.Context, stdout, stderr io.Writer, g *Globals, a
 		fmt.Fprintln(stderr, "user login-as: --id is required")
 		return exitLocalError
 	}
-	if g.Namespace == "" {
-		fmt.Fprintln(stderr, "user login-as: --namespace (or PTH_NAMESPACE) is required")
+	if !g.requireNamespace(stderr, "user login-as") {
 		return exitLocalError
 	}
 	if *dryRun {

@@ -78,7 +78,7 @@ export class ApiError extends Error {
   }
 }
 
-function joinPath(base: string, path: string): string {
+export function joinPath(base: string, path: string): string {
   const trimmedBase = base.replace(/\/$/, '');
   const leading = path.startsWith('/') ? path : `/${path}`;
   return `${trimmedBase}${leading}`;

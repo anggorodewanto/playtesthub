@@ -241,6 +241,18 @@ func parseBool(v string) (bool, error) {
 	return false, fmt.Errorf("not a boolean")
 }
 
+// requireNamespace prints the byte-exact "<label>: --namespace (or
+// PTH_NAMESPACE) is required" line and returns false when Namespace
+// is unset. Centralises the guard repeated by every namespace-scoped
+// subcommand. Callers map a false return to exitLocalError.
+func (g *Globals) requireNamespace(stderr io.Writer, label string) bool {
+	if g.Namespace == "" {
+		fmt.Fprintln(stderr, label+": --namespace (or PTH_NAMESPACE) is required")
+		return false
+	}
+	return true
+}
+
 // effectiveInsecure resolves the cli.md §4 default rule: loopback ⇒ insecure
 // unless the user explicitly opted in to TLS.
 func (g *Globals) effectiveInsecure() bool {

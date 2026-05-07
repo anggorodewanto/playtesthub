@@ -88,9 +88,9 @@ func (s *PlaytesthubServiceServer) CreateSurvey(ctx context.Context, req *pb.Cre
 	if s.survey == nil {
 		return nil, status.Error(codes.Internal, "survey store not configured")
 	}
-	playtestID, err := uuid.Parse(req.GetPlaytestId())
+	playtestID, err := parseReqUUID("playtest_id", req.GetPlaytestId())
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "playtest_id is not a uuid: %v", err)
+		return nil, err
 	}
 	pt, err := s.playtest.GetByID(ctx, s.namespace, playtestID)
 	if errors.Is(err, repo.ErrNotFound) {
@@ -153,9 +153,9 @@ func (s *PlaytesthubServiceServer) EditSurvey(ctx context.Context, req *pb.EditS
 	if s.survey == nil {
 		return nil, status.Error(codes.Internal, "survey store not configured")
 	}
-	playtestID, err := uuid.Parse(req.GetPlaytestId())
+	playtestID, err := parseReqUUID("playtest_id", req.GetPlaytestId())
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "playtest_id is not a uuid: %v", err)
+		return nil, err
 	}
 	pt, err := s.playtest.GetByID(ctx, s.namespace, playtestID)
 	if errors.Is(err, repo.ErrNotFound) {
@@ -227,9 +227,9 @@ func (s *PlaytesthubServiceServer) GetSurvey(ctx context.Context, req *pb.GetSur
 	if s.survey == nil {
 		return nil, status.Error(codes.Internal, "survey store not configured")
 	}
-	playtestID, err := uuid.Parse(req.GetPlaytestId())
+	playtestID, err := parseReqUUID("playtest_id", req.GetPlaytestId())
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "playtest_id is not a uuid: %v", err)
+		return nil, err
 	}
 	pt, err := s.playtest.GetByID(ctx, s.namespace, playtestID)
 	if errors.Is(err, repo.ErrNotFound) {
@@ -507,13 +507,13 @@ func (s *PlaytesthubServiceServer) SubmitSurveyResponse(ctx context.Context, req
 	if s.survey == nil || s.surveyResponse == nil {
 		return nil, status.Error(codes.Internal, "survey response store not configured")
 	}
-	playtestID, err := uuid.Parse(req.GetPlaytestId())
+	playtestID, err := parseReqUUID("playtest_id", req.GetPlaytestId())
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "playtest_id is not a uuid: %v", err)
+		return nil, err
 	}
-	surveyID, err := uuid.Parse(req.GetSurveyId())
+	surveyID, err := parseReqUUID("survey_id", req.GetSurveyId())
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "survey_id is not a uuid: %v", err)
+		return nil, err
 	}
 
 	pt, err := s.playtest.GetByID(ctx, s.namespace, playtestID)
@@ -731,9 +731,9 @@ func (s *PlaytesthubServiceServer) ListSurveyResponses(ctx context.Context, req 
 	if s.surveyResponse == nil {
 		return nil, status.Error(codes.Internal, "survey response store not configured")
 	}
-	playtestID, err := uuid.Parse(req.GetPlaytestId())
+	playtestID, err := parseReqUUID("playtest_id", req.GetPlaytestId())
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "playtest_id is not a uuid: %v", err)
+		return nil, err
 	}
 
 	pt, err := s.playtest.GetByID(ctx, s.namespace, playtestID)

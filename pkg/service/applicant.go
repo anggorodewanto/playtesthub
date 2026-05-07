@@ -156,9 +156,9 @@ func (s *PlaytesthubServiceServer) AcceptNDA(ctx context.Context, req *pb.Accept
 	if s.nda == nil {
 		return nil, status.Error(codes.Internal, "nda store not wired")
 	}
-	playtestID, err := uuid.Parse(req.GetPlaytestId())
+	playtestID, err := parseReqUUID("playtest_id", req.GetPlaytestId())
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "playtest_id is not a uuid: %v", err)
+		return nil, err
 	}
 
 	pt, err := s.playtest.GetByID(ctx, s.namespace, playtestID)

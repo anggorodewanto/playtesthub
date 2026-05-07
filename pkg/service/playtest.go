@@ -246,9 +246,9 @@ func (s *PlaytesthubServiceServer) EditPlaytest(ctx context.Context, req *pb.Edi
 	if err := s.checkNamespace(req.GetNamespace()); err != nil {
 		return nil, err
 	}
-	id, err := uuid.Parse(req.GetPlaytestId())
+	id, err := parseReqUUID("playtest_id", req.GetPlaytestId())
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "playtest_id is not a uuid: %v", err)
+		return nil, err
 	}
 	if err := validateTitle(req.GetTitle()); err != nil {
 		return nil, err
@@ -326,9 +326,9 @@ func (s *PlaytesthubServiceServer) SoftDeletePlaytest(ctx context.Context, req *
 	if err := s.checkNamespace(req.GetNamespace()); err != nil {
 		return nil, err
 	}
-	id, err := uuid.Parse(req.GetPlaytestId())
+	id, err := parseReqUUID("playtest_id", req.GetPlaytestId())
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "playtest_id is not a uuid: %v", err)
+		return nil, err
 	}
 	if err := s.playtest.SoftDelete(ctx, s.namespace, id); err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
@@ -349,9 +349,9 @@ func (s *PlaytesthubServiceServer) TransitionPlaytestStatus(ctx context.Context,
 	if err := s.checkNamespace(req.GetNamespace()); err != nil {
 		return nil, err
 	}
-	id, err := uuid.Parse(req.GetPlaytestId())
+	id, err := parseReqUUID("playtest_id", req.GetPlaytestId())
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "playtest_id is not a uuid: %v", err)
+		return nil, err
 	}
 	target, err := statusEnumToString(req.GetTargetStatus())
 	if err != nil {
@@ -392,9 +392,9 @@ func (s *PlaytesthubServiceServer) AdminGetPlaytest(ctx context.Context, req *pb
 	if err := s.checkNamespace(req.GetNamespace()); err != nil {
 		return nil, err
 	}
-	id, err := uuid.Parse(req.GetPlaytestId())
+	id, err := parseReqUUID("playtest_id", req.GetPlaytestId())
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "playtest_id is not a uuid: %v", err)
+		return nil, err
 	}
 	got, err := s.playtest.GetByID(ctx, s.namespace, id)
 	if errors.Is(err, repo.ErrNotFound) {
@@ -523,8 +523,6 @@ func isValidTransition(from, to string) bool {
 	}
 	return false
 }
-
-// ---- proto marshallers -----------------------------------------------------
 
 func playtestToProto(p *repo.Playtest) *pb.Playtest {
 	out := &pb.Playtest{

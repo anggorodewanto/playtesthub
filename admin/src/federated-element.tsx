@@ -148,7 +148,7 @@ function PlaytestsListPage() {
         const isDraft = row.status === 'PLAYTEST_STATUS_DRAFT'
         const isOpen = row.status === 'PLAYTEST_STATUS_OPEN'
         return (
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <Space wrap>
             <Button size="small" onClick={() => navigate(`${row.id}/edit`)}>
               Edit
             </Button>
@@ -210,7 +210,7 @@ function PlaytestsListPage() {
                 Delete
               </Button>
             </Popconfirm>
-          </div>
+          </Space>
         )
       }
     }
@@ -225,12 +225,12 @@ function PlaytestsListPage() {
           </Typography.Title>
           <Typography.Text type="secondary">Create, edit, and soft-delete playtests in this namespace.</Typography.Text>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <Space>
           <Button onClick={() => refetch()}>Refresh</Button>
           <Button type="primary" onClick={() => navigate('new')}>
             New playtest
           </Button>
-        </div>
+        </Space>
       </div>
 
       {isLoading && <Spin description="Loading playtests..." />}
@@ -374,12 +374,12 @@ function PlaytestCreatePage() {
           </Form.Item>
         )}
         <Form.Item style={{ marginBottom: 0 }}>
-          <div style={{ display: 'flex', gap: 8 }}>
+          <Space>
             <Button onClick={() => navigate('/')}>Cancel</Button>
             <Button type="primary" htmlType="submit" loading={createMutation.isPending}>
               Create
             </Button>
-          </div>
+          </Space>
         </Form.Item>
       </Form>
     </>
@@ -493,12 +493,12 @@ function PlaytestEditPage() {
           </Form.Item>
         )}
         <Form.Item style={{ marginBottom: 0 }}>
-          <div style={{ display: 'flex', gap: 8 }}>
+          <Space>
             <Button onClick={() => navigate('/')}>Cancel</Button>
             <Button type="primary" htmlType="submit" loading={editMutation.isPending}>
               Save
             </Button>
-          </div>
+          </Space>
         </Form.Item>
       </Form>
     </>
@@ -657,7 +657,7 @@ function ApplicantsPage() {
         const isPending = row.status === 'APPLICANT_STATUS_PENDING'
         const canRetryDm = row.status === 'APPLICANT_STATUS_APPROVED' && row.lastDmStatus === 'DM_STATUS_FAILED'
         return (
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <Space wrap>
             <Popconfirm
               title="Approve this applicant?"
               description="A code will be reserved and granted from the pool."
@@ -676,7 +676,7 @@ function ApplicantsPage() {
                 Retry DM
               </Button>
             )}
-          </div>
+          </Space>
         )
       }
     }

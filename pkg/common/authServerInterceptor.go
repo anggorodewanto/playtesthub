@@ -35,6 +35,10 @@ import (
 
 var (
 	Validator validator.AuthTokenValidator
+
+	// fullMethodRe matches gRPC FullMethod format `/Service/Method`.
+	// See https://github.com/grpc/grpc-java/issues/4726.
+	fullMethodRe = regexp.MustCompile(`^/([^/]+)/([^/]+)$`)
 )
 
 // AuthRequirement represents the authentication requirements for a method.
@@ -44,26 +48,17 @@ type AuthRequirement struct {
 }
 
 func parseFullMethod(fullMethod string) (string, string, error) {
-	// Define the regular expression according to example shown here https://github.com/grpc/grpc-java/issues/4726
-	re := regexp.MustCompile(`^/([^/]+)/([^/]+)$`)
-	matches := re.FindStringSubmatch(fullMethod)
-
-	// Validate the match
+	matches := fullMethodRe.FindStringSubmatch(fullMethod)
 	if matches == nil {
 		return "", "", fmt.Errorf("invalid FullMethod format")
 	}
-
-	// Extract service and method names
 	serviceName, methodName := matches[1], matches[2]
-
 	if len(serviceName) == 0 {
 		return "", "", fmt.Errorf("invalid FullMethod format: service name is empty")
 	}
-
 	if len(methodName) == 0 {
 		return "", "", fmt.Errorf("invalid FullMethod format: method name is empty")
 	}
-
 	return serviceName, methodName, nil
 }
 

@@ -103,9 +103,9 @@ func (s *PlaytesthubServiceServer) resolveApproveContext(ctx context.Context, re
 	if s.code == nil {
 		return uuid.Nil, nil, nil, nil, status.Error(codes.Internal, "code store not wired")
 	}
-	applicantID, err := uuid.Parse(req.GetApplicantId())
+	applicantID, err := parseReqUUID("applicant_id", req.GetApplicantId())
 	if err != nil {
-		return uuid.Nil, nil, nil, nil, status.Errorf(codes.InvalidArgument, "applicant_id is not a uuid: %v", err)
+		return uuid.Nil, nil, nil, nil, err
 	}
 	a, err := s.applicant.GetByID(ctx, applicantID)
 	if errors.Is(err, repo.ErrNotFound) {
@@ -218,9 +218,9 @@ func (s *PlaytesthubServiceServer) RejectApplicant(ctx context.Context, req *pb.
 	if err := s.checkNamespace(req.GetNamespace()); err != nil {
 		return nil, err
 	}
-	applicantID, err := uuid.Parse(req.GetApplicantId())
+	applicantID, err := parseReqUUID("applicant_id", req.GetApplicantId())
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "applicant_id is not a uuid: %v", err)
+		return nil, err
 	}
 
 	a, err := s.applicant.GetByID(ctx, applicantID)
@@ -303,9 +303,9 @@ func (s *PlaytesthubServiceServer) ListApplicants(ctx context.Context, req *pb.L
 	if err := s.checkNamespace(req.GetNamespace()); err != nil {
 		return nil, err
 	}
-	playtestID, err := uuid.Parse(req.GetPlaytestId())
+	playtestID, err := parseReqUUID("playtest_id", req.GetPlaytestId())
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "playtest_id is not a uuid: %v", err)
+		return nil, err
 	}
 
 	pt, err := s.playtest.GetByID(ctx, s.namespace, playtestID)
@@ -362,9 +362,9 @@ func (s *PlaytesthubServiceServer) GetGrantedCode(ctx context.Context, req *pb.G
 	if s.code == nil {
 		return nil, status.Error(codes.Internal, "code store not wired")
 	}
-	playtestID, err := uuid.Parse(req.GetPlaytestId())
+	playtestID, err := parseReqUUID("playtest_id", req.GetPlaytestId())
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "playtest_id is not a uuid: %v", err)
+		return nil, err
 	}
 
 	pt, err := s.playtest.GetByID(ctx, s.namespace, playtestID)

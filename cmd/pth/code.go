@@ -52,8 +52,7 @@ func runCodeUpload(ctx context.Context, stdout, stderr io.Writer, g *Globals, ar
 		fmt.Fprintln(stderr, "code upload: --playtest is required")
 		return exitLocalError
 	}
-	if g.Namespace == "" {
-		fmt.Fprintln(stderr, "code upload: --namespace (or PTH_NAMESPACE) is required")
+	if !g.requireNamespace(stderr, "code upload") {
 		return exitLocalError
 	}
 	if *file == "" {
@@ -97,8 +96,7 @@ func runCodeTopUp(ctx context.Context, stdout, stderr io.Writer, g *Globals, arg
 		fmt.Fprintln(stderr, "code top-up: --playtest is required")
 		return exitLocalError
 	}
-	if g.Namespace == "" {
-		fmt.Fprintln(stderr, "code top-up: --namespace (or PTH_NAMESPACE) is required")
+	if !g.requireNamespace(stderr, "code top-up") {
 		return exitLocalError
 	}
 	if *quantity <= 0 {
@@ -128,8 +126,7 @@ func runCodeSyncFromAGS(ctx context.Context, stdout, stderr io.Writer, g *Global
 		fmt.Fprintln(stderr, "code sync-from-ags: --playtest is required")
 		return exitLocalError
 	}
-	if g.Namespace == "" {
-		fmt.Fprintln(stderr, "code sync-from-ags: --namespace (or PTH_NAMESPACE) is required")
+	if !g.requireNamespace(stderr, "code sync-from-ags") {
 		return exitLocalError
 	}
 	req := &pb.SyncFromAGSRequest{Namespace: g.Namespace, PlaytestId: *playtestID}
@@ -151,8 +148,7 @@ func runCodePool(ctx context.Context, stdout, stderr io.Writer, g *Globals, args
 		fmt.Fprintln(stderr, "code pool: --playtest is required")
 		return exitLocalError
 	}
-	if g.Namespace == "" {
-		fmt.Fprintln(stderr, "code pool: --namespace (or PTH_NAMESPACE) is required")
+	if !g.requireNamespace(stderr, "code pool") {
 		return exitLocalError
 	}
 	req := &pb.GetCodePoolRequest{Namespace: g.Namespace, PlaytestId: *playtestID}

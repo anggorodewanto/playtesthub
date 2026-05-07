@@ -77,8 +77,7 @@ func runFlowGoldenM1(ctx context.Context, stdout, stderr io.Writer, g *Globals, 
 		fmt.Fprintln(stderr, "flow golden-m1: --slug is required")
 		return exitLocalError
 	}
-	if g.Namespace == "" {
-		fmt.Fprintln(stderr, "flow golden-m1: --namespace (or PTH_NAMESPACE) is required")
+	if !g.requireNamespace(stderr, "flow golden-m1") {
 		return exitLocalError
 	}
 	if !*dryRun {

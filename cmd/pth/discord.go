@@ -120,8 +120,7 @@ func runAuthLoginDiscord(ctx context.Context, stdout, stderr io.Writer, g *Globa
 		return exitLocalError
 	}
 
-	if g.Namespace == "" {
-		fmt.Fprintln(stderr, "auth login --discord: --namespace (or PTH_NAMESPACE) is required")
+	if !g.requireNamespace(stderr, "auth login --discord") {
 		return exitLocalError
 	}
 	if deps.DiscordClientID == "" {

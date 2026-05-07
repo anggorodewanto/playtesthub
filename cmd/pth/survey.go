@@ -57,8 +57,7 @@ func runSurveyCreate(ctx context.Context, stdout, stderr io.Writer, g *Globals, 
 		fmt.Fprintln(stderr, "survey create: --playtest is required")
 		return exitLocalError
 	}
-	if g.Namespace == "" {
-		fmt.Fprintln(stderr, "survey create: --namespace (or PTH_NAMESPACE) is required")
+	if !g.requireNamespace(stderr, "survey create") {
 		return exitLocalError
 	}
 	questions, code := loadSurveyQuestions(stderr, "survey create", *from)
@@ -89,8 +88,7 @@ func runSurveyEdit(ctx context.Context, stdout, stderr io.Writer, g *Globals, ar
 		fmt.Fprintln(stderr, "survey edit: --playtest is required")
 		return exitLocalError
 	}
-	if g.Namespace == "" {
-		fmt.Fprintln(stderr, "survey edit: --namespace (or PTH_NAMESPACE) is required")
+	if !g.requireNamespace(stderr, "survey edit") {
 		return exitLocalError
 	}
 	questions, code := loadSurveyQuestions(stderr, "survey edit", *from)
@@ -194,8 +192,7 @@ func runSurveyResponses(ctx context.Context, stdout, stderr io.Writer, g *Global
 		fmt.Fprintln(stderr, "survey responses: --playtest is required")
 		return exitLocalError
 	}
-	if g.Namespace == "" {
-		fmt.Fprintln(stderr, "survey responses: --namespace (or PTH_NAMESPACE) is required")
+	if !g.requireNamespace(stderr, "survey responses") {
 		return exitLocalError
 	}
 	req := &pb.ListSurveyResponsesRequest{

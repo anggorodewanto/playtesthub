@@ -38,9 +38,9 @@ func (s *PlaytesthubServiceServer) TopUpCodes(ctx context.Context, req *pb.TopUp
 	if err := s.requireAGSCodePathWired(); err != nil {
 		return nil, err
 	}
-	playtestID, err := uuid.Parse(req.GetPlaytestId())
+	playtestID, err := parseReqUUID("playtest_id", req.GetPlaytestId())
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "playtest_id is not a uuid: %v", err)
+		return nil, err
 	}
 	qty := req.GetQuantity()
 	if qty < minInitialCodeQty || qty > maxInitialCodeQty {
@@ -96,9 +96,9 @@ func (s *PlaytesthubServiceServer) SyncFromAGS(ctx context.Context, req *pb.Sync
 	if err := s.requireAGSCodePathWired(); err != nil {
 		return nil, err
 	}
-	playtestID, err := uuid.Parse(req.GetPlaytestId())
+	playtestID, err := parseReqUUID("playtest_id", req.GetPlaytestId())
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "playtest_id is not a uuid: %v", err)
+		return nil, err
 	}
 
 	pt, err := s.loadAGSCampaignPlaytest(ctx, playtestID)

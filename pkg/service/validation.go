@@ -8,11 +8,23 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
 	pb "github.com/anggorodewanto/playtesthub/pkg/pb/playtesthub/v1"
 )
+
+// parseReqUUID parses a request-side UUID field, returning the canonical
+// codes.InvalidArgument "<field> is not a uuid: %v" status used across
+// pkg/service. Centralises the byte-exact error message.
+func parseReqUUID(field, raw string) (uuid.UUID, error) {
+	id, err := uuid.Parse(raw)
+	if err != nil {
+		return uuid.Nil, status.Errorf(codes.InvalidArgument, "%s is not a uuid: %v", field, err)
+	}
+	return id, nil
+}
 
 const (
 	maxTitleLen       = 200

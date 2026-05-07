@@ -318,46 +318,39 @@ func serveSwaggerUI(mux *http.ServeMux, basePath string) {
 }
 
 func serveSwaggerJSON(mux *http.ServeMux, swaggerDir, basePath string) {
+	body, buildErr := buildSwaggerJSON(swaggerDir, basePath)
 	fileHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		matchingFiles, err := filepath.Glob(filepath.Join(swaggerDir, "*.swagger.json"))
-		if err != nil || len(matchingFiles) == 0 {
-			http.Error(w, "Error finding Swagger JSON file", http.StatusInternalServerError)
-
+		if buildErr != nil {
+			http.Error(w, buildErr.Error(), http.StatusInternalServerError)
 			return
 		}
-
-		firstMatchingFile := matchingFiles[0]
-		swagger, err := loads.Spec(firstMatchingFile)
-		if err != nil {
-			http.Error(w, "Error parsing Swagger JSON file", http.StatusInternalServerError)
-
-			return
-		}
-
-		// Update the base path
-		swagger.Spec().BasePath = basePath
-
-		updatedSwagger, err := swagger.Spec().MarshalJSON()
-		if err != nil {
-			http.Error(w, "Error serializing updated Swagger JSON", http.StatusInternalServerError)
-
-			return
-		}
-		var prettySwagger bytes.Buffer
-		err = json.Indent(&prettySwagger, updatedSwagger, "", "  ")
-		if err != nil {
-			http.Error(w, "Error formatting updated Swagger JSON", http.StatusInternalServerError)
-
-			return
-		}
-
-		_, err = w.Write(prettySwagger.Bytes())
-		if err != nil {
-			http.Error(w, "Error writing Swagger JSON response", http.StatusInternalServerError)
-
-			return
-		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(body)
 	})
 	apidocsPath := fmt.Sprintf("%s/apidocs/api.json", basePath)
 	mux.Handle(apidocsPath, fileHandler)
+}
+
+func buildSwaggerJSON(swaggerDir, basePath string) ([]byte, error) {
+	matchingFiles, err := filepath.Glob(filepath.Join(swaggerDir, "*.swagger.json"))
+	if err != nil {
+		return nil, fmt.Errorf("globbing swagger dir: %w", err)
+	}
+	if len(matchingFiles) == 0 {
+		return nil, fmt.Errorf("no *.swagger.json under %s", swaggerDir)
+	}
+	swagger, err := loads.Spec(matchingFiles[0])
+	if err != nil {
+		return nil, fmt.Errorf("parsing %s: %w", matchingFiles[0], err)
+	}
+	swagger.Spec().BasePath = basePath
+	raw, err := swagger.Spec().MarshalJSON()
+	if err != nil {
+		return nil, fmt.Errorf("marshaling swagger spec: %w", err)
+	}
+	var pretty bytes.Buffer
+	if err := json.Indent(&pretty, raw, "", "  "); err != nil {
+		return nil, fmt.Errorf("indenting swagger spec: %w", err)
+	}
+	return pretty.Bytes(), nil
 }

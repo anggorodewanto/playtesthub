@@ -189,8 +189,7 @@ func runAuthLoginPassword(ctx context.Context, stdout, stderr io.Writer, g *Glob
 		fmt.Fprintln(stderr, "auth login --password: --username is required")
 		return exitLocalError
 	}
-	if g.Namespace == "" {
-		fmt.Fprintln(stderr, "auth login --password: --namespace (or PTH_NAMESPACE) is required")
+	if !g.requireNamespace(stderr, "auth login --password") {
 		return exitLocalError
 	}
 	pw, err := readLoginPassword(deps, *stdinPw, *username)

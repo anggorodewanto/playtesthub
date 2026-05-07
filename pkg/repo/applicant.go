@@ -437,7 +437,12 @@ func (s *PgApplicantStore) UpdateDMStatus(ctx context.Context, applicantID uuid.
 		 WHERE id = $1
 		RETURNING ` + applicantColumns
 
-	row := s.pool.QueryRow(ctx, sql, applicantID, status, attemptAt, stringPtr(truncateUTF8(errMsg, applicantLastDMErrorMaxBytes)))
+	var truncated *string
+	if errMsg != nil {
+		t := truncateUTF8(*errMsg, applicantLastDMErrorMaxBytes)
+		truncated = &t
+	}
+	row := s.pool.QueryRow(ctx, sql, applicantID, status, attemptAt, stringPtr(truncated))
 	got, err := scanApplicant(row)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
@@ -563,22 +568,18 @@ func (s *PgApplicantStore) SetNDAVersionHash(ctx context.Context, applicantID uu
 }
 
 // truncateUTF8 returns a string whose byte length is ≤ maxBytes and
-// whose final byte still ends on a valid UTF-8 codepoint boundary. nil
-// passes through unchanged. Used to honour the DB CHECK on
-// applicant.last_dm_error and the dm-queue.md 500-byte rule.
-func truncateUTF8(s *string, maxBytes int) *string {
-	if s == nil {
-		return nil
-	}
-	if len(*s) <= maxBytes {
+// whose final byte still ends on a valid UTF-8 codepoint boundary.
+// Used to honour the DB CHECK on applicant.last_dm_error and the
+// dm-queue.md 500-byte rule.
+func truncateUTF8(s string, maxBytes int) string {
+	if len(s) <= maxBytes {
 		return s
 	}
 	cut := maxBytes
-	for cut > 0 && !utf8.RuneStart((*s)[cut]) {
+	for cut > 0 && !utf8.RuneStart(s[cut]) {
 		cut--
 	}
-	out := (*s)[:cut]
-	return &out
+	return s[:cut]
 }
 
 func scanApplicant(row pgx.Row) (*Applicant, error) {

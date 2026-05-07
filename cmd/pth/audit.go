@@ -51,8 +51,7 @@ func runAuditList(ctx context.Context, stdout, stderr io.Writer, g *Globals, arg
 		fmt.Fprintln(stderr, "audit list: --playtest is required")
 		return exitLocalError
 	}
-	if g.Namespace == "" {
-		fmt.Fprintln(stderr, "audit list: --namespace (or PTH_NAMESPACE) is required")
+	if !g.requireNamespace(stderr, "audit list") {
 		return exitLocalError
 	}
 	req := &pb.ListAuditLogRequest{

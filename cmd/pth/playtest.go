@@ -5,7 +5,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -146,8 +145,7 @@ func runPlaytestGet(ctx context.Context, stdout, stderr io.Writer, g *Globals, a
 		fmt.Fprintln(stderr, "playtest get: --id is required")
 		return exitLocalError
 	}
-	if g.Namespace == "" {
-		fmt.Fprintln(stderr, "playtest get: --namespace (or PTH_NAMESPACE) is required")
+	if !g.requireNamespace(stderr, "playtest get") {
 		return exitLocalError
 	}
 	req := &pb.AdminGetPlaytestRequest{Namespace: g.Namespace, PlaytestId: *id}
@@ -164,8 +162,7 @@ func runPlaytestList(ctx context.Context, stdout, stderr io.Writer, g *Globals, 
 	if err := fs.Parse(args); err != nil {
 		return exitLocalError
 	}
-	if g.Namespace == "" {
-		fmt.Fprintln(stderr, "playtest list: --namespace (or PTH_NAMESPACE) is required")
+	if !g.requireNamespace(stderr, "playtest list") {
 		return exitLocalError
 	}
 	req := &pb.ListPlaytestsRequest{Namespace: g.Namespace}
@@ -201,8 +198,7 @@ func runPlaytestCreate(ctx context.Context, stdout, stderr io.Writer, g *Globals
 		fmt.Fprintln(stderr, "playtest create: --title is required")
 		return exitLocalError
 	}
-	if g.Namespace == "" {
-		fmt.Fprintln(stderr, "playtest create: --namespace (or PTH_NAMESPACE) is required")
+	if !g.requireNamespace(stderr, "playtest create") {
 		return exitLocalError
 	}
 	platforms, err := parsePlatforms(*platformsCSV)
@@ -295,8 +291,7 @@ func runPlaytestEdit(ctx context.Context, stdout, stderr io.Writer, g *Globals, 
 		fmt.Fprintln(stderr, "playtest edit: --id is required")
 		return exitLocalError
 	}
-	if g.Namespace == "" {
-		fmt.Fprintln(stderr, "playtest edit: --namespace (or PTH_NAMESPACE) is required")
+	if !g.requireNamespace(stderr, "playtest edit") {
 		return exitLocalError
 	}
 	platforms, err := parsePlatforms(*platformsCSV)
@@ -362,8 +357,7 @@ func runPlaytestDelete(ctx context.Context, stdout, stderr io.Writer, g *Globals
 		fmt.Fprintln(stderr, "playtest delete: --id is required")
 		return exitLocalError
 	}
-	if g.Namespace == "" {
-		fmt.Fprintln(stderr, "playtest delete: --namespace (or PTH_NAMESPACE) is required")
+	if !g.requireNamespace(stderr, "playtest delete") {
 		return exitLocalError
 	}
 	req := &pb.SoftDeletePlaytestRequest{Namespace: g.Namespace, PlaytestId: *id}
@@ -390,8 +384,7 @@ func runPlaytestTransition(ctx context.Context, stdout, stderr io.Writer, g *Glo
 		fmt.Fprintln(stderr, "playtest transition: --to is required (DRAFT | OPEN | CLOSED)")
 		return exitLocalError
 	}
-	if g.Namespace == "" {
-		fmt.Fprintln(stderr, "playtest transition: --namespace (or PTH_NAMESPACE) is required")
+	if !g.requireNamespace(stderr, "playtest transition") {
 		return exitLocalError
 	}
 	target, err := parsePlaytestStatus(*to)
@@ -458,17 +451,9 @@ func readMaybeFile(s string) (string, error) {
 	if !strings.HasPrefix(s, "@") {
 		return s, nil
 	}
-	path := strings.TrimPrefix(s, "@")
-	if path == "-" {
-		b, err := io.ReadAll(os.Stdin)
-		if err != nil {
-			return "", fmt.Errorf("reading stdin: %w", err)
-		}
-		return string(b), nil
-	}
-	b, err := os.ReadFile(path)
+	b, err := readFile(strings.TrimPrefix(s, "@"))
 	if err != nil {
-		return "", fmt.Errorf("reading %s: %w", path, err)
+		return "", err
 	}
 	return string(b), nil
 }

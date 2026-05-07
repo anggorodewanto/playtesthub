@@ -1,4 +1,5 @@
 import type { Config } from './config';
+import { joinPath } from './api';
 
 export const TOKEN_STORAGE_KEY = 'playtesthub.accessToken';
 const PENDING_LOGIN_KEY = 'playtesthub.pendingLogin';
@@ -114,7 +115,7 @@ export async function exchangeDiscordCode(
   config: Config,
   opts: ExchangeDiscordCodeOpts,
 ): Promise<TokenResponse> {
-  const url = joinGatewayPath(config.grpcGatewayUrl, '/v1/player/discord/exchange');
+  const url = joinPath(config.grpcGatewayUrl, '/v1/player/discord/exchange');
   const body = { code: opts.code, redirect_uri: opts.redirectUri };
 
   let res: Response;
@@ -153,11 +154,3 @@ export async function exchangeDiscordCode(
   };
 }
 
-function joinGatewayPath(base: string, path: string): string {
-  // Trim a single trailing slash from base and a single leading slash
-  // from path; concatenating cleanly handles both `https://x/playtesthub`
-  // and `https://x/playtesthub/` config shapes.
-  const trimmedBase = base.endsWith('/') ? base.slice(0, -1) : base;
-  const trimmedPath = path.startsWith('/') ? path : `/${path}`;
-  return trimmedBase + trimmedPath;
-}

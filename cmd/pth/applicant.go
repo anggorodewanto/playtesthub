@@ -139,8 +139,7 @@ func runApplicantList(ctx context.Context, stdout, stderr io.Writer, g *Globals,
 		fmt.Fprintln(stderr, "applicant list: --playtest is required")
 		return exitLocalError
 	}
-	if g.Namespace == "" {
-		fmt.Fprintln(stderr, "applicant list: --namespace (or PTH_NAMESPACE) is required")
+	if !g.requireNamespace(stderr, "applicant list") {
 		return exitLocalError
 	}
 	statusEnum, err := parseApplicantStatus(*statusFilter)
@@ -174,8 +173,7 @@ func runApplicantApprove(ctx context.Context, stdout, stderr io.Writer, g *Globa
 		fmt.Fprintln(stderr, "applicant approve: --id is required")
 		return exitLocalError
 	}
-	if g.Namespace == "" {
-		fmt.Fprintln(stderr, "applicant approve: --namespace (or PTH_NAMESPACE) is required")
+	if !g.requireNamespace(stderr, "applicant approve") {
 		return exitLocalError
 	}
 	req := &pb.ApproveApplicantRequest{Namespace: g.Namespace, ApplicantId: *id}
@@ -198,8 +196,7 @@ func runApplicantReject(ctx context.Context, stdout, stderr io.Writer, g *Global
 		fmt.Fprintln(stderr, "applicant reject: --id is required")
 		return exitLocalError
 	}
-	if g.Namespace == "" {
-		fmt.Fprintln(stderr, "applicant reject: --namespace (or PTH_NAMESPACE) is required")
+	if !g.requireNamespace(stderr, "applicant reject") {
 		return exitLocalError
 	}
 	req := &pb.RejectApplicantRequest{Namespace: g.Namespace, ApplicantId: *id}
@@ -225,8 +222,7 @@ func runApplicantRetryDM(ctx context.Context, stdout, stderr io.Writer, g *Globa
 		fmt.Fprintln(stderr, "applicant retry-dm: --id is required")
 		return exitLocalError
 	}
-	if g.Namespace == "" {
-		fmt.Fprintln(stderr, "applicant retry-dm: --namespace (or PTH_NAMESPACE) is required")
+	if !g.requireNamespace(stderr, "applicant retry-dm") {
 		return exitLocalError
 	}
 	req := &pb.RetryDMRequest{Namespace: g.Namespace, ApplicantId: *id}
@@ -248,8 +244,7 @@ func runApplicantRetryFailedDms(ctx context.Context, stdout, stderr io.Writer, g
 		fmt.Fprintln(stderr, "applicant retry-failed-dms: --playtest is required")
 		return exitLocalError
 	}
-	if g.Namespace == "" {
-		fmt.Fprintln(stderr, "applicant retry-failed-dms: --namespace (or PTH_NAMESPACE) is required")
+	if !g.requireNamespace(stderr, "applicant retry-failed-dms") {
 		return exitLocalError
 	}
 	req := &pb.RetryFailedDmsRequest{Namespace: g.Namespace, PlaytestId: *playtestID}

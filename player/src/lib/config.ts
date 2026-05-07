@@ -60,7 +60,7 @@ export function parseConfig(raw: string): Config {
 }
 
 export async function loadConfig(url: string = '/config.json'): Promise<Config> {
-  const res = await fetch(url, { cache: 'no-store' });
+  const res = await fetch(url, { cache: 'no-cache' });
   if (!res.ok) {
     throw new ConfigError(`config.json fetch failed: ${res.status} ${res.statusText}`);
   }
