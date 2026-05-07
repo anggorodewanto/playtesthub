@@ -14,6 +14,7 @@
 
 import http from 'k6/http';
 import { check } from 'k6';
+import exec from 'k6/execution';
 import { Trend } from 'k6/metrics';
 import { SharedArray } from 'k6/data';
 
@@ -75,11 +76,13 @@ export const options = {
 };
 
 // Each iteration consumes one token, deterministically rotating through
-// the pool. Iterations beyond tokens.length wrap and hit the idempotent
-// replay path; with the default LOADTEST_USERS=500 + 500 iterations
+// the pool. iterationInTest is a global monotonic counter across all VUs
+// — required so two VUs never alias onto the same idx and turn inserts
+// into idempotent replays. Iterations beyond tokens.length wrap and hit
+// the replay path; with the default LOADTEST_USERS=500 + 500 iterations
 // over 10 min, every iteration is a fresh insert.
 export function signup() {
-  const idx = (__ITER + __VU * 1000) % tokens.length;
+  const idx = exec.scenario.iterationInTest % tokens.length;
   const token = tokens[idx];
   const url = `${BASE_URL}/v1/player/playtests/${SLUG}/signup`;
   const body = JSON.stringify({ platforms: ['PLATFORM_STEAM'] });

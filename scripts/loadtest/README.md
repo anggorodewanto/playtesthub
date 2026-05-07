@@ -89,6 +89,23 @@ renderer fires.
 - k6 summary: `http_reqs`, p50/p95/p99, error rate, status-code histogram.
 - Pass/fail vs PRD §6: `p95 < 3s`.
 - Caveats reapplied (no Discord OAuth, no DM, single-replica).
+- **Insert-path verification (Neon)** — see below.
+
+## Insert-path verification
+
+After k6 exits, `run.sh` queries Neon for
+`COUNT(DISTINCT user_id) FROM applicant WHERE playtest_id = <run id>`
+and asserts the result is at least `min(iterations, token_pool) - 1 - 1%`.
+
+This guards against rotation bugs in `signup.js` where every "signup"
+quietly takes the PRD §5.2 idempotent replay path because two VUs alias
+onto the same token idx. (Such a regression once shipped: `results/20260507T023635Z.md`
+reported p95 = 466 ms with only 11 distinct inserts behind 501
+requests; the fix landed in the same PR as this verification step.)
+
+The check requires `DATABASE_URL` set (already in `.env`) and either
+`psql` or `docker` on PATH. If neither is available it emits a warning
+and skips — k6 still drives the run, you just lose the regression guard.
 
 ## Re-runs and cleanup
 

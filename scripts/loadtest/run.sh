@@ -74,4 +74,78 @@ LOADTEST_K6_EXIT="${k6_exit}" \
     "${LOADTEST_DIR}/report.sh" "${SUMMARY_JSON}" > "${REPORT}"
 
 log "report written: ${REPORT}"
-exit "${k6_exit}"
+
+# Insert-path verification: regression guard for the rotation bug where
+# k6 round-robined VUs onto the same token idx and ~98% of "signups"
+# took the idempotent replay path. Compares Neon's distinct user_id
+# count for the playtest against k6's iteration count. Skipped (with
+# warning) if DATABASE_URL is unset or no Postgres client is available.
+verify_inserts() {
+    if [[ -z "${DATABASE_URL:-}" ]]; then
+        log "WARN: DATABASE_URL unset — skipping insert-path verification"
+        return 0
+    fi
+    local pt_id
+    pt_id=$(jq -r '.id // empty' "${CACHE_DIR}/playtest.json" 2>/dev/null)
+    if [[ -z "${pt_id}" ]]; then
+        log "WARN: no playtest id in cache — skipping insert-path verification"
+        return 0
+    fi
+    local psql_cmd=()
+    if command -v psql >/dev/null 2>&1; then
+        psql_cmd=(psql)
+    elif command -v docker >/dev/null 2>&1; then
+        psql_cmd=(docker run --rm -i postgres:16 psql)
+    else
+        log "WARN: neither psql nor docker on PATH — skipping insert-path verification"
+        return 0
+    fi
+    local iterations
+    iterations=$(jq '.metrics.iterations.count // 0' "${SUMMARY_JSON}")
+    [[ "${iterations}" =~ ^[0-9]+$ ]] || iterations=0
+    local distinct
+    distinct=$("${psql_cmd[@]}" "${DATABASE_URL}" -At -c \
+        "SELECT COUNT(DISTINCT user_id) FROM applicant WHERE playtest_id = '${pt_id}';" 2>/dev/null) \
+        || { log "WARN: DB query failed — skipping insert-path verification"; return 0; }
+    [[ "${distinct}" =~ ^[0-9]+$ ]] || { log "WARN: unexpected DB result '${distinct}' — skipping verification"; return 0; }
+    local pool="${TOKEN_POOL_SIZE:-${LOADTEST_USERS}}"
+    local expected=$(( iterations < pool ? iterations : pool ))
+    # Tolerate one wrap replay (iter N+1 reuses token 0) plus a 1% margin
+    # for transient request failures already counted by http_req_failed.
+    local floor=$(( expected - 1 - expected / 100 ))
+    [[ "${floor}" -lt 0 ]] && floor=0
+    log "insert-path: distinct=${distinct} expected=${expected} floor=${floor}"
+
+    {
+        echo
+        echo "## Insert-path verification (Neon)"
+        echo
+        echo "\`\`\`sql"
+        echo "SELECT COUNT(DISTINCT user_id) FROM applicant"
+        echo "WHERE playtest_id = '${pt_id}';"
+        echo "\`\`\`"
+        echo
+        echo "| Field | Value |"
+        echo "| --- | --- |"
+        echo "| k6 iterations | ${iterations} |"
+        echo "| Distinct \`user_id\` in DB | ${distinct} |"
+        echo "| Expected (≥) | ${floor} |"
+        if [[ "${distinct}" -ge "${floor}" ]]; then
+            echo "| Verdict | ✅ PASS — insert path actually exercised |"
+        else
+            echo "| Verdict | ❌ FAIL — too few inserts; check token rotation |"
+        fi
+    } >> "${REPORT}"
+
+    if [[ "${distinct}" -lt "${floor}" ]]; then
+        log "FAIL: insert-path verification (distinct=${distinct} < floor=${floor})"
+        return 1
+    fi
+    return 0
+}
+
+verify_exit=0
+verify_inserts || verify_exit=$?
+
+final_exit=$(( k6_exit > verify_exit ? k6_exit : verify_exit ))
+exit "${final_exit}"
