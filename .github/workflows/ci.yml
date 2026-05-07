@@ -31,6 +31,14 @@ jobs:
         with:
           version: v2.5.0
           args: --timeout=5m
+      - name: Assert formatters clean (gofmt/goimports)
+        run: |
+          out=$(golangci-lint fmt --diff)
+          if [ -n "$out" ]; then
+            echo "::error::Formatter drift. Run 'golangci-lint fmt' locally and commit." >&2
+            echo "$out" >&2
+            exit 1
+          fi
 
   go-test:
     name: go test (incl. testcontainers)
