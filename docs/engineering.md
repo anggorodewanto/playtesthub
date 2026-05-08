@@ -423,6 +423,16 @@ The router is hash-based (`#/callback`, `#/signup`, `#/pending`) for static-host
 
 In game namespaces on shared cloud, AGS's `LoadAuthorize` (`pkg/oauth/model/jwtstore.go` in `justice-iam-service`) detects `isGameNamespace(publisher=foundations, ns={game-ns}) == true` and tries to look up the user's Justice platform account. That record is created by `handleUserPlatformTokenGrantV3` (the platform-token grant) but **never** by `platformAuthenticateV3Handler` (the auth-code grant). So PKCE auth-code completes Discord federation, AGS issues a code, and the next-step `/oauth/token` call always fails with `invalid_grant: failed to load authorize data: internal error user justice platform account not found`. The trace observed during 9.2 debugging: `7ca156dae6e6402f94599163a209273d` against `foundations-justice-internal` cluster, namespace `justice`, log_type `application`. There is no client-side workaround — moving the IAM client to the publisher namespace would skip the gate, but customers don't own `foundations` on shared cloud.
 
+#### JWKS caching is owned by the AccelByte SDK
+
+Every admin / player RPC calls `common.Validator.Validate(token, …)` from `pkg/common/authServerInterceptor.go`. The validator is the AccelByte Go SDK's `iam.TokenValidator` (`services-api/pkg/service/iam/auth_validator.go`); we construct it once at boot in `internal/bootapp/bootapp.go`, call `Initialize`, and reuse it for the lifetime of the process. The SDK already caches everything PRD §6 flagged:
+
+- `Initialize` calls `fetchAll`, which populates `JwkSet` + the `PublicKeys map[string]*rsa.PublicKey` keyed by `kid`.
+- A background goroutine refreshes the JWK set every `RefreshInterval` (we wire `REFRESH_INTERVAL=600` → 10 min by default; bump via env if AGS rotates faster).
+- `Validate` resolves the public key via `RWMutex.RLock() → v.PublicKeys[kid]` — no network call on the hot path.
+
+So the per-request auth path is entirely in-memory after boot. Do **not** wrap the validator in another TTL cache; that would only add a second clock to the same key set. If the SDK upgrade ever drops the background refresh goroutine, audit `auth_validator.go::Initialize` and re-evaluate. (Audited against `accelbyte-go-sdk@v0.87.1` on 2026-05-08 in response to the simplify report's E6 finding — the report's premise was already satisfied upstream.)
+
 ---
 
 ## 8. Temporary AGS platform workarounds
