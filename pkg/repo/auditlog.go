@@ -2,7 +2,6 @@ package repo
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -247,26 +246,11 @@ type auditLogCursor struct {
 }
 
 func encodeAuditLogToken(c auditLogCursor) string {
-	b, _ := json.Marshal(c)
-	return base64.RawURLEncoding.EncodeToString(b)
+	return encodePageCursor(c)
 }
 
 func decodeAuditLogToken(token string) (*auditLogCursor, error) {
-	if token == "" {
-		return nil, nil
-	}
-	raw, err := base64.RawURLEncoding.DecodeString(token)
-	if err != nil {
-		return nil, ErrInvalidAuditLogToken
-	}
-	var c auditLogCursor
-	if err := json.Unmarshal(raw, &c); err != nil {
-		return nil, ErrInvalidAuditLogToken
-	}
-	if c.ID == uuid.Nil {
-		return nil, ErrInvalidAuditLogToken
-	}
-	return &c, nil
+	return decodePageCursor(token, func(c *auditLogCursor) uuid.UUID { return c.ID }, ErrInvalidAuditLogToken)
 }
 
 func scanAuditLog(row pgx.Row) (*AuditLog, error) {

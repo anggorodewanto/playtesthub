@@ -2,8 +2,6 @@ package repo
 
 import (
 	"context"
-	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -285,26 +283,11 @@ type applicantCursor struct {
 }
 
 func encodeApplicantPageToken(c applicantCursor) string {
-	b, _ := json.Marshal(c)
-	return base64.RawURLEncoding.EncodeToString(b)
+	return encodePageCursor(c)
 }
 
 func decodeApplicantPageToken(token string) (*applicantCursor, error) {
-	if token == "" {
-		return nil, nil
-	}
-	raw, err := base64.RawURLEncoding.DecodeString(token)
-	if err != nil {
-		return nil, ErrInvalidPageToken
-	}
-	var c applicantCursor
-	if err := json.Unmarshal(raw, &c); err != nil {
-		return nil, ErrInvalidPageToken
-	}
-	if c.ID == uuid.Nil {
-		return nil, ErrInvalidPageToken
-	}
-	return &c, nil
+	return decodePageCursor(token, func(c *applicantCursor) uuid.UUID { return c.ID }, ErrInvalidPageToken)
 }
 
 // ListByPlaytest powers the admin applicants queue (PRD §5.4). An

@@ -2,7 +2,6 @@ package repo
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -342,26 +341,11 @@ type surveyResponseCursor struct {
 }
 
 func encodeSurveyResponseToken(c surveyResponseCursor) string {
-	b, _ := json.Marshal(c)
-	return base64.RawURLEncoding.EncodeToString(b)
+	return encodePageCursor(c)
 }
 
 func decodeSurveyResponseToken(token string) (*surveyResponseCursor, error) {
-	if token == "" {
-		return nil, nil
-	}
-	raw, err := base64.RawURLEncoding.DecodeString(token)
-	if err != nil {
-		return nil, ErrInvalidSurveyResponseToken
-	}
-	var c surveyResponseCursor
-	if err := json.Unmarshal(raw, &c); err != nil {
-		return nil, ErrInvalidSurveyResponseToken
-	}
-	if c.ID == uuid.Nil {
-		return nil, ErrInvalidSurveyResponseToken
-	}
-	return &c, nil
+	return decodePageCursor(token, func(c *surveyResponseCursor) uuid.UUID { return c.ID }, ErrInvalidSurveyResponseToken)
 }
 
 func scanSurveyResponse(row pgx.Row) (*SurveyResponse, error) {
