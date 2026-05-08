@@ -20,7 +20,7 @@ flowchart LR
   SV <--> AGS
 ```
 
-> **⚠️ Not production safe.** MVP ships **without a custom admin RBAC role** — every authenticated AGS admin session is permitted on every admin RPC. The `AuditLog` table is the accountability model. RBAC is a release blocker for production deployments. See [PRD §6 AuthZ](docs/PRD.md#security) and [PRD §9 R8](docs/PRD.md).
+> **Admin authorization.** Every admin RPC is gated on the built-in AGS IAM permission `ADMIN:NAMESPACE:{namespace}:EXTEND:APPUI` (the AppUI-admin perm) at a per-RPC action bit (CREATE / READ / UPDATE / DELETE) — held by namespace-admin roles like **Game Admin** and **Studio Admin** that studios already assign to admin staff. Studios authorize playtest admins by assigning one of those roles in the AGS Admin Portal; **no custom role creation required**, which is what makes this work on Shared Cloud (game admins cannot assign `CUSTOM:*` perms there). The `AuditLog` provides per-action attribution. See [PRD §6 AuthZ](docs/PRD.md#security) and [PRD §9 R8](docs/PRD.md).
 
 ## Status
 

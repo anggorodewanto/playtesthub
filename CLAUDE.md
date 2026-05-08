@@ -6,7 +6,7 @@ Instructions for Claude Code when working in this repository.
 
 **playtesthub** — open-source, self-hosted AccelByte Gaming Services (AGS) Extend application for running closed game playtests. Go + gRPC backend, Svelte player frontend, React admin extension. MIT-licensed. See `docs/PRD.md` for full product requirements.
 
-**Current state**: docs-only. No code has been written yet. All milestones in `docs/STATUS.md` are `not started`.
+**Current state**: M1 (backend + admin CRUD + signup, STEAM_KEYS) and M2 (NDA + approval + code grant + AGS Campaign API + RetryDM) shipped. M3 (survey + Discord DM + audit-log viewer + perf proof + a11y/codegen-fresh CI gates) is in progress — phases 1–16 shipped, phase 17 (README walkthrough + MIT release) shipped except the operator-driven demo video, phase 18 (admin-RBAC docs realignment per PRD v2.1) queued. `docs/STATUS.md` is the live tracker; treat that as authoritative over this paragraph and update there when phases land.
 
 ## Canonical docs
 
@@ -29,8 +29,8 @@ Before touching code, orient against these — they are the sources of truth:
 
 - **Backend**: Go, gRPC + grpc-gateway (REST proxy in-process), Postgres (Extend-managed). Schema migrations via `golang-migrate`. DB driver: `pgx`.
 - **Player frontend**: Svelte, static bundle, hosted on GitHub Pages / Vercel. Consumes the backend via the grpc-gateway REST surface (**not** grpc-web).
-- **Admin frontend**: **Extend App UI** — React 19 + TypeScript + Vite bundled as a Module Federation remote, hosted by AccelByte and rendered inside the AGS Admin Portal (**Extend → My Extend Apps → App UI**). Uses Ant Design v6 + Tailwind v4. Typed backend clients + react-query hooks are generated from the grpc-gateway OpenAPI spec (`apidocs/api.json`) via `@accelbyte/codegen`. Auth inherited from the Admin Portal `HostContext`; `@accelbyte/sdk-iam` owns token lifecycle. The legacy `justice-adminportal-extension-website` / `justice-ui-library` pattern is **not used**. **Caveat**: Extend App UI is Internal Shared Cloud only (PRD §9 R11).
-- **Base template**: [`AccelByte/extend-service-extension-go`](https://github.com/AccelByte/extend-service-extension-go). Cloned (not forked) with `.git` removed and re-initialised as a fresh standalone repo under **`github.com/anggorodewanto/playtesthub`**. No upstream tracking — cherry-pick template fixes manually if any appear. Replace the template's CloudSave `pkg/storage` with Postgres; add `migrations/` and a real test suite (template ships with neither).
+- **Admin frontend**: **Extend App UI** — React 19 + TypeScript + Vite bundled as a Module Federation remote, hosted by AccelByte and rendered inside the AGS Admin Portal (**Extend → My Extend Apps → App UI**). Uses Ant Design v6 + Tailwind v4. Typed backend clients + react-query hooks are generated from the grpc-gateway OpenAPI spec (`gateway/apidocs/api.swagger.json`) via `@accelbyte/codegen`. Auth inherited from the Admin Portal `HostContext`; `@accelbyte/sdk-iam` owns token lifecycle. The legacy `justice-adminportal-extension-website` / `justice-ui-library` pattern is **not used**. **Caveat**: Extend App UI is Internal Shared Cloud only (PRD §9 R11).
+- **Base template**: [`AccelByte/extend-service-extension-go`](https://github.com/AccelByte/extend-service-extension-go). Cloned (not forked) with `.git` removed and re-initialised as a fresh standalone repo under **`github.com/anggorodewanto/playtesthub`**. No upstream tracking — cherry-pick template fixes manually if any appear. The template's CloudSave `pkg/storage` was replaced with Postgres in M1 phase 1; `migrations/` and the test suite landed alongside (template shipped with neither).
 - **AGS SDK**: `github.com/AccelByte/accelbyte-go-sdk` for IAM token validation and Platform / Campaign API calls. Auth interceptor validates the AGS IAM JWT on every admin/player RPC.
 
 ## Workflow: red–green TDD
@@ -75,7 +75,7 @@ Do not commit code whose tests were skipped, or tests that pass without actually
 
 ## Conventions
 
-- **Early return** over nested conditionals (matches user-global preference; worth reinforcing here because the codebase is greenfield and sets the tone).
+- **Early return** over nested conditionals (matches user-global preference).
 - **Error wrapping**: `fmt.Errorf("doing X: %w", err)`. Never `return err` from a leaf call without context.
 - **Structured logs only**: JSON, include `requestId`, `userId` (when authed), `playtestId` (when in scope), `action`. **Never log** NDA text, survey free-text answers, or `Code.value`. See PRD §6 Observability.
 - **gRPC errors**: use `status.Error(codes.X, msg)`. Byte-exact strings for rows flagged non–"implementation-defined" in `docs/errors.md`.

@@ -1,5 +1,15 @@
 # playtesthub — Full Version History
 
+## v2.1 — 2026-05-08
+
+**Admin RBAC reframed: APPUI is the design choice, not a workaround**:
+- §6 AuthZ rewritten to document the *existing* per-RPC `(resource, action)` permission gate that has shipped since M1 phase 8 (declared via proto options, enforced by the `accelbyte-go-sdk` permission validator). Resource locked in as **`ADMIN:NAMESPACE:{namespace}:EXTEND:APPUI`** — the AppUI-admin perm held by every namespace-admin role studios already assign (Game Admin / Studio Admin / equivalent). Per-RPC action bits made explicit: CREATE for create/upload/top-up, READ for list/get, UPDATE for edit/approve/reject/retry/transition/sync, DELETE for soft-delete. The PRD now explains *why APPUI* (entry surface match + zero AGS-side role setup) and *why not `CUSTOM:ADMIN:NAMESPACE:{namespace}:PLAYTEST`* (Shared Cloud blocks game admins from assigning `CUSTOM:*` perms — AccelByte-only, on the AGS roadmap).
+- §9 R8 reframed — risk downgraded from "ships without RBAC, UNSAFE FOR PRODUCTION" to "RBAC is a coarse single namespace-admin permission bit; everyone with namespace-admin tier becomes a playtest admin; the `AuditLog` is the per-actor accountability layer". A dedicated finer-grained role remains post-MVP and is gated on AGS allowing `CUSTOM:*` assignment in Shared Cloud.
+- §2 non-goals, §3 studio admin, §5 accountability note, §8 key assumptions, §10 M3 README walkthrough cross-references updated to point at the documented permission gate (no behavior change vs. v2.0; this is documentation honesty, not a code change).
+- README header swapped from the old "not production safe — no admin RBAC" warning to an "admin authorization" note describing the gate and which roles satisfy it.
+- `errors.md` adds a `PermissionDenied` row (any admin RPC, missing `EXTEND:APPUI` at required action) and an `Unauthenticated` row (any RPC, missing/invalid Bearer token).
+- `engineering.md` rewrite (drop the "AppUI-admin workaround pending CUSTOM:* assignment" framing → document APPUI as the permanent design choice) tracked as M3 phase 18; no proto / generated-stub / interceptor change needed.
+
 ## v2.0 — 2026-04-17
 
 **Admin UI delivery migrated to Extend App UI**:

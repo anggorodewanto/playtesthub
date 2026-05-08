@@ -28,14 +28,14 @@ playtesthub is an open-source, self-hosted Extend application. Studios deploy th
 ### Non-goals (for MVP)
 - **Identity / tenancy**: non-Discord player identity providers; multi-tenant SaaS hosting.
 - **Hosting / distribution**: hosted demo instance; custom domain hosting (Extend-provided hostname only); Steam API integration; external code redemption tracking.
-- **RBAC / admin tooling**: custom admin RBAC role; bulk approve; editing a submitted survey response; observability beyond structured logs.
+- **RBAC / admin tooling**: custom playtesthub-specific RBAC role (MVP gates on the built-in `ADMIN:NAMESPACE:{namespace}:EXTEND:APPUI` permission — see §6 AuthZ); bulk approve; editing a submitted survey response; observability beyond structured logs.
 - **Messaging / workflows**: cross-service event bus / async workflow engine (the §5.4 DM queue is an internal implementation detail, not a product-visible async workflow); scheduled actions (the §5.5 reclaim job is an in-app leader-elected worker).
 - **Data lifecycle**: self-serve "delete my data" flow; soft-delete restore UX (recovery only via direct DB intervention); multi-region data residency, GDPR tooling, SOC 2.
 - **Content**: internationalization (English only); advanced survey logic (branching, conditional, file uploads); markdown rendering in `Playtest.description` (plain text in MVP; markdown on post-MVP backlog).
 
 ## 3. Target users & use cases
 
-- **Studio admin (live ops / community / QA lead)**: accesses the tool via the AGS Admin Portal extension. Auth via existing Admin Portal session. MVP authorizes any authenticated AGS admin session — no custom `PLAYTEST_ADMIN` role yet (§9 R8). Use cases: create playtest (with distribution model), approve/reject applicants, manage key pool, author survey, review responses.
+- **Studio admin (live ops / community / QA lead)**: accesses the tool via the AGS Admin Portal extension. Auth via existing Admin Portal session. MVP authorizes admin sessions whose IAM permission claim grants `ADMIN:NAMESPACE:{namespace}:EXTEND:APPUI` at the per-RPC action bit (held by namespace-admin roles like Game Admin / Studio Admin; §6 AuthZ, §9 R8). Use cases: create playtest (with distribution model), approve/reject applicants, manage key pool, author survey, review responses.
 - **Player (external tester / community member)**: accesses a public Svelte app pointing at the studio's Extend gRPC-gateway. Auth via Discord OAuth federated through AGS IAM. Use cases: browse open playtests, sign up, accept NDA, retrieve key, submit survey.
 
 ## 4. User stories / key flows
@@ -170,7 +170,7 @@ Applies only to playtests with `distributionModel = AGS_CAMPAIGN`.
 
 Audit-event attribution (admin vs system) is defined in [`schema.md`](schema.md) alongside the action enum.
 
-**Accountability note**: because MVP ships without a custom `PLAYTEST_ADMIN` RBAC role (§9 R8), the audit log is the accountability model. Every admin-mutating action writes an `AuditLog` row. Retention is indefinite with no size cap in MVP (§9 R9).
+**Accountability note**: admin RBAC is a single coarse namespace-admin permission (`ADMIN:NAMESPACE:{namespace}:EXTEND:APPUI` — §6 AuthZ, §9 R8) rather than a custom `PLAYTEST_ADMIN` role, so the audit log is the per-actor accountability layer. Every admin-mutating action writes an `AuditLog` row. Retention is indefinite with no size cap in MVP (§9 R9).
 
 **Soft-delete UX**:
 - Hidden entirely from the player app — absolute, overrides all other state. Soft-deleted slugs return `NotFound` (indistinguishable from never-existed). Includes previously-APPROVED players on CLOSED-then-soft-deleted playtests.
@@ -256,7 +256,7 @@ State machine (reserve → finalize → reclaim per §4.1 step 6):
 - **NDA record integrity**: append-only, versioned by hash, no edit RPC.
 - **PII minimization**: Discord handle, AGS userId, form answers. No IP on NDA acceptances. No email collected. **Exception — `discordHandle`**: archival and retained indefinitely alongside `userId`. This is a deliberate minimization exception because DM delivery and admin triage both require a human-readable identity.
 - **AuthN**: all player RPCs require AGS access token except the public unauth playtest-by-slug read (restricted field set per §5.2). All admin RPCs require a valid AGS Admin Portal session. **Admin session → `actorUserId`**: the backend extracts the admin UUID from the `sub` claim of the AGS IAM JWT carried in the Bearer token (gRPC metadata `authorization`). The JWT is validated against the AGS IAM JWKS. The extracted `sub` is used as `actorUserId` on every audit-log row for the request.
-- **AuthZ (MVP)**: any authenticated AGS admin session is permitted on all admin RPCs. **Unsafe for production** (§9 R8). RBAC is a release blocker for prod.
+- **AuthZ (MVP)**: every admin RPC declares a required `(resource, action)` via proto options (`option (playtesthub.v1.resource)` + `option (playtesthub.v1.action)`) and the auth interceptor enforces it against the AGS IAM permission claim using the `accelbyte-go-sdk` permission validator (`PermissionDenied` on miss). The required resource is **`ADMIN:NAMESPACE:{namespace}:EXTEND:APPUI`** — the built-in AppUI-admin permission already held by every namespace-admin role studios assign in the AGS Admin Portal (Game Admin / Studio Admin / equivalent). Required action varies per RPC: `CREATE` (bit 1) for resource-creating POSTs (`Create*`, `Upload*`, `TopUp*`), `READ` (bit 2) for `List*` / `Get*`, `UPDATE` (bit 4) for `Edit*` / `Approve*` / `Reject*` / `RetryDM*` / `Transition*` / `Sync*`, `DELETE` (bit 8) for soft-delete. **Why APPUI specifically**: it is the perm tied to "you can render Extend App UIs in this namespace" — exactly the entry surface playtesthub's admin uses; held by every role studios already assign to admin staff, so no playtesthub-specific role setup is needed on the AGS side. **Why not `CUSTOM:ADMIN:NAMESPACE:{namespace}:PLAYTEST`**: AGS Shared Cloud does not let game admins assign `CUSTOM:*` perms to their own user roles (custom-permission management is AccelByte-only there); APPUI is the closest built-in proxy that requires no AGS-side role creation. The `AuditLog` (§5.7) remains the per-action accountability layer (one shared role bit ≠ per-user identity).
 - **Secrets**: Discord bot token via Extend secrets. Rotation: update + restart backend; in-flight DMs at rotation time surface as `lastDmStatus='failed'` and are retryable.
 - **`config.json` integrity (accepted risk)**: served unsigned over HTTPS; mitigated by trusted static hosts (GitHub Pages / Vercel).
 - **gRPC-gateway exposure**: publicly addressable. CORS allowlist per-studio (AGS Admin Portal origin + player app origin). TLS handled by Extend, served exclusively from Extend-provided hostname (custom domains out of scope).
@@ -354,7 +354,7 @@ See [`architecture.md`](architecture.md) for the full stack + external dependenc
 - MIT. `LICENSE` file at repo root is a v1.0 deliverable.
 
 ### Key assumptions
-- Admin users already have AGS Admin Portal access (no finer check; §9 R8).
+- Admin users hold a namespace-admin role granting `ADMIN:NAMESPACE:{namespace}:EXTEND:APPUI` (Game Admin / Studio Admin / equivalent). Studios assign these via the AGS Admin Portal during onboarding; no playtesthub-specific role setup required (§6 AuthZ, §9 R8).
 - One Extend deploy per namespace; no cross-namespace sharing.
 - Approve is synchronous; admin retries on failure; reclaim job frees stranded `RESERVED`.
 - AGS Platform Campaign API availability validated in M2 (see `ags-failure-modes.md`).
@@ -370,7 +370,7 @@ See [`architecture.md`](architecture.md) for the full stack + external dependenc
 - **R5**: AGS platform dependency (residency + Campaign API availability) — studios verify namespace region; STEAM_KEYS fallback has no external API dependency (see §4.6).
 - **R6**: stranded reservations — TTL-based reclaim job mandatory; per-tick INFO log line for liveness (see §5.5).
 - **R7**: open-source adoption friction — invest in README + scripted setup (see §10).
-- **R8**: MVP ships without admin RBAC — UNSAFE FOR PRODUCTION; `AuditLog` is the accountability model; treat RBAC as release blocker for prod (see §6 AuthZ).
+- **R8**: admin RBAC piggybacks on the built-in `ADMIN:NAMESPACE:{namespace}:EXTEND:APPUI` permission instead of a dedicated `PLAYTEST_ADMIN` role. Coarse — anyone holding a namespace-admin tier (Game Admin / Studio Admin / equivalent) becomes a playtest admin. Acceptable because that permission set already grants the operator wider blast radius than playtesthub itself (full Extend App UI management on the namespace); the `AuditLog` provides per-action attribution. A dedicated `CUSTOM:ADMIN:NAMESPACE:{namespace}:PLAYTEST` role with finer-grained permissions is post-MVP and gated on AGS Shared Cloud allowing game admins to assign `CUSTOM:*` perms to their own user roles (currently AccelByte-only; on the AGS roadmap). See §6 AuthZ.
 - **R9**: `AuditLog` unbounded growth — pruning/archival deferred post-MVP (see §6 Data retention).
 - **R10**: namespace decommission means data loss — self-host operators own DB backups (see §8).
 - **R11**: Extend App UI is an **experimental capability** and currently available in **Internal Shared Cloud only**. Private Cloud adopters cannot run the admin UI in MVP; they must wait for Extend App UI GA or run the admin surface out-of-band against the gRPC-gateway until then. Tracked for MVP as an adoption-friction risk; no engineering mitigation planned (see §5.7, [`architecture.md`](architecture.md)).
@@ -409,7 +409,7 @@ Scope-at-risk features are tracked in [`STATUS.md`](STATUS.md) under **Cut-if-be
 - Discord DM notification on approval; circuit breaker + bulk retry RPC (`RetryFailedDms`).
 - Audit log viewer UI (§5.7 page 5).
 - Perf proof point per §6 / §7.
-- README walkthrough (with "no admin RBAC in MVP — not production safe" warning), demo video, OSS repo published under MIT.
+- README walkthrough (with admin-authorization note pointing studios at the `ADMIN:NAMESPACE:{namespace}:EXTEND:APPUI` permission gate; §6 AuthZ), demo video, OSS repo published under MIT.
 
 ### Deferred / post-MVP backlog
 - Webhook-channel notification fallback (R2; §4.1 step 6d).
