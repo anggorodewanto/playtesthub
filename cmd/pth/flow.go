@@ -782,6 +782,8 @@ func writeJSONLine(w io.Writer, v any) error {
 	if err != nil {
 		return fmt.Errorf("marshal flow line: %w", err)
 	}
-	_, err = fmt.Fprintf(w, "%s\n", b)
-	return err
+	if _, err := fmt.Fprintf(w, "%s\n", b); err != nil {
+		return fmt.Errorf("writing flow line: %w", err)
+	}
+	return nil
 }

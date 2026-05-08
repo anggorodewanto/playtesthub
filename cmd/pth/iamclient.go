@@ -323,8 +323,10 @@ func (c *iamClient) adminDeleteUser(ctx context.Context, bearer, namespace, user
 		return fmt.Errorf("user id is empty")
 	}
 	target := strings.TrimRight(c.BaseURL, "/") + fmt.Sprintf(adminDeleteUserPath, url.PathEscape(namespace), url.PathEscape(userID))
-	_, err := c.doAdminJSON(ctx, http.MethodDelete, target, bearer, nil)
-	return err
+	if _, err := c.doAdminJSON(ctx, http.MethodDelete, target, bearer, nil); err != nil {
+		return fmt.Errorf("deleting AGS IAM user: %w", err)
+	}
+	return nil
 }
 
 // requireAdminConfig is the shared precondition check for admin REST

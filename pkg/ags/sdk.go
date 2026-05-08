@@ -368,7 +368,7 @@ func (c *SDKClient) LinkItemToCampaign(ctx context.Context, campaignID, itemID, 
 		return c.campaignSvc.GetCampaignShort(getParams)
 	})
 	if err != nil {
-		return err
+		return fmt.Errorf("linking item to campaign: %w", err)
 	}
 	if existing == nil || existing.Name == nil {
 		return &ClientError{StatusCode: 500, Op: "GetCampaign", Message: "AGS returned campaign without name"}
@@ -388,7 +388,7 @@ func (c *SDKClient) LinkItemToCampaign(ctx context.Context, campaignID, itemID, 
 	if _, err := callWithRelogin(c, "UpdateCampaign", func() (*platformclientmodels.CampaignInfo, error) {
 		return c.campaignSvc.UpdateCampaignShort(updateParams)
 	}); err != nil {
-		return err
+		return fmt.Errorf("linking item to campaign: %w", err)
 	}
 	return nil
 }
@@ -524,7 +524,7 @@ func (c *SDKClient) DeleteCampaign(ctx context.Context, campaignID string) error
 		if isNotFound(err) {
 			return nil
 		}
-		return err
+		return fmt.Errorf("deleting AGS campaign: %w", err)
 	}
 	if existing == nil || existing.Name == nil {
 		return &ClientError{StatusCode: 500, Op: "GetCampaign", Message: "AGS returned campaign without name"}
@@ -545,7 +545,7 @@ func (c *SDKClient) DeleteCampaign(ctx context.Context, campaignID string) error
 		if isNotFound(err) {
 			return nil
 		}
-		return err
+		return fmt.Errorf("deleting AGS campaign: %w", err)
 	}
 	return nil
 }
@@ -685,7 +685,7 @@ func (c *SDKClient) bootstrapCategory(ctx context.Context, storeID, categoryPath
 		return nil
 	}
 	if !isNotFound(err) {
-		return err
+		return fmt.Errorf("bootstrapping category: %w", err)
 	}
 	body := &platformclientmodels.CategoryCreate{
 		CategoryPath:             ptrString(categoryPath),
@@ -699,7 +699,7 @@ func (c *SDKClient) bootstrapCategory(ctx context.Context, storeID, categoryPath
 	if _, err := callWithRelogin(c, "CreateCategory", func() (*platformclientmodels.FullCategoryInfo, error) {
 		return c.categorySvc.CreateCategoryShort(createParams)
 	}); err != nil && !isConflict(err) {
-		return err
+		return fmt.Errorf("bootstrapping category: %w", err)
 	}
 	return nil
 }
