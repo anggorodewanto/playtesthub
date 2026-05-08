@@ -388,59 +388,51 @@ func (s *PgCodeStore) InsertGeneratedAtomic(ctx context.Context, playtestID uuid
 		return 0, nil
 	}
 
-	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
-	if err != nil {
-		return 0, fmt.Errorf("beginning insert-generated tx: %w", err)
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
-
-	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtext($1))`, playtestID.String()); err != nil {
-		return 0, fmt.Errorf("acquiring insert-generated advisory lock: %w", err)
-	}
-
-	dupRows, err := tx.Query(ctx,
-		`SELECT value FROM code WHERE playtest_id = $1 AND value = ANY($2)`,
-		playtestID, values)
-	if err != nil {
-		return 0, fmt.Errorf("dedup query: %w", err)
-	}
-	existing := make(map[string]struct{}, len(values))
-	for dupRows.Next() {
-		var v string
-		if scanErr := dupRows.Scan(&v); scanErr != nil {
-			dupRows.Close()
-			return 0, fmt.Errorf("scanning dedup row: %w", scanErr)
+	var copied int64
+	err := withAdvisoryLockTx(ctx, s.pool, playtestID.String(), "insert-generated", func(tx pgx.Tx) error {
+		dupRows, err := tx.Query(ctx,
+			`SELECT value FROM code WHERE playtest_id = $1 AND value = ANY($2)`,
+			playtestID, values)
+		if err != nil {
+			return fmt.Errorf("dedup query: %w", err)
 		}
-		existing[v] = struct{}{}
-	}
-	dupRows.Close()
-	if rowsErr := dupRows.Err(); rowsErr != nil {
-		return 0, fmt.Errorf("iterating dedup rows: %w", rowsErr)
-	}
+		existing := make(map[string]struct{}, len(values))
+		for dupRows.Next() {
+			var v string
+			if scanErr := dupRows.Scan(&v); scanErr != nil {
+				dupRows.Close()
+				return fmt.Errorf("scanning dedup row: %w", scanErr)
+			}
+			existing[v] = struct{}{}
+		}
+		dupRows.Close()
+		if rowsErr := dupRows.Err(); rowsErr != nil {
+			return fmt.Errorf("iterating dedup rows: %w", rowsErr)
+		}
 
-	fresh := make([][]any, 0, len(values))
-	for _, v := range values {
-		if _, dup := existing[v]; dup {
-			continue
+		fresh := make([][]any, 0, len(values))
+		for _, v := range values {
+			if _, dup := existing[v]; dup {
+				continue
+			}
+			fresh = append(fresh, []any{playtestID, v})
 		}
-		fresh = append(fresh, []any{playtestID, v})
-	}
-	if len(fresh) == 0 {
-		if err := tx.Commit(ctx); err != nil {
-			return 0, fmt.Errorf("committing insert-generated tx (no-op): %w", err)
+		if len(fresh) == 0 {
+			return nil
 		}
-		return 0, nil
-	}
-	copied, err := tx.CopyFrom(ctx,
-		pgx.Identifier{"code"},
-		[]string{"playtest_id", "value"},
-		pgx.CopyFromRows(fresh),
-	)
+		c, err := tx.CopyFrom(ctx,
+			pgx.Identifier{"code"},
+			[]string{"playtest_id", "value"},
+			pgx.CopyFromRows(fresh),
+		)
+		if err != nil {
+			return fmt.Errorf("copying generated rows: %w", classifyPgError(err))
+		}
+		copied = c
+		return nil
+	})
 	if err != nil {
-		return 0, fmt.Errorf("copying generated rows: %w", classifyPgError(err))
-	}
-	if err := tx.Commit(ctx); err != nil {
-		return 0, fmt.Errorf("committing insert-generated tx: %w", err)
+		return 0, err
 	}
 	return int(copied), nil
 }

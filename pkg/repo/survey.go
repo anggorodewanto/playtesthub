@@ -109,40 +109,34 @@ func (s *PgSurveyStore) Create(ctx context.Context, playtestID uuid.UUID, questi
 // `version_uniq` index is the second-line guard if the lock is ever
 // bypassed.
 func (s *PgSurveyStore) EditAsNewVersion(ctx context.Context, playtestID uuid.UUID, questions json.RawMessage) (*Survey, error) {
-	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
+	var got *Survey
+	err := withAdvisoryLockTx(ctx, s.pool, "survey:"+playtestID.String(), "survey edit", func(tx pgx.Tx) error {
+		var prev int
+		if err := tx.QueryRow(ctx,
+			`SELECT COALESCE(MAX(version), 0) FROM survey WHERE playtest_id = $1`,
+			playtestID,
+		).Scan(&prev); err != nil {
+			return fmt.Errorf("reading previous survey version: %w", err)
+		}
+		if prev == 0 {
+			return ErrNotFound
+		}
+
+		const insertSQL = `
+			INSERT INTO survey (playtest_id, version, questions)
+			VALUES ($1, $2, COALESCE($3, '[]'::jsonb))
+			RETURNING ` + surveyColumns
+
+		row := tx.QueryRow(ctx, insertSQL, playtestID, prev+1, questionsArg(questions))
+		next, scanErr := scanSurvey(row)
+		if scanErr != nil {
+			return fmt.Errorf("inserting next survey version: %w", classifyPgError(scanErr))
+		}
+		got = next
+		return nil
+	})
 	if err != nil {
-		return nil, fmt.Errorf("beginning survey edit tx: %w", err)
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
-
-	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtext($1))`, "survey:"+playtestID.String()); err != nil {
-		return nil, fmt.Errorf("acquiring survey edit advisory lock: %w", err)
-	}
-
-	var prev int
-	err = tx.QueryRow(ctx,
-		`SELECT COALESCE(MAX(version), 0) FROM survey WHERE playtest_id = $1`,
-		playtestID,
-	).Scan(&prev)
-	if err != nil {
-		return nil, fmt.Errorf("reading previous survey version: %w", err)
-	}
-	if prev == 0 {
-		return nil, ErrNotFound
-	}
-
-	const insertSQL = `
-		INSERT INTO survey (playtest_id, version, questions)
-		VALUES ($1, $2, COALESCE($3, '[]'::jsonb))
-		RETURNING ` + surveyColumns
-
-	row := tx.QueryRow(ctx, insertSQL, playtestID, prev+1, questionsArg(questions))
-	got, scanErr := scanSurvey(row)
-	if scanErr != nil {
-		return nil, fmt.Errorf("inserting next survey version: %w", classifyPgError(scanErr))
-	}
-	if err := tx.Commit(ctx); err != nil {
-		return nil, fmt.Errorf("committing survey edit tx: %w", err)
+		return nil, err
 	}
 	return got, nil
 }

@@ -45,3 +45,28 @@ func (r *PgTxRunner) InTx(ctx context.Context, fn func(q Querier) error) error {
 	}
 	return nil
 }
+
+// withAdvisoryLockTx opens a tx, takes a transaction-scoped advisory
+// lock keyed on hashtext(lockKey), runs fn against the tx, and commits.
+// label is interpolated into the wrap messages so failures stay
+// readable (e.g. "beginning <label> tx", "acquiring <label> advisory
+// lock"). fn is responsible for its own error contexts; this helper
+// just owns the tx skeleton.
+func withAdvisoryLockTx(ctx context.Context, pool *pgxpool.Pool, lockKey, label string, fn func(pgx.Tx) error) error {
+	tx, err := pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return fmt.Errorf("beginning %s tx: %w", label, err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtext($1))`, lockKey); err != nil {
+		return fmt.Errorf("acquiring %s advisory lock: %w", label, err)
+	}
+	if err := fn(tx); err != nil {
+		return err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("committing %s tx: %w", label, err)
+	}
+	return nil
+}
