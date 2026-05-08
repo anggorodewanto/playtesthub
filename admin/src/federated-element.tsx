@@ -77,6 +77,14 @@ const DISTRIBUTION_LABEL: Record<string, string> = {
   DISTRIBUTION_MODEL_AGS_CAMPAIGN: 'AGS Campaign'
 }
 
+// toastError builds the standard mutation onError handler. The verb is
+// the second half of the fallback message ("Failed to <verb>"); the
+// gateway's errorMessage from gRPC status takes precedence when present.
+type ApiError = { response?: { data?: { errorMessage?: string } } }
+function toastError(verb: string) {
+  return (err: ApiError) => message.error(err?.response?.data?.errorMessage ?? `Failed to ${verb}`)
+}
+
 export function FederatedElement() {
   return (
     <div style={{ padding: 16 }}>
@@ -105,14 +113,14 @@ function PlaytestsListPage() {
       message.success('Playtest deleted')
       queryClient.invalidateQueries({ queryKey: [Key_PlaytesthubServiceAdmin.Playtests] })
     },
-    onError: err => message.error(err.response?.data?.errorMessage ?? 'Failed to delete')
+    onError: toastError('delete')
   })
   const transitionMutation = usePlaytesthubServiceAdminApi_CreatePlaytest_ByPlaytestIdTransitionStatuMutation(sdk, {
     onSuccess: () => {
       message.success('Status updated')
       queryClient.invalidateQueries({ queryKey: [Key_PlaytesthubServiceAdmin.Playtests] })
     },
-    onError: err => message.error(err.response?.data?.errorMessage ?? 'Failed to update status')
+    onError: toastError('update status')
   })
 
   const playtests = (data?.playtests ?? []) as V1Playtest[]
@@ -282,7 +290,7 @@ function PlaytestCreatePage() {
       queryClient.invalidateQueries({ queryKey: [Key_PlaytesthubServiceAdmin.Playtests] })
       navigate('/')
     },
-    onError: err => message.error(err.response?.data?.errorMessage ?? 'Failed to create')
+    onError: toastError('create')
   })
 
   const handleSubmit = (values: FormValues) => {
@@ -406,7 +414,7 @@ function PlaytestEditPage() {
       queryClient.invalidateQueries({ queryKey: [Key_PlaytesthubServiceAdmin.Playtest_ByPlaytestId] })
       navigate('/')
     },
-    onError: err => message.error(err.response?.data?.errorMessage ?? 'Failed to update')
+    onError: toastError('update')
   })
 
   const playtest = data?.playtest as V1Playtest | undefined
@@ -588,7 +596,7 @@ function ApplicantsPage() {
       message.success('Applicant approved')
       invalidateApplicants()
     },
-    onError: err => message.error(err.response?.data?.errorMessage ?? 'Failed to approve')
+    onError: toastError('approve')
   })
 
   const rejectMutation = usePlaytesthubServiceAdminApi_CreateApplicant_ByApplicantIdRejectMutation(sdk, {
@@ -598,7 +606,7 @@ function ApplicantsPage() {
       setRejectReason('')
       invalidateApplicants()
     },
-    onError: err => message.error(err.response?.data?.errorMessage ?? 'Failed to reject')
+    onError: toastError('reject')
   })
 
   const retryDmMutation = usePlaytesthubServiceAdminApi_CreateApplicant_ByApplicantIdRetryDmMutation(sdk, {
@@ -606,7 +614,7 @@ function ApplicantsPage() {
       message.success('Retry DM enqueued')
       invalidateApplicants()
     },
-    onError: err => message.error(err.response?.data?.errorMessage ?? 'Failed to retry DM')
+    onError: toastError('retry DM')
   })
 
   const playtest = playtestQuery.data?.playtest as V1Playtest | undefined
@@ -812,7 +820,7 @@ function CodePoolPage() {
       }
       invalidateCodes()
     },
-    onError: err => message.error(err.response?.data?.errorMessage ?? 'Failed to upload codes')
+    onError: toastError('upload codes')
   })
 
   const topUpMutation = usePlaytesthubServiceAdminApi_CreateCodesTopUp_ByPlaytestIdMutation(sdk, {
@@ -820,7 +828,7 @@ function CodePoolPage() {
       message.success(`Generated ${response.added ?? 0} new codes`)
       invalidateCodes()
     },
-    onError: err => message.error(err.response?.data?.errorMessage ?? 'Failed to top up')
+    onError: toastError('top up')
   })
 
   const syncMutation = usePlaytesthubServiceAdminApi_CreateCodesSyncFromAg_ByPlaytestIdMutation(sdk, {
@@ -828,7 +836,7 @@ function CodePoolPage() {
       message.success(`Synced ${response.added ?? 0} new codes from AGS`)
       invalidateCodes()
     },
-    onError: err => message.error(err.response?.data?.errorMessage ?? 'Failed to sync from AGS')
+    onError: toastError('sync from AGS')
   })
 
   const playtest = playtestQuery.data?.playtest as V1Playtest | undefined
@@ -1128,7 +1136,7 @@ function SurveyBuilderForm({ playtestId, playtest, initialSurvey, hasSurvey, dra
       queryClient.invalidateQueries({ queryKey: [Key_PlaytesthubServiceAdmin.Playtest_ByPlaytestId] })
       navigate('/')
     },
-    onError: err => message.error(err.response?.data?.errorMessage ?? 'Failed to create survey')
+    onError: toastError('create survey')
   })
   const editMutation = usePlaytesthubServiceAdminApi_PatchSurvey_ByPlaytestIdMutation(sdk, {
     onSuccess: () => {
@@ -1137,7 +1145,7 @@ function SurveyBuilderForm({ playtestId, playtest, initialSurvey, hasSurvey, dra
       queryClient.invalidateQueries({ queryKey: [Key_PlaytesthubServiceAdmin.Survey_ByPlaytestId] })
       navigate('/')
     },
-    onError: err => message.error(err.response?.data?.errorMessage ?? 'Failed to update survey')
+    onError: toastError('update survey')
   })
 
   const updateQuestion = (key: string, patch: Partial<DraftQuestion>) => {
