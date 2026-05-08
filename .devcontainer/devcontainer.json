@@ -1,5 +1,5 @@
 {
-  "name": "AccelByte Extend Service Extension",
+  "name": "playtesthub",
   "build": {
     "dockerfile": "Dockerfile",
     "context": ".."

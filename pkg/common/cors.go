@@ -1,5 +1,3 @@
-// Copyright (c) 2025 AccelByte Inc. All Rights Reserved.
-
 package common
 
 import (

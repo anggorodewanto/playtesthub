@@ -12,7 +12,7 @@ The easiest way to get started is using the provided Dev Container configuration
 3. Wait for the container to build and dependencies to install automatically
 4. Start developing!
 
-> :bulb: The Dev Container automatically installs Go 1.24, and all required dependencies.
+> :bulb: The Dev Container automatically installs Go 1.25, and all required dependencies.
 
 ## GitHub Codespaces
 
@@ -32,4 +32,4 @@ You can also use this Dev Container configuration with [GitHub Codespaces](https
 5. Wait for the codespace to initialize and build
 6. Start developing in your browser or VS Code!
 
-> :bulb: GitHub Codespaces uses the same Dev Container configuration, so you'll get Go 1.24, and all dependencies automatically installed.
+> :bulb: GitHub Codespaces uses the same Dev Container configuration, so you'll get Go 1.25, and all dependencies automatically installed.

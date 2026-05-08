@@ -1,6 +1,20 @@
 # playtesthub
 
-Open-source, self-hosted [AccelByte Gaming Services (AGS) Extend](https://docs.accelbyte.io/gaming-services/modules/foundations/extend/) application for running closed game playtests. Apply for a slot, accept the NDA, get a Steam key (or AGS Campaign-issued code), play, fill out a survey. MIT-licensed.
+> Self-hosted, MIT-licensed [AccelByte Gaming Services (AGS) Extend](https://docs.accelbyte.io/gaming-services/modules/foundations/extend/) application for running **closed game playtests** end-to-end.
+
+Players apply for a slot, click-accept the NDA, get a code (Steam key or AGS Campaign), play, and fill out a survey. Admins curate signups, manage the code pool, and review structured feedback from inside the AGS Admin Portal.
+
+Built for indie and mid-size studios that already use AGS and need tenant-isolated playtest tooling they can own, audit, and self-host inside their own namespace — without rolling the same signup → NDA → key → feedback plumbing every release.
+
+## What's in the box
+
+- **Two distribution models** per playtest — `STEAM_KEYS` (CSV passthrough, manual Steam redemption) and `AGS_CAMPAIGN` (in-game redemption via the AGS Platform Campaign API). One internal code pool and state machine for both.
+- **Discord-federated player identity** via AGS IAM's platform-token grant. Players sign in with Discord; the backend receives a real AGS user.
+- **NDA versioning with forced re-acceptance** — edit the NDA mid-playtest and approved players must re-accept before submitting a survey response.
+- **Discord DM delivery** of granted codes — FIFO worker queue with circuit breaker, manual retry, and restart-sweep semantics. Approval succeeds even if the DM fails; the code is also visible in the player UI.
+- **Versioned typed surveys** (text, 1–5 rating, multi-choice) with per-version response splits.
+- **Per-action audit log** for every admin mutation, stable JSONB shapes.
+- **TDD-first** — unit, integration (testcontainers Postgres), e2e golden flow, and smoke harness (`pth` CLI). CI enforces every gate on every PR.
 
 ```mermaid
 flowchart LR

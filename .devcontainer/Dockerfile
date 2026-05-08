@@ -1,7 +1,3 @@
-# Copyright (c) 2025 AccelByte Inc. All Rights Reserved.
-# This is licensed software from AccelByte Inc, for limitations
-# and restrictions contact your company contract manager.
-
 FROM --platform=$BUILDPLATFORM ubuntu:22.04
 
 # Avoid warnings by switching to noninteractive
