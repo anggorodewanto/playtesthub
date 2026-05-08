@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"errors"
 	"regexp"
 	"strings"
 	"unicode/utf8"
@@ -81,14 +80,8 @@ func (s *PlaytesthubServiceServer) UploadCodes(ctx context.Context, req *pb.Uplo
 	}
 
 	pt, err := s.playtest.GetByID(ctx, s.namespace, playtestID)
-	if errors.Is(err, repo.ErrNotFound) {
-		return nil, status.Error(codes.NotFound, "playtest not found")
-	}
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "fetching playtest: %v", err)
-	}
-	if pt.DeletedAt != nil {
-		return nil, status.Error(codes.NotFound, "playtest not found")
+	if e := mapPlaytestLookupErr(err, playtestSoftDelete(pt), "fetching playtest"); e != nil {
+		return nil, e
 	}
 	if pt.DistributionModel != distModelSteamKeys {
 		return nil, status.Error(codes.FailedPrecondition, "UploadCodes requires distribution_model=STEAM_KEYS (this playtest is AGS_CAMPAIGN; use TopUpCodes/SyncFromAGS)")
@@ -185,14 +178,8 @@ func (s *PlaytesthubServiceServer) GetCodePool(ctx context.Context, req *pb.GetC
 	}
 
 	pt, err := s.playtest.GetByID(ctx, s.namespace, playtestID)
-	if errors.Is(err, repo.ErrNotFound) {
-		return nil, status.Error(codes.NotFound, "playtest not found")
-	}
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "fetching playtest: %v", err)
-	}
-	if pt.DeletedAt != nil {
-		return nil, status.Error(codes.NotFound, "playtest not found")
+	if e := mapPlaytestLookupErr(err, playtestSoftDelete(pt), "fetching playtest"); e != nil {
+		return nil, e
 	}
 
 	rows, err := s.code.ListByPlaytest(ctx, pt.ID)

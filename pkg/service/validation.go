@@ -3,16 +3,19 @@ package service
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"net/url"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
 	pb "github.com/anggorodewanto/playtesthub/pkg/pb/playtesthub/v1"
+	"github.com/anggorodewanto/playtesthub/pkg/repo"
 )
 
 // parseReqUUID parses a request-side UUID field, returning the canonical
@@ -24,6 +27,37 @@ func parseReqUUID(field, raw string) (uuid.UUID, error) {
 		return uuid.Nil, status.Errorf(codes.InvalidArgument, "%s is not a uuid: %v", field, err)
 	}
 	return id, nil
+}
+
+// playtestSoftDelete returns p.DeletedAt safely when p may be nil — the
+// repo Get* helpers return (nil, err) on miss, so callers cannot read
+// the field directly when threading mapPlaytestLookupErr.
+func playtestSoftDelete(p *repo.Playtest) *time.Time {
+	if p == nil {
+		return nil
+	}
+	return p.DeletedAt
+}
+
+// mapPlaytestLookupErr collapses the canonical playtest-lookup result
+// triad — repo.ErrNotFound, generic repo error, or soft-deleted row —
+// into the matching gRPC status. Returns nil when the row is healthy.
+//
+// Pass soft=nil at call sites that intentionally surface deleted rows
+// (e.g. AdminGetPlaytest); pass &p.DeletedAt elsewhere so the soft-delete
+// collapse to NotFound stays uniform across the service. op labels the
+// codes.Internal wrap for non-ErrNotFound repo failures.
+func mapPlaytestLookupErr(err error, soft *time.Time, op string) error {
+	if errors.Is(err, repo.ErrNotFound) {
+		return status.Error(codes.NotFound, "playtest not found")
+	}
+	if err != nil {
+		return status.Errorf(codes.Internal, "%s: %v", op, err)
+	}
+	if soft != nil {
+		return status.Error(codes.NotFound, "playtest not found")
+	}
+	return nil
 }
 
 const (

@@ -64,14 +64,8 @@ func (s *PlaytesthubServiceServer) RetryDM(ctx context.Context, req *pb.RetryDMR
 	}
 
 	pt, err := s.playtest.GetByID(ctx, s.namespace, a.PlaytestID)
-	if errors.Is(err, repo.ErrNotFound) {
-		return nil, status.Error(codes.NotFound, "playtest not found")
-	}
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "fetching playtest: %v", err)
-	}
-	if pt.DeletedAt != nil {
-		return nil, status.Error(codes.NotFound, "playtest not found")
+	if e := mapPlaytestLookupErr(err, playtestSoftDelete(pt), "fetching playtest"); e != nil {
+		return nil, e
 	}
 
 	enqueueErr := s.dmQueue.Enqueue(ctx, buildDMJob(a, pt, true))
@@ -117,14 +111,8 @@ func (s *PlaytesthubServiceServer) RetryFailedDms(ctx context.Context, req *pb.R
 	}
 
 	pt, err := s.playtest.GetByID(ctx, s.namespace, playtestID)
-	if errors.Is(err, repo.ErrNotFound) {
-		return nil, status.Error(codes.NotFound, "playtest not found")
-	}
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "fetching playtest: %v", err)
-	}
-	if pt.DeletedAt != nil {
-		return nil, status.Error(codes.NotFound, "playtest not found")
+	if e := mapPlaytestLookupErr(err, playtestSoftDelete(pt), "fetching playtest"); e != nil {
+		return nil, e
 	}
 
 	rows, err := s.applicant.ListDMFailedByPlaytest(ctx, pt.ID)

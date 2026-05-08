@@ -93,14 +93,8 @@ func (s *PlaytesthubServiceServer) CreateSurvey(ctx context.Context, req *pb.Cre
 		return nil, err
 	}
 	pt, err := s.playtest.GetByID(ctx, s.namespace, playtestID)
-	if errors.Is(err, repo.ErrNotFound) {
-		return nil, status.Error(codes.NotFound, "playtest not found")
-	}
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "fetching playtest: %v", err)
-	}
-	if pt.DeletedAt != nil {
-		return nil, status.Error(codes.NotFound, "playtest not found")
+	if e := mapPlaytestLookupErr(err, playtestSoftDelete(pt), "fetching playtest"); e != nil {
+		return nil, e
 	}
 
 	rows, err := normaliseQuestionsForCreate(req.GetQuestions())
@@ -158,14 +152,8 @@ func (s *PlaytesthubServiceServer) EditSurvey(ctx context.Context, req *pb.EditS
 		return nil, err
 	}
 	pt, err := s.playtest.GetByID(ctx, s.namespace, playtestID)
-	if errors.Is(err, repo.ErrNotFound) {
-		return nil, status.Error(codes.NotFound, "playtest not found")
-	}
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "fetching playtest: %v", err)
-	}
-	if pt.DeletedAt != nil {
-		return nil, status.Error(codes.NotFound, "playtest not found")
+	if e := mapPlaytestLookupErr(err, playtestSoftDelete(pt), "fetching playtest"); e != nil {
+		return nil, e
 	}
 
 	previous, err := s.survey.GetCurrent(ctx, playtestID)
@@ -232,13 +220,10 @@ func (s *PlaytesthubServiceServer) GetSurvey(ctx context.Context, req *pb.GetSur
 		return nil, err
 	}
 	pt, err := s.playtest.GetByID(ctx, s.namespace, playtestID)
-	if errors.Is(err, repo.ErrNotFound) {
-		return nil, status.Error(codes.NotFound, "playtest not found")
+	if e := mapPlaytestLookupErr(err, playtestSoftDelete(pt), "fetching playtest"); e != nil {
+		return nil, e
 	}
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "fetching playtest: %v", err)
-	}
-	if pt.DeletedAt != nil || pt.Status == statusDraft {
+	if pt.Status == statusDraft {
 		return nil, status.Error(codes.NotFound, "playtest not found")
 	}
 	if pt.Status == statusClosed {
@@ -517,13 +502,10 @@ func (s *PlaytesthubServiceServer) SubmitSurveyResponse(ctx context.Context, req
 	}
 
 	pt, err := s.playtest.GetByID(ctx, s.namespace, playtestID)
-	if errors.Is(err, repo.ErrNotFound) {
-		return nil, status.Error(codes.NotFound, "playtest not found")
+	if e := mapPlaytestLookupErr(err, playtestSoftDelete(pt), "fetching playtest"); e != nil {
+		return nil, e
 	}
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "fetching playtest: %v", err)
-	}
-	if pt.DeletedAt != nil || pt.Status == statusDraft {
+	if pt.Status == statusDraft {
 		return nil, status.Error(codes.NotFound, "playtest not found")
 	}
 
@@ -737,14 +719,8 @@ func (s *PlaytesthubServiceServer) ListSurveyResponses(ctx context.Context, req 
 	}
 
 	pt, err := s.playtest.GetByID(ctx, s.namespace, playtestID)
-	if errors.Is(err, repo.ErrNotFound) {
-		return nil, status.Error(codes.NotFound, "playtest not found")
-	}
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "fetching playtest: %v", err)
-	}
-	if pt.DeletedAt != nil {
-		return nil, status.Error(codes.NotFound, "playtest not found")
+	if e := mapPlaytestLookupErr(err, playtestSoftDelete(pt), "fetching playtest"); e != nil {
+		return nil, e
 	}
 
 	var surveyFilter uuid.UUID

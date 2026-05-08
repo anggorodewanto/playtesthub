@@ -55,13 +55,10 @@ func (s *PlaytesthubServiceServer) Signup(ctx context.Context, req *pb.SignupReq
 	}
 
 	pt, err := s.playtest.GetBySlug(ctx, s.namespace, req.GetSlug())
-	if errors.Is(err, repo.ErrNotFound) {
-		return nil, status.Error(codes.NotFound, "playtest not found")
+	if e := mapPlaytestLookupErr(err, playtestSoftDelete(pt), "fetching playtest"); e != nil {
+		return nil, e
 	}
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "fetching playtest: %v", err)
-	}
-	if pt.DeletedAt != nil || pt.Status == statusDraft {
+	if pt.Status == statusDraft {
 		return nil, status.Error(codes.NotFound, "playtest not found")
 	}
 
@@ -113,13 +110,10 @@ func (s *PlaytesthubServiceServer) GetApplicantStatus(ctx context.Context, req *
 	}
 
 	pt, err := s.playtest.GetBySlug(ctx, s.namespace, req.GetSlug())
-	if errors.Is(err, repo.ErrNotFound) {
-		return nil, status.Error(codes.NotFound, "playtest not found")
+	if e := mapPlaytestLookupErr(err, playtestSoftDelete(pt), "fetching playtest"); e != nil {
+		return nil, e
 	}
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "fetching playtest: %v", err)
-	}
-	if pt.DeletedAt != nil || pt.Status == statusDraft {
+	if pt.Status == statusDraft {
 		return nil, status.Error(codes.NotFound, "playtest not found")
 	}
 
@@ -162,13 +156,10 @@ func (s *PlaytesthubServiceServer) AcceptNDA(ctx context.Context, req *pb.Accept
 	}
 
 	pt, err := s.playtest.GetByID(ctx, s.namespace, playtestID)
-	if errors.Is(err, repo.ErrNotFound) {
-		return nil, status.Error(codes.NotFound, "playtest not found")
+	if e := mapPlaytestLookupErr(err, playtestSoftDelete(pt), "fetching playtest"); e != nil {
+		return nil, e
 	}
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "fetching playtest: %v", err)
-	}
-	if pt.DeletedAt != nil || pt.Status == statusDraft {
+	if pt.Status == statusDraft {
 		return nil, status.Error(codes.NotFound, "playtest not found")
 	}
 	if !pt.NDARequired {

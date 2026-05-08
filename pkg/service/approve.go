@@ -132,14 +132,8 @@ func (s *PlaytesthubServiceServer) resolveApproveContext(ctx context.Context, re
 // FailedPrecondition for DRAFT/CLOSED.
 func (s *PlaytesthubServiceServer) loadPlaytestForMutation(ctx context.Context, playtestID uuid.UUID) (*repo.Playtest, error) {
 	pt, err := s.playtest.GetByID(ctx, s.namespace, playtestID)
-	if errors.Is(err, repo.ErrNotFound) {
-		return nil, status.Error(codes.NotFound, "playtest not found")
-	}
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "fetching playtest: %v", err)
-	}
-	if pt.DeletedAt != nil {
-		return nil, status.Error(codes.NotFound, "playtest not found")
+	if e := mapPlaytestLookupErr(err, playtestSoftDelete(pt), "fetching playtest"); e != nil {
+		return nil, e
 	}
 	if pt.Status == statusDraft {
 		return nil, status.Error(codes.FailedPrecondition, errMsgPlaytestDraft)
@@ -238,14 +232,8 @@ func (s *PlaytesthubServiceServer) RejectApplicant(ctx context.Context, req *pb.
 	}
 
 	pt, err := s.playtest.GetByID(ctx, s.namespace, a.PlaytestID)
-	if errors.Is(err, repo.ErrNotFound) {
-		return nil, status.Error(codes.NotFound, "playtest not found")
-	}
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "fetching playtest: %v", err)
-	}
-	if pt.DeletedAt != nil {
-		return nil, status.Error(codes.NotFound, "playtest not found")
+	if e := mapPlaytestLookupErr(err, playtestSoftDelete(pt), "fetching playtest"); e != nil {
+		return nil, e
 	}
 	if pt.Status == statusDraft {
 		return nil, status.Error(codes.FailedPrecondition, errMsgPlaytestDraft)
@@ -309,14 +297,8 @@ func (s *PlaytesthubServiceServer) ListApplicants(ctx context.Context, req *pb.L
 	}
 
 	pt, err := s.playtest.GetByID(ctx, s.namespace, playtestID)
-	if errors.Is(err, repo.ErrNotFound) {
-		return nil, status.Error(codes.NotFound, "playtest not found")
-	}
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "fetching playtest: %v", err)
-	}
-	if pt.DeletedAt != nil {
-		return nil, status.Error(codes.NotFound, "playtest not found")
+	if e := mapPlaytestLookupErr(err, playtestSoftDelete(pt), "fetching playtest"); e != nil {
+		return nil, e
 	}
 
 	statusFilter := ""
@@ -368,13 +350,10 @@ func (s *PlaytesthubServiceServer) GetGrantedCode(ctx context.Context, req *pb.G
 	}
 
 	pt, err := s.playtest.GetByID(ctx, s.namespace, playtestID)
-	if errors.Is(err, repo.ErrNotFound) {
-		return nil, status.Error(codes.NotFound, "playtest not found")
+	if e := mapPlaytestLookupErr(err, playtestSoftDelete(pt), "fetching playtest"); e != nil {
+		return nil, e
 	}
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "fetching playtest: %v", err)
-	}
-	if pt.DeletedAt != nil || pt.Status == statusDraft {
+	if pt.Status == statusDraft {
 		return nil, status.Error(codes.NotFound, "playtest not found")
 	}
 

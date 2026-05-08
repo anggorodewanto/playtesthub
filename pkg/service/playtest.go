@@ -268,14 +268,8 @@ func (s *PlaytesthubServiceServer) EditPlaytest(ctx context.Context, req *pb.Edi
 	}
 
 	current, err := s.playtest.GetByID(ctx, s.namespace, id)
-	if errors.Is(err, repo.ErrNotFound) {
-		return nil, status.Error(codes.NotFound, "playtest not found")
-	}
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "fetching playtest: %v", err)
-	}
-	if current.DeletedAt != nil {
-		return nil, status.Error(codes.NotFound, "playtest not found")
+	if e := mapPlaytestLookupErr(err, playtestSoftDelete(current), "fetching playtest"); e != nil {
+		return nil, e
 	}
 
 	previousNDAText := current.NDAText
@@ -298,11 +292,8 @@ func (s *PlaytesthubServiceServer) EditPlaytest(ctx context.Context, req *pb.Edi
 	}
 
 	got, err := s.playtest.Update(ctx, current)
-	if errors.Is(err, repo.ErrNotFound) {
-		return nil, status.Error(codes.NotFound, "playtest not found")
-	}
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "updating playtest: %v", err)
+	if e := mapPlaytestLookupErr(err, nil, "updating playtest"); e != nil {
+		return nil, e
 	}
 	// PRD §5.3 / schema.md L42: NDA-text edits are the one audit row
 	// where the full free-text payload is intentionally preserved (every
@@ -331,10 +322,9 @@ func (s *PlaytesthubServiceServer) SoftDeletePlaytest(ctx context.Context, req *
 		return nil, err
 	}
 	if err := s.playtest.SoftDelete(ctx, s.namespace, id); err != nil {
-		if errors.Is(err, repo.ErrNotFound) {
-			return nil, status.Error(codes.NotFound, "playtest not found")
+		if e := mapPlaytestLookupErr(err, nil, "soft-deleting playtest"); e != nil {
+			return nil, e
 		}
-		return nil, status.Errorf(codes.Internal, "soft-deleting playtest: %v", err)
 	}
 	return &pb.SoftDeletePlaytestResponse{}, nil
 }
@@ -359,14 +349,8 @@ func (s *PlaytesthubServiceServer) TransitionPlaytestStatus(ctx context.Context,
 	}
 
 	current, err := s.playtest.GetByID(ctx, s.namespace, id)
-	if errors.Is(err, repo.ErrNotFound) {
-		return nil, status.Error(codes.NotFound, "playtest not found")
-	}
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "fetching playtest: %v", err)
-	}
-	if current.DeletedAt != nil {
-		return nil, status.Error(codes.NotFound, "playtest not found")
+	if e := mapPlaytestLookupErr(err, playtestSoftDelete(current), "fetching playtest"); e != nil {
+		return nil, e
 	}
 	if !isValidTransition(current.Status, target) {
 		return nil, status.Errorf(codes.FailedPrecondition, "transition %s → %s is not allowed (PRD §5.1: DRAFT → OPEN → CLOSED only)", current.Status, target)
@@ -397,11 +381,8 @@ func (s *PlaytesthubServiceServer) AdminGetPlaytest(ctx context.Context, req *pb
 		return nil, err
 	}
 	got, err := s.playtest.GetByID(ctx, s.namespace, id)
-	if errors.Is(err, repo.ErrNotFound) {
-		return nil, status.Error(codes.NotFound, "playtest not found")
-	}
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "fetching playtest: %v", err)
+	if e := mapPlaytestLookupErr(err, nil, "fetching playtest"); e != nil {
+		return nil, e
 	}
 	return &pb.AdminGetPlaytestResponse{Playtest: playtestToProto(got)}, nil
 }
@@ -432,13 +413,10 @@ func (s *PlaytesthubServiceServer) ListPlaytests(ctx context.Context, req *pb.Li
 // PRD §5.1 visibility — all return NotFound.
 func (s *PlaytesthubServiceServer) GetPublicPlaytest(ctx context.Context, req *pb.GetPublicPlaytestRequest) (*pb.GetPublicPlaytestResponse, error) {
 	got, err := s.playtest.GetBySlug(ctx, s.namespace, req.GetSlug())
-	if errors.Is(err, repo.ErrNotFound) {
-		return nil, status.Error(codes.NotFound, "playtest not found")
+	if e := mapPlaytestLookupErr(err, playtestSoftDelete(got), "fetching playtest"); e != nil {
+		return nil, e
 	}
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "fetching playtest: %v", err)
-	}
-	if got.DeletedAt != nil || got.Status != statusOpen {
+	if got.Status != statusOpen {
 		return nil, status.Error(codes.NotFound, "playtest not found")
 	}
 	return &pb.GetPublicPlaytestResponse{Playtest: playtestToPublic(got)}, nil
@@ -453,13 +431,10 @@ func (s *PlaytesthubServiceServer) GetPlaytestForPlayer(ctx context.Context, req
 		return nil, err
 	}
 	got, err := s.playtest.GetBySlug(ctx, s.namespace, req.GetSlug())
-	if errors.Is(err, repo.ErrNotFound) {
-		return nil, status.Error(codes.NotFound, "playtest not found")
+	if e := mapPlaytestLookupErr(err, playtestSoftDelete(got), "fetching playtest"); e != nil {
+		return nil, e
 	}
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "fetching playtest: %v", err)
-	}
-	if got.DeletedAt != nil || got.Status == statusDraft {
+	if got.Status == statusDraft {
 		return nil, status.Error(codes.NotFound, "playtest not found")
 	}
 	if got.Status == statusClosed {

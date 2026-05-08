@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"errors"
 
 	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
@@ -150,14 +149,8 @@ func (s *PlaytesthubServiceServer) requireAGSCodePathWired() error {
 // auto-provisioning).
 func (s *PlaytesthubServiceServer) loadAGSCampaignPlaytest(ctx context.Context, playtestID uuid.UUID) (*repo.Playtest, error) {
 	pt, err := s.playtest.GetByID(ctx, s.namespace, playtestID)
-	if errors.Is(err, repo.ErrNotFound) {
-		return nil, status.Error(codes.NotFound, "playtest not found")
-	}
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "fetching playtest: %v", err)
-	}
-	if pt.DeletedAt != nil {
-		return nil, status.Error(codes.NotFound, "playtest not found")
+	if e := mapPlaytestLookupErr(err, playtestSoftDelete(pt), "fetching playtest"); e != nil {
+		return nil, e
 	}
 	if pt.DistributionModel != distModelAGSCampaign {
 		return nil, status.Error(codes.FailedPrecondition,
