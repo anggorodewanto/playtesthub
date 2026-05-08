@@ -117,11 +117,45 @@ func (m *manualTicker) tick() {
 	m.ch <- time.Now()
 }
 
+// virtualClock lets tests advance simulated time so the
+// ReclaimInterval gate inside Worker.tick can be exercised
+// deterministically (the heartbeat-only-this-tick branch fires only
+// when (clock - lastReclaimAt) < ReclaimInterval).
+type virtualClock struct {
+	mu  sync.Mutex
+	now time.Time
+}
+
+func newVirtualClock() *virtualClock {
+	return &virtualClock{now: time.Now()}
+}
+
+func (c *virtualClock) Now() time.Time {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.now
+}
+
+func (c *virtualClock) Advance(d time.Duration) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.now = c.now.Add(d)
+}
+
 func newWorker(t *testing.T, cfg Config, leases repo.LeaderStore, codes Reclaimer, mt *manualTicker, buf *bytes.Buffer) *Worker {
 	t.Helper()
 	logger := slog.New(slog.NewJSONHandler(buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
 	w := New(cfg, leases, codes, logger)
 	w.ticker = mt.factory()
+	return w
+}
+
+// newWorkerWithClock is a variant that wires a virtualClock so the
+// test can drive Worker.lastReclaimAt deterministically.
+func newWorkerWithClock(t *testing.T, cfg Config, leases repo.LeaderStore, codes Reclaimer, mt *manualTicker, buf *bytes.Buffer, vc *virtualClock) *Worker {
+	t.Helper()
+	w := newWorker(t, cfg, leases, codes, mt, buf)
+	w.clock = vc.Now
 	return w
 }
 
@@ -252,7 +286,8 @@ func TestWorker_ReclaimErrorLoggedButLoopContinues(t *testing.T) {
 	codes := &fakeReclaimer{reclaimErr: errors.New("connection refused")}
 	mt := newManualTicker()
 	buf := &bytes.Buffer{}
-	w := newWorker(t, defaultCfg(), leases, codes, mt, buf)
+	vc := newVirtualClock()
+	w := newWorkerWithClock(t, defaultCfg(), leases, codes, mt, buf, vc)
 
 	stop := runWorkerInBackground(t, w)
 	defer stop()
@@ -267,7 +302,11 @@ func TestWorker_ReclaimErrorLoggedButLoopContinues(t *testing.T) {
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
-	mt.tick() // a second tick must still run
+	// Advance virtual time past ReclaimInterval so the second tick
+	// crosses the sweep gate; without this the heartbeat-only branch
+	// would skip Reclaim and the test would hang.
+	vc.Advance(defaultCfg().ReclaimInterval + time.Second)
+	mt.tick()
 
 	for i := 0; i < 50; i++ {
 		codes.mu.Lock()
@@ -286,5 +325,54 @@ func TestWorker_ReclaimErrorLoggedButLoopContinues(t *testing.T) {
 	}
 	if !strings.Contains(buf.String(), "reclaim sweep failed") {
 		t.Errorf("expected error log; got %s", buf.String())
+	}
+}
+
+// Heartbeat-only tick: between sweep windows, ticks must refresh the
+// lease but skip Reclaim. Advancing the virtual clock by less than
+// ReclaimInterval after the first tick guarantees the second tick
+// stays in the heartbeat-only branch — proves the new sweep gate
+// honours PRD §5.9's 30s cadence even when the underlying ticker
+// fires at the 10s heartbeat cadence.
+func TestWorker_HeartbeatOnlyTick_SkipsReclaimWithinInterval(t *testing.T) {
+	leases := &fakeLeaseStore{}
+	codes := &fakeReclaimer{released: 1}
+	mt := newManualTicker()
+	buf := &bytes.Buffer{}
+	vc := newVirtualClock()
+	cfg := defaultCfg()
+	w := newWorkerWithClock(t, cfg, leases, codes, mt, buf, vc)
+
+	stop := runWorkerInBackground(t, w)
+	defer stop()
+
+	mt.tick()
+	for i := 0; i < 50; i++ {
+		codes.mu.Lock()
+		c := codes.reclaimCalls
+		codes.mu.Unlock()
+		if c >= 1 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	// Heartbeat-only window: advance < ReclaimInterval and tick again.
+	vc.Advance(cfg.HeartbeatInterval) // 10s, well under 30s
+	mt.tick()
+	time.Sleep(50 * time.Millisecond) // give the goroutine time to process
+
+	leases.mu.Lock()
+	heartbeats := leases.refreshCalls
+	leases.mu.Unlock()
+	codes.mu.Lock()
+	reclaims := codes.reclaimCalls
+	codes.mu.Unlock()
+
+	if reclaims != 1 {
+		t.Errorf("reclaim ran inside the heartbeat window: reclaimCalls=%d, want 1", reclaims)
+	}
+	if heartbeats < 2 {
+		t.Errorf("heartbeat did not run on the second tick: refreshCalls=%d, want >=2", heartbeats)
 	}
 }

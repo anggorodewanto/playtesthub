@@ -74,6 +74,12 @@ type Worker struct {
 	clock   func() time.Time
 	ticker  func(d time.Duration) (<-chan time.Time, func())
 	leading bool
+
+	// lastReclaimAt gates the sweep cadence so a single ticker can
+	// drive both heartbeats (every HeartbeatInterval) and reclaim
+	// sweeps (every ReclaimInterval). Zero value means "never swept",
+	// so the first leader tick always reclaims.
+	lastReclaimAt time.Time
 }
 
 // New constructs a Worker. logger may be nil — the loop falls back to
@@ -116,8 +122,9 @@ func (w *Worker) Run(ctx context.Context) error {
 	}
 }
 
-// tick performs one iteration: leaders heartbeat + sweep, followers
-// race for the lease.
+// tick performs one iteration: leaders heartbeat every tick, but only
+// run the sweep when ReclaimInterval has elapsed since the previous
+// sweep. Followers race for the lease.
 func (w *Worker) tick(ctx context.Context) {
 	if !w.leading {
 		w.tryAcquire(ctx)
@@ -129,6 +136,13 @@ func (w *Worker) tick(ctx context.Context) {
 		// Lost lease; do nothing this tick. Next tick re-tries.
 		return
 	}
+	now := w.clock()
+	if !w.lastReclaimAt.IsZero() && now.Sub(w.lastReclaimAt) < w.cfg.ReclaimInterval {
+		// Heartbeat-only tick: lease is fresh, but the sweep cadence
+		// hasn't elapsed yet. PRD §5.9 fixes ReclaimInterval at 30s.
+		return
+	}
+	w.lastReclaimAt = now
 	released, err := w.codes.Reclaim(ctx, w.cfg.ReservationTTL)
 	if err != nil {
 		w.logger.LogAttrs(ctx, slog.LevelWarn, "reclaim sweep failed",
@@ -204,17 +218,11 @@ func (w *Worker) releaseIfLeading(ctx context.Context) {
 	w.leading = false
 }
 
-// tickPeriod selects the ticker interval. ReclaimInterval drives the
-// sweep cadence; HeartbeatInterval is enforced inside tick() because
-// the heartbeat piggybacks on the same tick (PRD §5.9 ratios make the
-// two compatible — heartbeat 10s, reclaim 30s, lease 30s).
-//
-// To honour both cadences with a single ticker the worker fires at
-// the GCD of the two; for the PRD defaults (10s / 30s) that is 10s,
-// so heartbeats happen every tick and the sweep runs on every third.
-// Currently we collapse the two by ticking at HeartbeatInterval and
-// running the sweep every tick — Reclaim is a single UPDATE, so a
-// 3× higher cadence is fine. A future enhancement could split.
+// tickPeriod selects the ticker interval. The worker fires at
+// HeartbeatInterval so the lease stays fresh on every tick; the sweep
+// cadence (ReclaimInterval) is enforced inside tick() via
+// w.lastReclaimAt so a single ticker can serve both. Falls back to
+// ReclaimInterval if HeartbeatInterval is unset.
 func tickPeriod(cfg Config) time.Duration {
 	if cfg.HeartbeatInterval <= 0 {
 		return cfg.ReclaimInterval
