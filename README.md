@@ -6,6 +6,8 @@ Players apply for a slot, click-accept the NDA, get a code (Steam key or AGS Cam
 
 Built for indie and mid-size studios that already use AGS and need tenant-isolated playtest tooling they can own, audit, and self-host inside their own namespace — without rolling the same signup → NDA → key → feedback plumbing every release.
 
+![playtesthub end-to-end walkthrough — admin creates a playtest, player signs up, admin approves, code is granted, player submits a survey response, admin reviews the audit log](docs/images/walkthrough.gif)
+
 ## What's in the box
 
 - **Two distribution models** per playtest — `STEAM_KEYS` (CSV passthrough, manual Steam redemption) and `AGS_CAMPAIGN` (in-game redemption via the AGS Platform Campaign API). One internal code pool and state machine for both.
