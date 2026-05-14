@@ -52,6 +52,7 @@ flowchart LR
 | [`docs/cli.md`](docs/cli.md) | `pth` CLI spec — surface for humans + AI to drive the app end-to-end. |
 | [`docs/dm-queue.md`](docs/dm-queue.md) | DM worker FIFO, circuit breaker, restart sweep. |
 | [`docs/ags-failure-modes.md`](docs/ags-failure-modes.md) | AGS retry policy, cleanup matrix, M2 sub-cap rules. |
+| [`docs/game-integration.md`](docs/game-integration.md) | Bridging playtesthub's Discord-headless AGS user to the game's Steam-headless AGS user. |
 
 ## Quick start
 
@@ -185,6 +186,10 @@ Three deployable surfaces. Each has its own host and its own runbook.
 3. **Admin UI (Extend App UI)** — React Module Federation remote hosted by AccelByte. `extend-helper-cli appui create` + `appui upload` (Internal Shared Cloud only today — see [`docs/engineering.md` §8](docs/engineering.md#8-temporary-ags-platform-workarounds)).
 
 For first-time AGS + Discord setup (IAM client, platform credential, redirect URIs), follow [`docs/runbooks/setup-ags-discord.md`](docs/runbooks/setup-ags-discord.md) before any of the above.
+
+## Integrating with your game
+
+playtesthub identifies players by their **Discord-federated** AGS user; the game probably identifies them by their **Steam-federated** AGS user. AGS IAM treats those as two separate headless accounts, so the same human ends up with two different AGS userIds unless the integration explicitly bridges them. [`docs/game-integration.md`](docs/game-integration.md) covers the four patterns a game team can pick from — recommended path is a one-time Discord-OAuth gate on first launch that links Steam onto the playtesthub-side account.
 
 ## Contributing
 
