@@ -1,5 +1,15 @@
 # playtesthub — Full Version History
 
+## v2.4 — 2026-05-19
+
+**Auto-approve at signup time (M5 Track A scope freeze)**:
+- §5.1 — Playtest gains two new fields: `autoApprove` (`BOOLEAN NOT NULL DEFAULT FALSE`) and `autoApproveLimit` (nullable `INTEGER` 1–100,000; required when `autoApprove=true`). Both are added to the `EditPlaytest` editable whitelist so operators can flip the toggle or retune the cap mid-playtest without recreating the playtest. Distribution-model-agnostic: works for STEAM_KEYS and AGS_CAMPAIGN today; will work for ADT (M5.B) once that track lands.
+- §5.4 — new "Auto-approve" subsection covers: cap semantics (`autoApproveLimit` bounds **auto-approvals only**; manual `ApproveApplicant` stays uncapped); concurrency model (per-playtest `pg_advisory_xact_lock` in the signup tx, reusing the existing M2 reserve → fenced finalize → CAS primitives verbatim); pool-empty fallback (auto-approve silently falls through to `PENDING` when the pool is empty — signup itself still returns success); interaction with `RetryFailedDms` (auto-approve misses are PENDING, not DM-failed — manual approve / pool restock is the recovery, not `RetryFailedDms`); system-attributed audit trail.
+- `schema.md` — Applicant gains an `autoApproved BOOLEAN NOT NULL DEFAULT FALSE` column (admin-visible only) so the auto-approve cap predicate has an unambiguous count source. New `applicant.auto_approved` `AuditLog` action — system-emitted (`actorUserId = NULL`), records `{applicantId, autoApprovedAt, codeId? (NULL when no code pool)}`, never the raw code value. Distinct from `applicant.approve` so audit-log filters cleanly separate manual vs auto attribution.
+- `errors.md` — new `InvalidArgument` row for `CreatePlaytest` / `EditPlaytest` when `auto_approve=true` and `auto_approve_limit` is NULL or out of bounds (byte-exact: `auto_approve_limit must be between 1 and 100000 when auto_approve is true`).
+- M5 build plan tracked in [`STATUS_M5.md`](STATUS_M5.md). Track A (auto-approve) ships first; Track B (ADT distribution) is gated on ADT-eng API answers and stays parked behind STATUS_M5.md open questions §1–4.
+- **Backwards compatibility note**: all existing M1–M4 playtests default to `autoApprove=false`; behavior is unchanged for every existing playtest until an admin opts in via the new toggle. Manual approve is unaffected — auto-approve plumbs through the same primitives.
+
 ## v2.3 — 2026-05-19
 
 **Playtest window enforcement (`startsAt` / `endsAt` are no longer display-only)**:

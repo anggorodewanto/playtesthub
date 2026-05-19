@@ -43,6 +43,7 @@ The full set of audited admin actions in MVP. Each row's `before` and `after` JS
 - `playtest.soft_delete` — `deletedAt` set.
 - `playtest.status_transition` — `DRAFT → OPEN` or `OPEN → CLOSED`; `before`/`after` record the status values. `actorUserId` is the admin user id when the transition is driven by `TransitionPlaytestStatus`, and **NULL (system-emitted)** when driven by the `internal/window/` worker hitting a configured `startsAt` / `endsAt` boundary (PRD §5.1 "Window-driven auto-transition").
 - `applicant.approve` — records `{applicantId, grantedCodeId}`. **The raw code value is never written to the audit log** (cross-reference PRD §6 Observability log-redaction policy — code values are forbidden in logs, and this table carries the same prohibition for code values).
+- `applicant.auto_approved` — records `{applicantId, autoApprovedAt, codeId? (present for STEAM_KEYS / AGS_CAMPAIGN; NULL when no code pool — reserved for M5.B ADT)}`. Written by the signup-time auto-approve path (PRD §5.4 "Auto-approve") when the playtest has `autoApprove=true` and the cap check + reserve → fenced finalize chain succeeds. **System-emitted** (`actorUserId = NULL`) — auto-approval is not attributed to any individual admin. **Distinct from `applicant.approve`** so audit-log filters can separate manual vs auto attribution; a successful auto-approve writes exactly one `applicant.auto_approved` row and **no** `applicant.approve` row. **Raw code value is never written** (same redaction rule as `applicant.approve`).
 - `applicant.reject` — records `{applicantId, rejectionReason}`.
 - `applicant.dm_failed` — written when the Discord DM send fails; records `{applicantId, error (truncated to 500 chars, byte-truncation preserving valid UTF-8 codepoint boundaries), attemptAt}`. See PRD §4.1 step 6d and §5. **System-emitted**.
 - `dm.circuit_opened` — written when the DM circuit breaker trips (50 consecutive failures within 60s); records `{trippedAt, recentFailureCount}`. See `dm-queue.md`. **System-emitted**.
@@ -79,13 +80,14 @@ Applicant {
   lastDmStatus      ENUM         // sent | failed | null
   lastDmAttemptAt   TIMESTAMP?
   lastDmError       TEXT?        // byte-truncated to 500 chars preserving valid UTF-8 codepoint boundaries
+  autoApproved      BOOLEAN      // NOT NULL DEFAULT FALSE — true iff this applicant was approved by the M5.A auto-approve path (Playtest.autoApprove=true at signup, under cap). Distinct from manual ApproveApplicant which leaves this false. Drives the autoApproveLimit count predicate in PRD §5.4 "Auto-approve".
   createdAt         TIMESTAMP
 }
 ```
 
 **Admin-visible fields** (returned by `ListApplicants` / `GetApplicantStatus` when caller is admin): all fields above.
 
-**Player-visible fields** (returned by `GetApplicantStatus` when caller is the applicant themselves): `status`, `grantedCodeId` (presence only — value retrieved via `GetGrantedCode`), `approvedAt`, `ndaVersionHash` (for the §5.3 re-accept client-side check). **Not visible to the player**: `rejectionReason`, `lastDmStatus`, `lastDmAttemptAt`, `lastDmError`, `discordHandle`, `platforms`.
+**Player-visible fields** (returned by `GetApplicantStatus` when caller is the applicant themselves): `status`, `grantedCodeId` (presence only — value retrieved via `GetGrantedCode`), `approvedAt`, `ndaVersionHash` (for the §5.3 re-accept client-side check). **Not visible to the player**: `rejectionReason`, `lastDmStatus`, `lastDmAttemptAt`, `lastDmError`, `discordHandle`, `platforms`, `autoApproved`.
 
 ---
 
