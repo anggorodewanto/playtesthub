@@ -42,8 +42,8 @@ The full set of audited admin actions in MVP. Each row's `before` and `after` JS
 - `nda.edit` — `ndaText` change; `before`/`after` store the **full old and new NDA text**.
 - `playtest.soft_delete` — `deletedAt` set.
 - `playtest.status_transition` — `DRAFT → OPEN` or `OPEN → CLOSED`; `before`/`after` record the status values. `actorUserId` is the admin user id when the transition is driven by `TransitionPlaytestStatus`, and **NULL (system-emitted)** when driven by the `internal/window/` worker hitting a configured `startsAt` / `endsAt` boundary (PRD §5.1 "Window-driven auto-transition").
-- `applicant.approve` — records `{applicantId, grantedCodeId}`. **The raw code value is never written to the audit log** (cross-reference PRD §6 Observability log-redaction policy — code values are forbidden in logs, and this table carries the same prohibition for code values).
-- `applicant.auto_approved` — records `{applicantId, autoApprovedAt, codeId? (present for STEAM_KEYS / AGS_CAMPAIGN; NULL when no code pool — reserved for M5.B ADT)}`. Written by the signup-time auto-approve path (PRD §5.4 "Auto-approve") when the playtest has `autoApprove=true` and the cap check + reserve → fenced finalize chain succeeds. **System-emitted** (`actorUserId = NULL`) — auto-approval is not attributed to any individual admin. **Distinct from `applicant.approve`** so audit-log filters can separate manual vs auto attribution; a successful auto-approve writes exactly one `applicant.auto_approved` row and **no** `applicant.approve` row. **Raw code value is never written** (same redaction rule as `applicant.approve`).
+- `applicant.approve` — records `{applicantId, grantedCodeId?, adtUrl?, adtUrlSource?}`. For STEAM_KEYS / AGS_CAMPAIGN playtests `grantedCodeId` is populated and `adtUrl` / `adtUrlSource` are absent; for ADT playtests `grantedCodeId` is absent and `adtUrl` + `adtUrlSource` (`'adt' | 'fallback'`) are populated (PRD §4.8.3). **The raw code value is never written to the audit log** (cross-reference PRD §6 Observability log-redaction policy — code values are forbidden in logs, and this table carries the same prohibition for code values). **The ADT download URL IS written** — URLs ≠ codes; forensics require the URL surface to investigate per-applicant download issues.
+- `applicant.auto_approved` — records `{applicantId, autoApprovedAt, codeId? (present for STEAM_KEYS / AGS_CAMPAIGN; NULL for ADT — there is no `Code` row to reference), adtUrl? (present for ADT only; the per-applicant or fallback download URL minted at auto-approve time), adtUrlSource? (`'adt' | 'fallback'`; present for ADT only)}`. Written by the signup-time auto-approve path (PRD §5.4 "Auto-approve") when the playtest has `autoApprove=true` and the cap check + grant chain (reserve → fenced finalize for STEAM_KEYS / AGS_CAMPAIGN; `IssueDownloadURL` or static-fallback resolution for ADT — PRD §4.8.3) succeeds. **System-emitted** (`actorUserId = NULL`) — auto-approval is not attributed to any individual admin. **Distinct from `applicant.approve`** so audit-log filters can separate manual vs auto attribution; a successful auto-approve writes exactly one `applicant.auto_approved` row and **no** `applicant.approve` row. **Raw code value is never written** (same redaction rule as `applicant.approve`). **URL is NOT redacted** — URLs ≠ codes (PRD §4.8.3).
 - `applicant.reject` — records `{applicantId, rejectionReason}`.
 - `applicant.dm_failed` — written when the Discord DM send fails; records `{applicantId, error (truncated to 500 chars, byte-truncation preserving valid UTF-8 codepoint boundaries), attemptAt}`. See PRD §4.1 step 6d and §5. **System-emitted**.
 - `dm.circuit_opened` — written when the DM circuit breaker trips (50 consecutive failures within 60s); records `{trippedAt, recentFailureCount}`. See `dm-queue.md`. **System-emitted**.
@@ -58,6 +58,8 @@ The full set of audited admin actions in MVP. Each row's `before` and `after` JS
 - `campaign.generate_codes_failed` — written on failed code generation, covering **both initial generation failure (at playtest creation) and top-up failure**; records `{agsCampaignId, requestedQuantity, error}`. **System-emitted**.
 - `survey.create` — written when a survey is first created for a playtest; records `{playtestId, surveyId, questionCount}`. **System-emitted**.
 - `survey.edit` — records the **full before/after question set**. Intentional — survey questions are not secret, and full diffs are the accountability mechanism for survey changes.
+- `adt_linkage.create` — written when `CompleteADTLink` successfully inserts an `adt_linkage` row (PRD §4.8.2). Records `{adtLinkageId, studioNamespace, adtNamespace, linkedBy}` — identity columns only; **no credential payload exists to leak** (the linking flow exchanges no credential — auth to ADT on every subsequent API call is the AGS service IAM JWT; PRD §4.8). **Admin-attributed**: `actorUserId` = the admin who completed the link (recovered from the `adt_link_pending.started_by_user_id` column at commit time).
+- `adt_linkage.delete` — written when `UnlinkADT` soft-deletes an `adt_linkage` row (PRD §4.8). Records `{adtLinkageId, studioNamespace, adtNamespace}`. **Admin-attributed**: `actorUserId` = the admin who called the RPC. Idempotent on the audit side too — a second `UnlinkADT` against an already-deleted linkage is a no-op and writes no row.
 
 ---
 
@@ -144,6 +146,45 @@ leader_lease {
   expiresAt    TIMESTAMP  // short TTL, refreshed by the active leader
 }
 ```
+
+---
+
+## adt_linkage table
+
+Identity row for a successful studio ↔ ADT-namespace link. See PRD §4.8 for the linking flow and the no-credential-storage rationale.
+
+```
+adt_linkage {
+  id                 UUID PK
+  studio_namespace   TEXT NOT NULL    // derived server-side from the admin's AGS token (union_namespace ?? namespace)
+  adt_namespace      TEXT NOT NULL    // echoed by ADT on the redirect-back URL; validated indirectly via subsequent ADT API calls
+  linked_by_user_id  UUID NOT NULL    // AGS user id of the admin who completed the link
+  linked_at          TIMESTAMP NOT NULL
+  deleted_at         TIMESTAMP?       // soft-delete set by UnlinkADT; row preserved for audit chain integrity
+
+  UNIQUE (studio_namespace, adt_namespace) WHERE deleted_at IS NULL
+  -- partial unique index so a studio can re-link the same adt_namespace after unlink (the old row stays for audit)
+}
+```
+
+**Identity-only row by design**: no `adt_credential_*` columns, no ciphertext, no KEK version. Every ADT API call from playtesthub is authed by minting a fresh AGS service IAM JWT (existing `AGS_IAM_CLIENT_*` env vars) and sending it as `Authorization: Bearer …` — ADT validates against AGS IAM JWKS and reads studio identity from `iss` / `union_namespace` claims (PRD §4.8.2). Migration unit tests assert the absence of any `adt_credential_*` column as a regression canary against future drift.
+
+---
+
+## adt_link_pending table
+
+Short-lived nonce store for the linking redirect round-trip (PRD §4.8.2). One row per in-flight `StartADTLink` call; consumed by the matching `CompleteADTLink` or swept after `ADT_LINKAGE_PENDING_TTL_SECONDS` (default 600).
+
+```
+adt_link_pending {
+  state                 TEXT PK         // 32-byte CSRF-style nonce, base64-encoded; carried by the redirect through ADT and back
+  studio_namespace      TEXT NOT NULL
+  started_by_user_id    UUID NOT NULL   // AGS user id of the admin who clicked Proceed
+  expires_at            TIMESTAMP NOT NULL
+}
+```
+
+**Sweep policy**: each `CompleteADTLink` call runs an inline `DELETE FROM adt_link_pending WHERE expires_at < now()` to keep the table small (no background sweeper needed at this cardinality). `state` is single-use — `CompleteADTLink` consumes the row on success.
 
 ---
 
