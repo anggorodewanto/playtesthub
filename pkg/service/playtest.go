@@ -198,6 +198,9 @@ func (s *PlaytesthubServiceServer) CreatePlaytest(ctx context.Context, req *pb.C
 	if err := validateWindow(startsAt, endsAt); err != nil {
 		return nil, err
 	}
+	if err := validateAutoApprove(req.GetAutoApprove(), req.AutoApproveLimit); err != nil {
+		return nil, err
+	}
 	platforms, err := platformsToStrings(req.GetPlatforms())
 	if err != nil {
 		return nil, wrapPlatformsErr(err)
@@ -234,6 +237,8 @@ func (s *PlaytesthubServiceServer) CreatePlaytest(ctx context.Context, req *pb.C
 		NDAText:               req.GetNdaText(),
 		CurrentNDAVersionHash: ndaHash,
 		DistributionModel:     distModel,
+		AutoApprove:           req.GetAutoApprove(),
+		AutoApproveLimit:      req.AutoApproveLimit,
 	}
 
 	if distModel == distModelAGSCampaign {
@@ -293,6 +298,9 @@ func (s *PlaytesthubServiceServer) EditPlaytest(ctx context.Context, req *pb.Edi
 	if err := validateWindow(startsAt, endsAt); err != nil {
 		return nil, err
 	}
+	if err := validateAutoApprove(req.GetAutoApprove(), req.AutoApproveLimit); err != nil {
+		return nil, err
+	}
 	platforms, err := platformsToStrings(req.GetPlatforms())
 	if err != nil {
 		return nil, wrapPlatformsErr(err)
@@ -313,6 +321,8 @@ func (s *PlaytesthubServiceServer) EditPlaytest(ctx context.Context, req *pb.Edi
 	current.StartsAt = startsAt
 	current.EndsAt = endsAt
 	current.NDARequired = req.GetNdaRequired()
+	current.AutoApprove = req.GetAutoApprove()
+	current.AutoApproveLimit = req.AutoApproveLimit
 	// PRD §5.3: changing NDA text forces every approved applicant back
 	// to re-accept. Only recompute the version hash when the text has
 	// actually changed so clients can edit cosmetic fields without
@@ -570,6 +580,11 @@ func playtestToProto(p *repo.Playtest) *pb.Playtest {
 	if p.InitialCodeQuantity != nil {
 		v := *p.InitialCodeQuantity
 		out.InitialCodeQuantity = &v
+	}
+	out.AutoApprove = p.AutoApprove
+	if p.AutoApproveLimit != nil {
+		v := *p.AutoApproveLimit
+		out.AutoApproveLimit = &v
 	}
 	if p.DeletedAt != nil {
 		out.DeletedAt = timestamppb.New(*p.DeletedAt)

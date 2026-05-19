@@ -51,7 +51,12 @@ type Applicant struct {
 	LastDMStatus    *string
 	LastDMAttemptAt *time.Time
 	LastDMError     *string
-	CreatedAt       time.Time
+	// AutoApproved is true when this applicant was promoted via the
+	// auto-approve signup chain (PRD §5.4 / M5.A) rather than a manual
+	// ApproveApplicant click. Used by the cap query in Signup to count
+	// existing auto-approvals against playtest.auto_approve_limit.
+	AutoApproved bool
+	CreatedAt    time.Time
 }
 
 // ApplicantPage carries one page of applicant rows + the opaque cursor
@@ -97,7 +102,17 @@ type ApplicantStore interface {
 	// either both rows commit or neither does. Returns
 	// ErrStatusCASMismatch when the row is no longer PENDING (the
 	// "applicant already approved" race per errors.md row 11).
-	ApproveCAS(ctx context.Context, q Querier, applicantID, codeID uuid.UUID, approvedAt time.Time) (*Applicant, error)
+	// autoApproved sets applicant.auto_approved=true when the approve
+	// flows through the M5.A signup-chain path; false leaves the column
+	// at its DEFAULT (false) for manual ApproveApplicant clicks.
+	ApproveCAS(ctx context.Context, q Querier, applicantID, codeID uuid.UUID, approvedAt time.Time, autoApproved bool) (*Applicant, error)
+	// CountAutoApprovedByPlaytest returns the count of applicants where
+	// auto_approved=true for the playtest. Runs inside the caller's
+	// transaction so the playtest-scoped advisory lock the signup tx
+	// holds serialises concurrent auto-approve attempts (PRD §5.4 /
+	// M5.A). Backed by applicant_auto_approved_count_idx (migration
+	// 0005).
+	CountAutoApprovedByPlaytest(ctx context.Context, q Querier, playtestID uuid.UUID) (int, error)
 	// RejectCAS is the terminal PENDING → REJECTED transition (PRD
 	// §5.4). The reason is the admin-supplied free-text per errors.md;
 	// nil rejects without a reason.
@@ -138,7 +153,7 @@ const applicantColumns = `
 	id, playtest_id, user_id, discord_handle, discord_user_id, platforms,
 	nda_version_hash, status, granted_code_id, approved_at,
 	rejection_reason, last_dm_status, last_dm_attempt_at,
-	last_dm_error, created_at`
+	last_dm_error, auto_approved, created_at`
 
 // Insert creates an applicant row. Hits the UNIQUE (playtest_id,
 // user_id) index on re-signup; the service layer (phase 7) is expected
@@ -362,18 +377,22 @@ func (s *PgApplicantStore) UpdateStatus(ctx context.Context, a *Applicant) (*App
 // ApproveCAS runs inside the caller's transaction. The CAS is the
 // status='PENDING' guard — when two admins click Approve on the same
 // row, only one UPDATE returns a row; the other gets pgx.ErrNoRows
-// surfaced as ErrStatusCASMismatch.
-func (s *PgApplicantStore) ApproveCAS(ctx context.Context, q Querier, applicantID, codeID uuid.UUID, approvedAt time.Time) (*Applicant, error) {
+// surfaced as ErrStatusCASMismatch. autoApproved is propagated to the
+// applicant.auto_approved column so M5.A's signup-chain promotions are
+// distinguishable from manual ApproveApplicant clicks (the cap query
+// counts only auto_approved=true rows).
+func (s *PgApplicantStore) ApproveCAS(ctx context.Context, q Querier, applicantID, codeID uuid.UUID, approvedAt time.Time, autoApproved bool) (*Applicant, error) {
 	const sql = `
 		UPDATE applicant
 		   SET status = 'APPROVED',
 		       granted_code_id = $2,
-		       approved_at = $3
+		       approved_at = $3,
+		       auto_approved = $4
 		 WHERE id = $1
 		   AND status = 'PENDING'
 		RETURNING ` + applicantColumns
 
-	row := q.QueryRow(ctx, sql, applicantID, codeID, approvedAt)
+	row := q.QueryRow(ctx, sql, applicantID, codeID, approvedAt, autoApproved)
 	got, err := scanApplicant(row)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrStatusCASMismatch
@@ -382,6 +401,19 @@ func (s *PgApplicantStore) ApproveCAS(ctx context.Context, q Querier, applicantI
 		return nil, fmt.Errorf("approving applicant: %w", classifyPgError(err))
 	}
 	return got, nil
+}
+
+// CountAutoApprovedByPlaytest returns the number of applicants for the
+// playtest whose auto_approved column is true. Runs inside the
+// caller's transaction so the M5.A signup advisory lock serialises
+// concurrent cap checks. Backed by applicant_auto_approved_count_idx.
+func (s *PgApplicantStore) CountAutoApprovedByPlaytest(ctx context.Context, q Querier, playtestID uuid.UUID) (int, error) {
+	const sql = `SELECT COUNT(*) FROM applicant WHERE playtest_id = $1 AND auto_approved = true`
+	var n int
+	if err := q.QueryRow(ctx, sql, playtestID).Scan(&n); err != nil {
+		return 0, fmt.Errorf("counting auto-approved applicants: %w", err)
+	}
+	return n, nil
 }
 
 // RejectCAS is the terminal PENDING → REJECTED transition. Same CAS
@@ -515,7 +547,7 @@ func applicantColumnsPrefixed(alias string) string {
 		"id", "playtest_id", "user_id", "discord_handle", "discord_user_id", "platforms",
 		"nda_version_hash", "status", "granted_code_id", "approved_at",
 		"rejection_reason", "last_dm_status", "last_dm_attempt_at",
-		"last_dm_error", "created_at",
+		"last_dm_error", "auto_approved", "created_at",
 	}
 	var b strings.Builder
 	for i, c := range cols {
@@ -592,6 +624,7 @@ func scanApplicant(row pgx.Row) (*Applicant, error) {
 		&lastDMStatus,
 		&lastDMAttempt,
 		&lastDMError,
+		&a.AutoApproved,
 		&a.CreatedAt,
 	)
 	if err != nil {

@@ -213,6 +213,36 @@ func hashNDA(text string) string {
 	return hex.EncodeToString(sum[:])
 }
 
+// errMsgAutoApproveLimit is the byte-exact errors.md row for an
+// auto-approve config with the limit missing or out of bounds. PRD
+// §5.4 / errors.md §"Auto-approve".
+const errMsgAutoApproveLimit = "auto_approve_limit must be between 1 and 100000 when auto_approve is true"
+
+// autoApproveLimitMin / autoApproveLimitMax bound auto_approve_limit
+// (PRD §5.1 / migration 0005 CHECK). 100,000 mirrors the per-AGS-campaign
+// cap and the namespace soft cap on outstanding pool size.
+const (
+	autoApproveLimitMin = 1
+	autoApproveLimitMax = 100_000
+)
+
+// validateAutoApprove enforces the PRD §5.4 cross-field invariant on
+// auto_approve / auto_approve_limit. The DB has the same CHECK
+// constraint (migration 0005) so the byte-exact error keeps server +
+// client + DB messages aligned.
+func validateAutoApprove(autoApprove bool, limit *int32) error {
+	if !autoApprove {
+		return nil
+	}
+	if limit == nil {
+		return status.Error(codes.InvalidArgument, errMsgAutoApproveLimit)
+	}
+	if *limit < autoApproveLimitMin || *limit > autoApproveLimitMax {
+		return status.Error(codes.InvalidArgument, errMsgAutoApproveLimit)
+	}
+	return nil
+}
+
 // platformsErr wraps a platform conversion error so callers can surface
 // the field name cleanly.
 func wrapPlatformsErr(err error) error {

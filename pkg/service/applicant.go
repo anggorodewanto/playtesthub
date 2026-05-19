@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"time"
 
 	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
@@ -97,8 +98,108 @@ func (s *PlaytesthubServiceServer) Signup(ctx context.Context, req *pb.SignupReq
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "inserting applicant: %v", err)
 	}
+
+	// PRD §5.4 / M5.A auto-approve: chain into the existing M2 approve
+	// path under a playtest-scoped advisory lock so concurrent signups
+	// cannot over-approve past the cap. Best-effort — any failure leaves
+	// the applicant at PENDING and signup still returns success.
+	if pt.AutoApprove && pt.AutoApproveLimit != nil {
+		if promoted := s.tryAutoApprove(ctx, pt, got); promoted != nil {
+			got = promoted
+		}
+	}
+
 	return &pb.SignupResponse{Applicant: playerApplicantToProto(got)}, nil
 }
+
+// tryAutoApprove runs the M5.A signup auto-approve chain. Returns the
+// promoted (APPROVED) applicant on success, or nil to leave the caller
+// with the PENDING row from Insert. Any failure inside the chain —
+// pool empty, CAS race, DB error, missing wiring — is swallowed and
+// surfaces as PENDING-fallback per PRD §5.4: signup itself is never
+// failed by the auto-approve attempt.
+func (s *PlaytesthubServiceServer) tryAutoApprove(ctx context.Context, pt *repo.Playtest, a *repo.Applicant) *repo.Applicant {
+	if s.txRunner == nil || s.code == nil || pt.AutoApproveLimit == nil {
+		return nil
+	}
+	limit := int(*pt.AutoApproveLimit)
+	var (
+		updated       *repo.Applicant
+		grantedCodeID uuid.UUID
+	)
+	// Mirror UploadAtomic's per-playtest advisory key pattern. The
+	// `autoapprove:` prefix keeps the lock space distinct from
+	// upload/topup locks on the same playtest id so they do not
+	// serialise against each other.
+	lockKey := "autoapprove:" + pt.ID.String()
+	txErr := s.txRunner.InTx(ctx, func(q repo.Querier) error {
+		// Real PgTxRunner passes a live pgx.Tx; in-memory unit tests pass
+		// nil and don't need a real lock — concurrency is exercised by
+		// pkg/service/auto_approve_concurrency_test.go against a live DB.
+		if q != nil {
+			if _, lockErr := q.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtext($1))`, lockKey); lockErr != nil {
+				return lockErr
+			}
+		}
+		count, countErr := s.applicant.CountAutoApprovedByPlaytest(ctx, q, pt.ID)
+		if countErr != nil {
+			return countErr
+		}
+		if count >= limit {
+			return errAutoApproveCapHit
+		}
+		code, reserveErr := s.code.Reserve(ctx, q, pt.ID, a.UserID)
+		if reserveErr != nil {
+			return reserveErr
+		}
+		rows, finErr := s.code.FencedFinalize(ctx, q, code.ID, a.UserID, *code.ReservedAt)
+		if finErr != nil {
+			return finErr
+		}
+		if rows == 0 {
+			return errFinalizeOrphaned
+		}
+		upd, casErr := s.applicant.ApproveCAS(ctx, q, a.ID, code.ID, time.Now().UTC(), true)
+		if casErr != nil {
+			return casErr
+		}
+		updated = upd
+		grantedCodeID = code.ID
+		return nil
+	})
+	if txErr != nil {
+		// PRD §5.4: silent PENDING fallback — log at info so operators
+		// can see auto-approve attempts that hit the cap or the pool
+		// without polluting the audit timeline.
+		slog.InfoContext(ctx, "auto-approve skipped, applicant stays PENDING",
+			"playtestId", pt.ID.String(),
+			"applicantId", a.ID.String(),
+			"reason", txErr.Error())
+		return nil
+	}
+
+	if s.audit != nil && updated != nil {
+		if auditErr := repo.AppendApplicantAutoApproved(ctx, s.audit, s.namespace, pt.ID, updated.ID, grantedCodeID, *updated.ApprovedAt); auditErr != nil {
+			slog.WarnContext(ctx, "appending applicant.auto_approved audit failed",
+				"playtestId", pt.ID.String(),
+				"applicantId", updated.ID.String(),
+				"error", auditErr.Error())
+		}
+	}
+
+	// Welcome DM — same shape as ApproveApplicant (auto-send / manual=false).
+	if s.dmQueue != nil && updated != nil {
+		_ = s.dmQueue.Enqueue(ctx, buildDMJob(updated, pt, false, s.playerBaseURL))
+	}
+
+	return updated
+}
+
+// errAutoApproveCapHit is the in-tx sentinel raised when the
+// auto_approved count has already reached auto_approve_limit. Treated
+// the same as ErrPoolEmpty by the caller: silent PENDING fallback,
+// no audit row, no DM.
+var errAutoApproveCapHit = errors.New("service: auto-approve cap reached")
 
 // GetApplicantStatus returns the caller's own applicant row for a
 // playtest, with the player-visible field subset (schema.md L88). Missing

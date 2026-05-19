@@ -217,7 +217,7 @@ func TestApplicantApproveCAS_PendingTransitions(t *testing.T) {
 	}
 
 	now := time.Now().UTC().Truncate(time.Microsecond)
-	got, err := store.ApproveCAS(ctx, testPool, a.ID, codeID, now)
+	got, err := store.ApproveCAS(ctx, testPool, a.ID, codeID, now, false)
 	if err != nil {
 		t.Fatalf("ApproveCAS: %v", err)
 	}
@@ -264,10 +264,10 @@ func TestApplicantApproveCAS_DoubleApproveLosesCAS(t *testing.T) {
 	rows.Close()
 
 	now := time.Now().UTC().Truncate(time.Microsecond)
-	if _, err := store.ApproveCAS(ctx, testPool, a.ID, codeIDs[0], now); err != nil {
+	if _, err := store.ApproveCAS(ctx, testPool, a.ID, codeIDs[0], now, false); err != nil {
 		t.Fatalf("first ApproveCAS: %v", err)
 	}
-	_, err = store.ApproveCAS(ctx, testPool, a.ID, codeIDs[1], now)
+	_, err = store.ApproveCAS(ctx, testPool, a.ID, codeIDs[1], now, false)
 	if !errors.Is(err, repo.ErrStatusCASMismatch) {
 		t.Errorf("second ApproveCAS: got %v, want ErrStatusCASMismatch", err)
 	}
@@ -329,7 +329,7 @@ func TestApplicantListDMFailedByPlaytest_ReturnsApprovedFailedOnly(t *testing.T)
 		if err := testPool.QueryRow(ctx, `SELECT id FROM code WHERE playtest_id=$1 AND value=$2`, playtestID, codeValue).Scan(&codeID); err != nil {
 			t.Fatalf("look up code id: %v", err)
 		}
-		if _, err := store.ApproveCAS(ctx, testPool, a.ID, codeID, time.Now()); err != nil {
+		if _, err := store.ApproveCAS(ctx, testPool, a.ID, codeID, time.Now(), false); err != nil {
 			t.Fatalf("ApproveCAS: %v", err)
 		}
 		got, err := store.GetByID(ctx, a.ID)

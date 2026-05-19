@@ -167,7 +167,7 @@ func (s *PlaytesthubServiceServer) runApproveTx(ctx context.Context, a *repo.App
 			s.recordOrphanedGrant(ctx, pt, a, code)
 			return errFinalizeOrphaned
 		}
-		upd, e := s.applicant.ApproveCAS(ctx, q, a.ID, code.ID, time.Now().UTC())
+		upd, e := s.applicant.ApproveCAS(ctx, q, a.ID, code.ID, time.Now().UTC(), false)
 		if e != nil {
 			return e
 		}
@@ -453,5 +453,6 @@ func adminApplicantToProto(a *repo.Applicant) *pb.Applicant {
 		v := *a.LastDMError
 		out.LastDmError = &v
 	}
+	out.AutoApproved = a.AutoApproved
 	return out
 }

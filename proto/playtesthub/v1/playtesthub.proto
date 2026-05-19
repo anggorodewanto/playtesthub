@@ -590,6 +590,12 @@ message Playtest {
   google.protobuf.Timestamp created_at = 19;
   google.protobuf.Timestamp updated_at = 20;
   google.protobuf.Timestamp deleted_at = 21;
+  // auto_approve / auto_approve_limit — PRD §5.4 auto-approve (M5.A).
+  // When auto_approve is true, signup chains into the approve path up
+  // to auto_approve_limit applicants. auto_approve_limit MUST be set
+  // when auto_approve is true (bounded 1..100,000, DB-enforced).
+  bool auto_approve = 22;
+  optional int32 auto_approve_limit = 23;
 }
 
 // PublicPlaytest is the restricted field set exposed to unauthenticated
@@ -643,6 +649,10 @@ message Applicant {
   google.protobuf.Timestamp last_dm_attempt_at = 12;
   optional string last_dm_error = 13;
   google.protobuf.Timestamp created_at = 14;
+  // PRD §5.4 auto-approve (M5.A). True when this applicant was
+  // approved via the auto-approve signup chain rather than a manual
+  // ApproveApplicant click. Used for cap accounting.
+  bool auto_approved = 15;
 }
 
 // NDAAcceptance — append-only acceptance row (schema.md §"NDA"). PK is
@@ -819,6 +829,11 @@ message CreatePlaytestRequest {
   string nda_text = 10;
   DistributionModel distribution_model = 11;
   optional int32 initial_code_quantity = 12;
+  // PRD §5.4 auto-approve (M5.A). auto_approve_limit must be set
+  // (1..100,000) when auto_approve is true; reject byte-exact per
+  // docs/errors.md.
+  bool auto_approve = 13;
+  optional int32 auto_approve_limit = 14;
 }
 message CreatePlaytestResponse {
   Playtest playtest = 1;
@@ -840,6 +855,10 @@ message EditPlaytestRequest {
   google.protobuf.Timestamp ends_at = 8;
   bool nda_required = 9;
   string nda_text = 10;
+  // PRD §5.4 auto-approve (M5.A). Both fields are mutable mid-playtest
+  // — operators tune the cap while signups are flowing in.
+  bool auto_approve = 11;
+  optional int32 auto_approve_limit = 12;
 }
 message EditPlaytestResponse {
   Playtest playtest = 1;

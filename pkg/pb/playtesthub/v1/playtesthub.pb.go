@@ -418,8 +418,14 @@ type Playtest struct {
 	CreatedAt             *timestamppb.Timestamp `protobuf:"bytes,19,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	UpdatedAt             *timestamppb.Timestamp `protobuf:"bytes,20,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
 	DeletedAt             *timestamppb.Timestamp `protobuf:"bytes,21,opt,name=deleted_at,json=deletedAt,proto3" json:"deleted_at,omitempty"`
-	unknownFields         protoimpl.UnknownFields
-	sizeCache             protoimpl.SizeCache
+	// auto_approve / auto_approve_limit — PRD §5.4 auto-approve (M5.A).
+	// When auto_approve is true, signup chains into the approve path up
+	// to auto_approve_limit applicants. auto_approve_limit MUST be set
+	// when auto_approve is true (bounded 1..100,000, DB-enforced).
+	AutoApprove      bool   `protobuf:"varint,22,opt,name=auto_approve,json=autoApprove,proto3" json:"auto_approve,omitempty"`
+	AutoApproveLimit *int32 `protobuf:"varint,23,opt,name=auto_approve_limit,json=autoApproveLimit,proto3,oneof" json:"auto_approve_limit,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *Playtest) Reset() {
@@ -597,6 +603,20 @@ func (x *Playtest) GetDeletedAt() *timestamppb.Timestamp {
 		return x.DeletedAt
 	}
 	return nil
+}
+
+func (x *Playtest) GetAutoApprove() bool {
+	if x != nil {
+		return x.AutoApprove
+	}
+	return false
+}
+
+func (x *Playtest) GetAutoApproveLimit() int32 {
+	if x != nil && x.AutoApproveLimit != nil {
+		return *x.AutoApproveLimit
+	}
+	return 0
 }
 
 // PublicPlaytest is the restricted field set exposed to unauthenticated
@@ -857,8 +877,12 @@ type Applicant struct {
 	LastDmAttemptAt *timestamppb.Timestamp `protobuf:"bytes,12,opt,name=last_dm_attempt_at,json=lastDmAttemptAt,proto3" json:"last_dm_attempt_at,omitempty"`
 	LastDmError     *string                `protobuf:"bytes,13,opt,name=last_dm_error,json=lastDmError,proto3,oneof" json:"last_dm_error,omitempty"`
 	CreatedAt       *timestamppb.Timestamp `protobuf:"bytes,14,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	// PRD §5.4 auto-approve (M5.A). True when this applicant was
+	// approved via the auto-approve signup chain rather than a manual
+	// ApproveApplicant click. Used for cap accounting.
+	AutoApproved  bool `protobuf:"varint,15,opt,name=auto_approved,json=autoApproved,proto3" json:"auto_approved,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Applicant) Reset() {
@@ -987,6 +1011,13 @@ func (x *Applicant) GetCreatedAt() *timestamppb.Timestamp {
 		return x.CreatedAt
 	}
 	return nil
+}
+
+func (x *Applicant) GetAutoApproved() bool {
+	if x != nil {
+		return x.AutoApproved
+	}
+	return false
 }
 
 // NDAAcceptance — append-only acceptance row (schema.md §"NDA"). PK is
@@ -2184,8 +2215,13 @@ type CreatePlaytestRequest struct {
 	NdaText             string                 `protobuf:"bytes,10,opt,name=nda_text,json=ndaText,proto3" json:"nda_text,omitempty"`
 	DistributionModel   DistributionModel      `protobuf:"varint,11,opt,name=distribution_model,json=distributionModel,proto3,enum=playtesthub.v1.DistributionModel" json:"distribution_model,omitempty"`
 	InitialCodeQuantity *int32                 `protobuf:"varint,12,opt,name=initial_code_quantity,json=initialCodeQuantity,proto3,oneof" json:"initial_code_quantity,omitempty"`
-	unknownFields       protoimpl.UnknownFields
-	sizeCache           protoimpl.SizeCache
+	// PRD §5.4 auto-approve (M5.A). auto_approve_limit must be set
+	// (1..100,000) when auto_approve is true; reject byte-exact per
+	// docs/errors.md.
+	AutoApprove      bool   `protobuf:"varint,13,opt,name=auto_approve,json=autoApprove,proto3" json:"auto_approve,omitempty"`
+	AutoApproveLimit *int32 `protobuf:"varint,14,opt,name=auto_approve_limit,json=autoApproveLimit,proto3,oneof" json:"auto_approve_limit,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *CreatePlaytestRequest) Reset() {
@@ -2302,6 +2338,20 @@ func (x *CreatePlaytestRequest) GetInitialCodeQuantity() int32 {
 	return 0
 }
 
+func (x *CreatePlaytestRequest) GetAutoApprove() bool {
+	if x != nil {
+		return x.AutoApprove
+	}
+	return false
+}
+
+func (x *CreatePlaytestRequest) GetAutoApproveLimit() int32 {
+	if x != nil && x.AutoApproveLimit != nil {
+		return *x.AutoApproveLimit
+	}
+	return 0
+}
+
 type CreatePlaytestResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Playtest      *Playtest              `protobuf:"bytes,1,opt,name=playtest,proto3" json:"playtest,omitempty"`
@@ -2363,8 +2413,12 @@ type EditPlaytestRequest struct {
 	EndsAt         *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=ends_at,json=endsAt,proto3" json:"ends_at,omitempty"`
 	NdaRequired    bool                   `protobuf:"varint,9,opt,name=nda_required,json=ndaRequired,proto3" json:"nda_required,omitempty"`
 	NdaText        string                 `protobuf:"bytes,10,opt,name=nda_text,json=ndaText,proto3" json:"nda_text,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// PRD §5.4 auto-approve (M5.A). Both fields are mutable mid-playtest
+	// — operators tune the cap while signups are flowing in.
+	AutoApprove      bool   `protobuf:"varint,11,opt,name=auto_approve,json=autoApprove,proto3" json:"auto_approve,omitempty"`
+	AutoApproveLimit *int32 `protobuf:"varint,12,opt,name=auto_approve_limit,json=autoApproveLimit,proto3,oneof" json:"auto_approve_limit,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *EditPlaytestRequest) Reset() {
@@ -2465,6 +2519,20 @@ func (x *EditPlaytestRequest) GetNdaText() string {
 		return x.NdaText
 	}
 	return ""
+}
+
+func (x *EditPlaytestRequest) GetAutoApprove() bool {
+	if x != nil {
+		return x.AutoApprove
+	}
+	return false
+}
+
+func (x *EditPlaytestRequest) GetAutoApproveLimit() int32 {
+	if x != nil && x.AutoApproveLimit != nil {
+		return *x.AutoApproveLimit
+	}
+	return 0
 }
 
 type EditPlaytestResponse struct {
@@ -5130,7 +5198,7 @@ var File_playtesthub_v1_playtesthub_proto protoreflect.FileDescriptor
 
 const file_playtesthub_v1_playtesthub_proto_rawDesc = "" +
 	"\n" +
-	" playtesthub/v1/playtesthub.proto\x12\x0eplaytesthub.v1\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1fplaytesthub/v1/permission.proto\x1a.protoc-gen-openapiv2/options/annotations.proto\"\xff\a\n" +
+	" playtesthub/v1/playtesthub.proto\x12\x0eplaytesthub.v1\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1fplaytesthub/v1/permission.proto\x1a.protoc-gen-openapiv2/options/annotations.proto\"\xec\b\n" +
 	"\bPlaytest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1c\n" +
 	"\tnamespace\x18\x02 \x01(\tR\tnamespace\x12\x12\n" +
@@ -5156,12 +5224,15 @@ const file_playtesthub_v1_playtesthub_proto_rawDesc = "" +
 	"\n" +
 	"updated_at\x18\x14 \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\x129\n" +
 	"\n" +
-	"deleted_at\x18\x15 \x01(\v2\x1a.google.protobuf.TimestampR\tdeletedAtB\f\n" +
+	"deleted_at\x18\x15 \x01(\v2\x1a.google.protobuf.TimestampR\tdeletedAt\x12!\n" +
+	"\fauto_approve\x18\x16 \x01(\bR\vautoApprove\x121\n" +
+	"\x12auto_approve_limit\x18\x17 \x01(\x05H\x04R\x10autoApproveLimit\x88\x01\x01B\f\n" +
 	"\n" +
 	"_survey_idB\x0e\n" +
 	"\f_ags_item_idB\x12\n" +
 	"\x10_ags_campaign_idB\x18\n" +
-	"\x16_initial_code_quantity\"\xac\x02\n" +
+	"\x16_initial_code_quantityB\x15\n" +
+	"\x13_auto_approve_limit\"\xac\x02\n" +
 	"\x0ePublicPlaytest\x12\x12\n" +
 	"\x04slug\x18\x01 \x01(\tR\x04slug\x12\x14\n" +
 	"\x05title\x18\x02 \x01(\tR\x05title\x12 \n" +
@@ -5186,7 +5257,7 @@ const file_playtesthub_v1_playtesthub_proto_rawDesc = "" +
 	"\tsurvey_id\x18\f \x01(\tH\x00R\bsurveyId\x88\x01\x01\x12P\n" +
 	"\x12distribution_model\x18\r \x01(\x0e2!.playtesthub.v1.DistributionModelR\x11distributionModelB\f\n" +
 	"\n" +
-	"_survey_id\"\xf3\x05\n" +
+	"_survey_id\"\x98\x06\n" +
 	"\tApplicant\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1f\n" +
 	"\vplaytest_id\x18\x02 \x01(\tR\n" +
@@ -5205,7 +5276,8 @@ const file_playtesthub_v1_playtesthub_proto_rawDesc = "" +
 	"\x12last_dm_attempt_at\x18\f \x01(\v2\x1a.google.protobuf.TimestampR\x0flastDmAttemptAt\x12'\n" +
 	"\rlast_dm_error\x18\r \x01(\tH\x03R\vlastDmError\x88\x01\x01\x129\n" +
 	"\n" +
-	"created_at\x18\x0e \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAtB\x13\n" +
+	"created_at\x18\x0e \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x12#\n" +
+	"\rauto_approved\x18\x0f \x01(\bR\fautoApprovedB\x13\n" +
 	"\x11_nda_version_hashB\x12\n" +
 	"\x10_granted_code_idB\x13\n" +
 	"\x11_rejection_reasonB\x10\n" +
@@ -5305,7 +5377,7 @@ const file_playtesthub_v1_playtesthub_proto_rawDesc = "" +
 	"\x14ListPlaytestsRequest\x12\x1c\n" +
 	"\tnamespace\x18\x01 \x01(\tR\tnamespace\"O\n" +
 	"\x15ListPlaytestsResponse\x126\n" +
-	"\tplaytests\x18\x01 \x03(\v2\x18.playtesthub.v1.PlaytestR\tplaytests\"\xb4\x04\n" +
+	"\tplaytests\x18\x01 \x03(\v2\x18.playtesthub.v1.PlaytestR\tplaytests\"\xa1\x05\n" +
 	"\x15CreatePlaytestRequest\x12\x1c\n" +
 	"\tnamespace\x18\x01 \x01(\tR\tnamespace\x12\x12\n" +
 	"\x04slug\x18\x02 \x01(\tR\x04slug\x12\x14\n" +
@@ -5319,10 +5391,13 @@ const file_playtesthub_v1_playtesthub_proto_rawDesc = "" +
 	"\bnda_text\x18\n" +
 	" \x01(\tR\andaText\x12P\n" +
 	"\x12distribution_model\x18\v \x01(\x0e2!.playtesthub.v1.DistributionModelR\x11distributionModel\x127\n" +
-	"\x15initial_code_quantity\x18\f \x01(\x05H\x00R\x13initialCodeQuantity\x88\x01\x01B\x18\n" +
-	"\x16_initial_code_quantity\"N\n" +
+	"\x15initial_code_quantity\x18\f \x01(\x05H\x00R\x13initialCodeQuantity\x88\x01\x01\x12!\n" +
+	"\fauto_approve\x18\r \x01(\bR\vautoApprove\x121\n" +
+	"\x12auto_approve_limit\x18\x0e \x01(\x05H\x01R\x10autoApproveLimit\x88\x01\x01B\x18\n" +
+	"\x16_initial_code_quantityB\x15\n" +
+	"\x13_auto_approve_limit\"N\n" +
 	"\x16CreatePlaytestResponse\x124\n" +
-	"\bplaytest\x18\x01 \x01(\v2\x18.playtesthub.v1.PlaytestR\bplaytest\"\x9a\x03\n" +
+	"\bplaytest\x18\x01 \x01(\v2\x18.playtesthub.v1.PlaytestR\bplaytest\"\x87\x04\n" +
 	"\x13EditPlaytestRequest\x12\x1c\n" +
 	"\tnamespace\x18\x01 \x01(\tR\tnamespace\x12\x1f\n" +
 	"\vplaytest_id\x18\x02 \x01(\tR\n" +
@@ -5335,7 +5410,10 @@ const file_playtesthub_v1_playtesthub_proto_rawDesc = "" +
 	"\aends_at\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\x06endsAt\x12!\n" +
 	"\fnda_required\x18\t \x01(\bR\vndaRequired\x12\x19\n" +
 	"\bnda_text\x18\n" +
-	" \x01(\tR\andaText\"L\n" +
+	" \x01(\tR\andaText\x12!\n" +
+	"\fauto_approve\x18\v \x01(\bR\vautoApprove\x121\n" +
+	"\x12auto_approve_limit\x18\f \x01(\x05H\x00R\x10autoApproveLimit\x88\x01\x01B\x15\n" +
+	"\x13_auto_approve_limit\"L\n" +
 	"\x14EditPlaytestResponse\x124\n" +
 	"\bplaytest\x18\x01 \x01(\v2\x18.playtesthub.v1.PlaytestR\bplaytest\"Z\n" +
 	"\x19SoftDeletePlaytestRequest\x12\x1c\n" +
@@ -5930,6 +6008,7 @@ func file_playtesthub_v1_playtesthub_proto_init() {
 	}
 	file_playtesthub_v1_playtesthub_proto_msgTypes[13].OneofWrappers = []any{}
 	file_playtesthub_v1_playtesthub_proto_msgTypes[22].OneofWrappers = []any{}
+	file_playtesthub_v1_playtesthub_proto_msgTypes[24].OneofWrappers = []any{}
 	file_playtesthub_v1_playtesthub_proto_msgTypes[44].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{

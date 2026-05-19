@@ -323,7 +323,7 @@ func (f *fakeApplicantStore) UpdateStatus(_ context.Context, a *repo.Applicant) 
 // the M2 approve flow. These M1-era unit tests do not exercise the
 // approve path; the methods stub out cleanly here and the M2 phases
 // that introduce the call sites bring their own table-driven tests.
-func (f *fakeApplicantStore) ApproveCAS(_ context.Context, _ repo.Querier, applicantID, codeID uuid.UUID, approvedAt time.Time) (*repo.Applicant, error) {
+func (f *fakeApplicantStore) ApproveCAS(_ context.Context, _ repo.Querier, applicantID, codeID uuid.UUID, approvedAt time.Time, autoApproved bool) (*repo.Applicant, error) {
 	for i, existing := range f.rows {
 		if existing.ID != applicantID {
 			continue
@@ -335,11 +335,22 @@ func (f *fakeApplicantStore) ApproveCAS(_ context.Context, _ repo.Querier, appli
 		clone.Status = applicantStatusApproved
 		clone.GrantedCodeID = &codeID
 		clone.ApprovedAt = &approvedAt
+		clone.AutoApproved = autoApproved
 		f.rows[i] = &clone
 		ret := clone
 		return &ret, nil
 	}
 	return nil, repo.ErrNotFound
+}
+
+func (f *fakeApplicantStore) CountAutoApprovedByPlaytest(_ context.Context, _ repo.Querier, playtestID uuid.UUID) (int, error) {
+	n := 0
+	for _, existing := range f.rows {
+		if existing.PlaytestID == playtestID && existing.AutoApproved {
+			n++
+		}
+	}
+	return n, nil
 }
 
 func (f *fakeApplicantStore) RejectCAS(_ context.Context, _ repo.Querier, applicantID uuid.UUID, reason *string) (*repo.Applicant, error) {
@@ -973,16 +984,18 @@ func TestTransitionPlaytestStatus_OpenToClosed(t *testing.T) {
 // not payload fields, but both travel on the message.
 func TestEditPlaytestRequest_MutableFieldWhitelist(t *testing.T) {
 	wantMutable := map[string]struct{}{
-		"namespace":        {}, // path param
-		"playtest_id":      {}, // path param
-		"title":            {},
-		"description":      {},
-		"banner_image_url": {},
-		"platforms":        {},
-		"starts_at":        {},
-		"ends_at":          {},
-		"nda_required":     {},
-		"nda_text":         {},
+		"namespace":          {}, // path param
+		"playtest_id":        {}, // path param
+		"title":              {},
+		"description":        {},
+		"banner_image_url":   {},
+		"platforms":          {},
+		"starts_at":          {},
+		"ends_at":            {},
+		"nda_required":       {},
+		"nda_text":           {},
+		"auto_approve":       {}, // M5.A auto-approve, PRD §5.1 / §5.4
+		"auto_approve_limit": {},
 	}
 	desc := (&pb.EditPlaytestRequest{}).ProtoReflect().Descriptor()
 	got := map[string]struct{}{}

@@ -63,7 +63,7 @@ func TestApprove_ConcurrentRace_FirstWinsSecondCASMismatches(t *testing.T) {
 				if rows != 1 {
 					return errors.New("fenced finalize did not affect 1 row")
 				}
-				_, e = applicants.ApproveCAS(ctx, q, a.ID, code.ID, time.Now().UTC().Truncate(time.Microsecond))
+				_, e = applicants.ApproveCAS(ctx, q, a.ID, code.ID, time.Now().UTC().Truncate(time.Microsecond), false)
 				return e
 			})
 			results <- result{err: err}

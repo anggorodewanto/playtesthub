@@ -1427,6 +1427,14 @@
         "initialCodeQuantity": {
           "type": "integer",
           "format": "int32"
+        },
+        "autoApprove": {
+          "type": "boolean",
+          "description": "PRD §5.4 auto-approve (M5.A). auto_approve_limit must be set\n(1..100,000) when auto_approve is true; reject byte-exact per\ndocs/errors.md."
+        },
+        "autoApproveLimit": {
+          "type": "integer",
+          "format": "int32"
         }
       }
     },
@@ -1474,6 +1482,14 @@
         },
         "ndaText": {
           "type": "string"
+        },
+        "autoApprove": {
+          "type": "boolean",
+          "description": "PRD §5.4 auto-approve (M5.A). Both fields are mutable mid-playtest\n— operators tune the cap while signups are flowing in."
+        },
+        "autoApproveLimit": {
+          "type": "integer",
+          "format": "int32"
         }
       },
       "description": "EditPlaytestRequest mutable-field whitelist tracks PRD §5.1 L146.\nImmutable fields (slug, namespace path params excluded, status,\ndistribution_model, initial_code_quantity, ags_*, timestamps) are\ndeliberately absent — clients that send them on the JSON body still have\nthem rejected at the handler layer."
@@ -1661,6 +1677,10 @@
         "createdAt": {
           "type": "string",
           "format": "date-time"
+        },
+        "autoApproved": {
+          "type": "boolean",
+          "description": "PRD §5.4 auto-approve (M5.A). True when this applicant was\napproved via the auto-approve signup chain rather than a manual\nApproveApplicant click. Used for cap accounting."
         }
       },
       "description": "Applicant is the full admin-visible entity (schema.md §\"Applicant entity\").\nPlayer-visible responses carry the same message with restricted fields\npopulated — the handler layer enforces the visibility split (schema.md\nL86–88). Player-visible: status, granted_code_id (presence), approved_at,\nnda_version_hash."
@@ -2162,6 +2182,14 @@
         "deletedAt": {
           "type": "string",
           "format": "date-time"
+        },
+        "autoApprove": {
+          "type": "boolean",
+          "description": "auto_approve / auto_approve_limit — PRD §5.4 auto-approve (M5.A).\nWhen auto_approve is true, signup chains into the approve path up\nto auto_approve_limit applicants. auto_approve_limit MUST be set\nwhen auto_approve is true (bounded 1..100,000, DB-enforced)."
+        },
+        "autoApproveLimit": {
+          "type": "integer",
+          "format": "int32"
         }
       },
       "description": "Playtest is the full admin-visible entity. Field semantics: PRD §5.1."

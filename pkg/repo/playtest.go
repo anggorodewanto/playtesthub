@@ -35,9 +35,15 @@ type Playtest struct {
 	AGSItemID             *string
 	AGSCampaignID         *string
 	InitialCodeQuantity   *int32
-	CreatedAt             time.Time
-	UpdatedAt             time.Time
-	DeletedAt             *time.Time
+	// AutoApprove / AutoApproveLimit — PRD §5.4 auto-approve (M5.A).
+	// When AutoApprove is true, AutoApproveLimit MUST be non-nil and in
+	// [1, 100000]. Enforced by both validation (validateAutoApprove) and
+	// the migration 0005 CHECK constraint.
+	AutoApprove      bool
+	AutoApproveLimit *int32
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+	DeletedAt        *time.Time
 }
 
 // PlaytestStore is the data access surface the service layer depends on.
@@ -85,6 +91,7 @@ const playtestColumns = `
 	starts_at, ends_at, status, nda_required, nda_text,
 	current_nda_version_hash, survey_id, distribution_model,
 	ags_item_id, ags_campaign_id, initial_code_quantity,
+	auto_approve, auto_approve_limit,
 	created_at, updated_at, deleted_at`
 
 // Create inserts a new playtest row. The caller supplies business
@@ -103,9 +110,10 @@ func (s *PgPlaytestStore) CreateTx(ctx context.Context, q Querier, p *Playtest) 
 			namespace, slug, title, description, banner_image_url, platforms,
 			starts_at, ends_at, status, nda_required, nda_text,
 			current_nda_version_hash, survey_id, distribution_model,
-			ags_item_id, ags_campaign_id, initial_code_quantity
+			ags_item_id, ags_campaign_id, initial_code_quantity,
+			auto_approve, auto_approve_limit
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
 		RETURNING ` + playtestColumns
 
 	row := q.QueryRow(ctx, sql,
@@ -126,6 +134,8 @@ func (s *PgPlaytestStore) CreateTx(ctx context.Context, q Querier, p *Playtest) 
 		stringPtr(p.AGSItemID),
 		stringPtr(p.AGSCampaignID),
 		int32Ptr(p.InitialCodeQuantity),
+		p.AutoApprove,
+		int32Ptr(p.AutoApproveLimit),
 	)
 	got, err := scanPlaytest(row)
 	if err != nil {
@@ -208,6 +218,8 @@ func (s *PgPlaytestStore) Update(ctx context.Context, p *Playtest) (*Playtest, e
 		       nda_text = $10,
 		       current_nda_version_hash = $11,
 		       survey_id = $12,
+		       auto_approve = $13,
+		       auto_approve_limit = $14,
 		       updated_at = NOW()
 		 WHERE namespace = $1
 		   AND id = $2
@@ -227,6 +239,8 @@ func (s *PgPlaytestStore) Update(ctx context.Context, p *Playtest) (*Playtest, e
 		p.NDAText,
 		p.CurrentNDAVersionHash,
 		uuidPtr(p.SurveyID),
+		p.AutoApprove,
+		int32Ptr(p.AutoApproveLimit),
 	)
 	got, err := scanPlaytest(row)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -361,6 +375,7 @@ func scanPlaytest(row pgx.Row) (*Playtest, error) {
 		agsItemID  pgtype.Text
 		agsCampID  pgtype.Text
 		initialQty pgtype.Int4
+		autoAppLim pgtype.Int4
 		deletedAt  pgtype.Timestamptz
 	)
 	err := row.Scan(
@@ -382,6 +397,8 @@ func scanPlaytest(row pgx.Row) (*Playtest, error) {
 		&agsItemID,
 		&agsCampID,
 		&initialQty,
+		&p.AutoApprove,
+		&autoAppLim,
 		&p.CreatedAt,
 		&p.UpdatedAt,
 		&deletedAt,
@@ -395,6 +412,7 @@ func scanPlaytest(row pgx.Row) (*Playtest, error) {
 	p.AGSItemID = stringPtrFromPg(agsItemID)
 	p.AGSCampaignID = stringPtrFromPg(agsCampID)
 	p.InitialCodeQuantity = int32PtrFromPg(initialQty)
+	p.AutoApproveLimit = int32PtrFromPg(autoAppLim)
 	p.DeletedAt = timePtrFromPg(deletedAt)
 	return &p, nil
 }
