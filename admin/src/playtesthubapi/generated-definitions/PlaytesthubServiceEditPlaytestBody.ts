@@ -14,7 +14,9 @@ export const PlaytesthubServiceEditPlaytestBody = z.object({
   startsAt: z.string().nullish(),
   endsAt: z.string().nullish(),
   ndaRequired: z.boolean().nullish(),
-  ndaText: z.string().nullish()
+  ndaText: z.string().nullish(),
+  autoApprove: z.boolean().nullish(),
+  autoApproveLimit: z.number().int().nullish()
 })
 
 export interface PlaytesthubServiceEditPlaytestBody extends z.TypeOf<typeof PlaytesthubServiceEditPlaytestBody> {}

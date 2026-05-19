@@ -29,7 +29,9 @@ export const V1Playtest = z.object({
   initialCodeQuantity: z.number().int().nullish(),
   createdAt: z.string().nullish(),
   updatedAt: z.string().nullish(),
-  deletedAt: z.string().nullish()
+  deletedAt: z.string().nullish(),
+  autoApprove: z.boolean().nullish(),
+  autoApproveLimit: z.number().int().nullish()
 })
 
 export interface V1Playtest extends z.TypeOf<typeof V1Playtest> {}
