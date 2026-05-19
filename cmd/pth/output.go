@@ -26,6 +26,7 @@ const (
 const (
 	statusOK     = "OK"
 	statusFailed = "FAILED"
+	statusDryRun = "DRY_RUN"
 )
 
 // exitCodeForGRPC maps a gRPC status code to the cli.md §8 exit code.

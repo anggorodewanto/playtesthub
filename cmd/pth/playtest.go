@@ -189,6 +189,8 @@ func runPlaytestCreate(ctx context.Context, stdout, stderr io.Writer, g *Globals
 	ndaText := fs.String("nda-text", "", "NDA prose; prefix with @ to read from a file (e.g. --nda-text @nda.md)")
 	distModel := fs.String("distribution-model", "STEAM_KEYS", "STEAM_KEYS | AGS_CAMPAIGN")
 	initialQuantity := fs.String("initial-code-quantity", "", "initial code quantity (AGS_CAMPAIGN only)")
+	autoApprove := fs.Bool("auto-approve", false, "enable auto-approve in Signup (PRD §5.4 / M5.A)")
+	autoApproveLimit := fs.Int("auto-approve-limit", 0, "auto-approve cap (1..100,000; required when --auto-approve)")
 	dryRun := fs.Bool("dry-run", false, "print the request JSON and exit without dialling")
 	if err := fs.Parse(args); err != nil {
 		return exitLocalError
@@ -241,6 +243,7 @@ func runPlaytestCreate(ctx context.Context, stdout, stderr io.Writer, g *Globals
 		NdaRequired:       *ndaRequired,
 		NdaText:           ndaProse,
 		DistributionModel: dm,
+		AutoApprove:       *autoApprove,
 	}
 	if *initialQuantity != "" {
 		n, err := strconv.ParseInt(*initialQuantity, 10, 32)
@@ -250,6 +253,10 @@ func runPlaytestCreate(ctx context.Context, stdout, stderr io.Writer, g *Globals
 		}
 		v := int32(n)
 		req.InitialCodeQuantity = &v
+	}
+	if *autoApproveLimit != 0 {
+		v := int32(*autoApproveLimit)
+		req.AutoApproveLimit = &v
 	}
 	return invokePlaytest(ctx, stdout, stderr, g, factory, "CreatePlaytest", req, *dryRun,
 		func(c pb.PlaytesthubServiceClient, cctx context.Context) (proto.Message, error) {
@@ -286,6 +293,8 @@ func runPlaytestEdit(ctx context.Context, stdout, stderr io.Writer, g *Globals, 
 	endsAt := fs.String("ends-at", "", "RFC3339 timestamp")
 	ndaRequired := fs.Bool("nda-required", false, "NDA required")
 	ndaText := fs.String("nda-text", "", "NDA prose; @file to load from disk")
+	autoApprove := fs.Bool("auto-approve", false, "enable auto-approve in Signup (PRD §5.4 / M5.A)")
+	autoApproveLimit := fs.Int("auto-approve-limit", 0, "auto-approve cap (1..100,000; required when --auto-approve)")
 	dryRun := fs.Bool("dry-run", false, "print the request JSON and exit without dialling")
 	if err := fs.Parse(args); err != nil {
 		return exitLocalError
@@ -328,6 +337,11 @@ func runPlaytestEdit(ctx context.Context, stdout, stderr io.Writer, g *Globals, 
 		EndsAt:         endsTS,
 		NdaRequired:    *ndaRequired,
 		NdaText:        ndaProse,
+		AutoApprove:    *autoApprove,
+	}
+	if *autoApproveLimit != 0 {
+		v := int32(*autoApproveLimit)
+		req.AutoApproveLimit = &v
 	}
 	return invokePlaytest(ctx, stdout, stderr, g, factory, "EditPlaytest", req, *dryRun,
 		func(c pb.PlaytesthubServiceClient, cctx context.Context) (proto.Message, error) {

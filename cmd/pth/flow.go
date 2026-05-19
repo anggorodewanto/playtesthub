@@ -210,15 +210,17 @@ func runFlowGoldenM1(ctx context.Context, stdout, stderr io.Writer, g *Globals, 
 // out as a struct so the parse / validation step has a single return
 // shape and the orchestrator stays linear.
 type goldenM2Inputs struct {
-	slug          string
-	title         string
-	platforms     []pb.Platform
-	ndaProse      string
-	csvBody       string
-	csvFilename   string
-	adminProfile  string
-	playerProfile string
-	dryRun        bool
+	slug             string
+	title            string
+	platforms        []pb.Platform
+	ndaProse         string
+	csvBody          string
+	csvFilename      string
+	adminProfile     string
+	playerProfile    string
+	dryRun           bool
+	autoApprove      bool
+	autoApproveLimit int32
 }
 
 // parseGoldenM2Flags returns parsed inputs or, on validation failure,
@@ -235,6 +237,8 @@ func parseGoldenM2Flags(stderr io.Writer, g *Globals, args []string) (goldenM2In
 	codesCount := fs.Int("codes-count", 1, "number of synthetic codes to upload when --codes-file is empty (1..50)")
 	adminProfile := fs.String("admin-profile", "", "credential profile for admin steps")
 	playerProfile := fs.String("player-profile", "", "credential profile for player steps")
+	autoApprove := fs.Bool("auto-approve", false, "enable auto-approve on the created playtest (PRD §5.4 / M5.A); the signup step is followed by assert-applicant-auto-approved instead of the manual approve step")
+	autoApproveLimit := fs.Int("auto-approve-limit", 0, "auto-approve cap (1..100,000; required when --auto-approve)")
 	dryRun := fs.Bool("dry-run", false, "print every step's request JSON and exit without dialling")
 	if err := fs.Parse(args); err != nil {
 		return goldenM2Inputs{}, exitLocalError
@@ -282,15 +286,17 @@ func parseGoldenM2Flags(stderr io.Writer, g *Globals, args []string) (goldenM2In
 		resolvedTitle = "Playtest " + *slug
 	}
 	return goldenM2Inputs{
-		slug:          *slug,
-		title:         resolvedTitle,
-		platforms:     platforms,
-		ndaProse:      ndaProse,
-		csvBody:       csvBody,
-		csvFilename:   csvFilename,
-		adminProfile:  *adminProfile,
-		playerProfile: *playerProfile,
-		dryRun:        *dryRun,
+		slug:             *slug,
+		title:            resolvedTitle,
+		platforms:        platforms,
+		ndaProse:         ndaProse,
+		csvBody:          csvBody,
+		csvFilename:      csvFilename,
+		adminProfile:     *adminProfile,
+		playerProfile:    *playerProfile,
+		dryRun:           *dryRun,
+		autoApprove:      *autoApprove,
+		autoApproveLimit: int32(*autoApproveLimit),
 	}, exitOK
 }
 
@@ -304,7 +310,20 @@ func runFlowGoldenM2(ctx context.Context, stdout, stderr io.Writer, g *Globals, 
 	if code != exitOK {
 		return code
 	}
-	createReq := &pb.CreatePlaytestRequest{
+	createReq := buildGoldenM2CreateReq(g, &in)
+	if in.dryRun {
+		return runFlowGoldenM2DryRun(stdout, stderr, g, &in, createReq)
+	}
+	return runFlowGoldenM2Live(ctx, stdout, stderr, g, &in, createReq, mk)
+}
+
+// buildGoldenM2CreateReq materialises the CreatePlaytestRequest shared by
+// golden-m2 and golden-m3. When --auto-approve is set, the AutoApprove
+// + AutoApproveLimit fields are populated; the rest of the body is
+// invariant across both variants so the dry-run + live paths agree
+// byte-for-byte on the create-playtest shape.
+func buildGoldenM2CreateReq(g *Globals, in *goldenM2Inputs) *pb.CreatePlaytestRequest {
+	req := &pb.CreatePlaytestRequest{
 		Namespace:         g.Namespace,
 		Slug:              in.slug,
 		Title:             in.title,
@@ -312,11 +331,13 @@ func runFlowGoldenM2(ctx context.Context, stdout, stderr io.Writer, g *Globals, 
 		DistributionModel: pb.DistributionModel_DISTRIBUTION_MODEL_STEAM_KEYS,
 		NdaRequired:       true,
 		NdaText:           in.ndaProse,
+		AutoApprove:       in.autoApprove,
 	}
-	if in.dryRun {
-		return runFlowGoldenM2DryRun(stdout, stderr, g, &in, createReq)
+	if in.autoApprove {
+		limit := in.autoApproveLimit
+		req.AutoApproveLimit = &limit
 	}
-	return runFlowGoldenM2Live(ctx, stdout, stderr, g, &in, createReq, mk)
+	return req
 }
 
 // dryRunStep pairs a flow label with the request shape emitted on the
@@ -331,28 +352,53 @@ type dryRunStep struct {
 // golden-m2 flow. Exposed (package-private) so runFlowGoldenM3DryRun
 // can splice on the three survey-tail steps instead of restating the
 // M2 prefix verbatim.
+//
+// Auto-approve variant (M5.A): when in.autoApprove is set, upload-codes
+// is hoisted before signup (auto-approve consumes from the pool inside
+// the signup tx; the pool must be full first) and the manual `approve`
+// step is replaced by `assert-applicant-auto-approved` — same step count
+// (7), different ordering + tail.
 func goldenM2DryRunSteps(g *Globals, in *goldenM2Inputs, createReq *pb.CreatePlaytestRequest) []dryRunStep {
 	const placeholder = "<resolved-after-create>"
+	uploadStep := dryRunStep{"upload-codes", &pb.UploadCodesRequest{
+		Namespace:  g.Namespace,
+		PlaytestId: placeholder,
+		CsvContent: in.csvBody,
+		Filename:   in.csvFilename,
+	}}
+	signupStep := dryRunStep{"signup", &pb.SignupRequest{Slug: in.slug, Platforms: in.platforms}}
+	acceptStep := dryRunStep{"accept-nda", &pb.AcceptNDARequest{PlaytestId: placeholder}}
+	transitionStep := dryRunStep{"transition-open", &pb.TransitionPlaytestStatusRequest{
+		Namespace:    g.Namespace,
+		PlaytestId:   placeholder,
+		TargetStatus: pb.PlaytestStatus_PLAYTEST_STATUS_OPEN,
+	}}
+	getCodeStep := dryRunStep{"get-code", &pb.GetGrantedCodeRequest{PlaytestId: placeholder}}
+	if in.autoApprove {
+		return []dryRunStep{
+			{"create-playtest", createReq},
+			transitionStep,
+			uploadStep,
+			signupStep,
+			acceptStep,
+			{"assert-applicant-auto-approved", &pb.ListApplicantsRequest{
+				Namespace:  g.Namespace,
+				PlaytestId: placeholder,
+			}},
+			getCodeStep,
+		}
+	}
 	return []dryRunStep{
 		{"create-playtest", createReq},
-		{"transition-open", &pb.TransitionPlaytestStatusRequest{
-			Namespace:    g.Namespace,
-			PlaytestId:   placeholder,
-			TargetStatus: pb.PlaytestStatus_PLAYTEST_STATUS_OPEN,
-		}},
-		{"signup", &pb.SignupRequest{Slug: in.slug, Platforms: in.platforms}},
-		{"accept-nda", &pb.AcceptNDARequest{PlaytestId: placeholder}},
-		{"upload-codes", &pb.UploadCodesRequest{
-			Namespace:  g.Namespace,
-			PlaytestId: placeholder,
-			CsvContent: in.csvBody,
-			Filename:   in.csvFilename,
-		}},
+		transitionStep,
+		signupStep,
+		acceptStep,
+		uploadStep,
 		{"approve", &pb.ApproveApplicantRequest{
 			Namespace:   g.Namespace,
 			ApplicantId: "<resolved-after-signup>",
 		}},
-		{"get-code", &pb.GetGrantedCodeRequest{PlaytestId: placeholder}},
+		getCodeStep,
 	}
 }
 
@@ -377,6 +423,11 @@ func runFlowGoldenM2DryRun(stdout, stderr io.Writer, g *Globals, in *goldenM2Inp
 // runFlowGoldenM2Live drives the seven RPCs in sequence, halting on the
 // first failure. The two id resolutions (playtest_id from create-playtest,
 // applicant_id from signup) are the only state threaded between steps.
+//
+// Auto-approve variant (M5.A): upload-codes runs before signup so the
+// pool is full when the signup tx chains into the approve path; the
+// manual approve step is replaced by an admin ListApplicants assertion
+// that auto_approved=true on the just-signed-up row.
 func runFlowGoldenM2Live(ctx context.Context, stdout, stderr io.Writer, g *Globals, in *goldenM2Inputs, createReq *pb.CreatePlaytestRequest, mk flowProfileFactory) int {
 	adminFactory, _ := mk(g, in.adminProfile)
 	playerFactory, _ := mk(g, in.playerProfile)
@@ -384,6 +435,19 @@ func runFlowGoldenM2Live(ctx context.Context, stdout, stderr io.Writer, g *Globa
 	playtestID, code := flowGoldenM2CreateAndOpen(ctx, stdout, stderr, g, adminFactory, createReq)
 	if code != exitOK {
 		return code
+	}
+	if in.autoApprove {
+		if code := flowGoldenM2UploadCodes(ctx, stdout, stderr, g, adminFactory, in, playtestID); code != exitOK {
+			return code
+		}
+		applicantID, code := flowGoldenM2SignupAndAccept(ctx, stdout, stderr, g, playerFactory, in, playtestID)
+		if code != exitOK {
+			return code
+		}
+		if code := flowGoldenM2AssertAutoApproved(ctx, stdout, stderr, g, adminFactory, playtestID, applicantID); code != exitOK {
+			return code
+		}
+		return flowGoldenM2GetCode(ctx, stdout, stderr, g, playerFactory, playtestID)
 	}
 	applicantID, code := flowGoldenM2SignupAndAccept(ctx, stdout, stderr, g, playerFactory, in, playtestID)
 	if code != exitOK {
@@ -393,6 +457,65 @@ func runFlowGoldenM2Live(ctx context.Context, stdout, stderr io.Writer, g *Globa
 		return code
 	}
 	return flowGoldenM2GetCode(ctx, stdout, stderr, g, playerFactory, playtestID)
+}
+
+// flowGoldenM2UploadCodes runs the upload-codes step on its own — used
+// by the auto-approve variant where upload must precede signup.
+func flowGoldenM2UploadCodes(ctx context.Context, stdout, stderr io.Writer, g *Globals, admin playtestClientFactory, in *goldenM2Inputs, playtestID string) int {
+	uploadReq := &pb.UploadCodesRequest{
+		Namespace:  g.Namespace,
+		PlaytestId: playtestID,
+		CsvContent: in.csvBody,
+		Filename:   in.csvFilename,
+	}
+	if _, code := flowInvoke(ctx, stdout, stderr, g, admin, "upload-codes",
+		func(c pb.PlaytesthubServiceClient, cctx context.Context) (proto.Message, error) {
+			return c.UploadCodes(cctx, uploadReq)
+		}); code != exitOK {
+		return code
+	}
+	return exitOK
+}
+
+// flowGoldenM2AssertAutoApproved confirms the signup-time auto-approve
+// chain landed the applicant in APPROVED+auto_approved=true. Uses the
+// admin profile because auto_approved is admin-visible only — the
+// player applicant proto strips it.
+func flowGoldenM2AssertAutoApproved(ctx context.Context, stdout, stderr io.Writer, g *Globals, admin playtestClientFactory, playtestID, applicantID string) int {
+	resp, code := flowInvoke(ctx, stdout, stderr, g, admin, "assert-applicant-auto-approved",
+		func(c pb.PlaytesthubServiceClient, cctx context.Context) (proto.Message, error) {
+			return c.ListApplicants(cctx, &pb.ListApplicantsRequest{
+				Namespace:  g.Namespace,
+				PlaytestId: playtestID,
+			})
+		})
+	if code != exitOK {
+		return code
+	}
+	lr, ok := resp.(*pb.ListApplicantsResponse)
+	if !ok {
+		writeFlowFailure(stdout, stderr, "assert-applicant-auto-approved", "Internal", "ListApplicants returned unexpected payload")
+		return exitClientError
+	}
+	for _, a := range lr.Applicants {
+		if a.GetId() != applicantID {
+			continue
+		}
+		if a.GetStatus() != pb.ApplicantStatus_APPLICANT_STATUS_APPROVED {
+			writeFlowFailure(stdout, stderr, "assert-applicant-auto-approved", "FailedPrecondition",
+				fmt.Sprintf("applicant %s status=%s, want APPROVED", applicantID, a.GetStatus()))
+			return exitClientError
+		}
+		if !a.GetAutoApproved() {
+			writeFlowFailure(stdout, stderr, "assert-applicant-auto-approved", "FailedPrecondition",
+				fmt.Sprintf("applicant %s auto_approved=false, want true", applicantID))
+			return exitClientError
+		}
+		return exitOK
+	}
+	writeFlowFailure(stdout, stderr, "assert-applicant-auto-approved", "FailedPrecondition",
+		fmt.Sprintf("applicant %s not found in ListApplicants for playtest %s", applicantID, playtestID))
+	return exitClientError
 }
 
 func flowGoldenM2CreateAndOpen(ctx context.Context, stdout, stderr io.Writer, g *Globals, admin playtestClientFactory, createReq *pb.CreatePlaytestRequest) (string, int) {
@@ -533,15 +656,7 @@ func runFlowGoldenM3(ctx context.Context, stdout, stderr io.Writer, g *Globals, 
 	if code != exitOK {
 		return code
 	}
-	createReq := &pb.CreatePlaytestRequest{
-		Namespace:         g.Namespace,
-		Slug:              in.slug,
-		Title:             in.title,
-		Platforms:         in.platforms,
-		DistributionModel: pb.DistributionModel_DISTRIBUTION_MODEL_STEAM_KEYS,
-		NdaRequired:       true,
-		NdaText:           in.ndaProse,
-	}
+	createReq := buildGoldenM2CreateReq(g, &in)
 	if in.dryRun {
 		return runFlowGoldenM3DryRun(stdout, stderr, g, &in, createReq)
 	}
@@ -584,7 +699,9 @@ func runFlowGoldenM3DryRun(stdout, stderr io.Writer, g *Globals, in *goldenM2Inp
 // first failure. Reuses every M2 step then layers the three survey
 // steps on top — the only state threaded between is the playtest_id
 // (from create-playtest), the applicant_id (from signup), and the
-// survey + question ids (from create-survey).
+// survey + question ids (from create-survey). Auto-approve variant
+// inherits the M2-prefix reordering (upload-codes before signup,
+// assert-applicant-auto-approved in place of approve).
 func runFlowGoldenM3Live(ctx context.Context, stdout, stderr io.Writer, g *Globals, in *goldenM2Inputs, createReq *pb.CreatePlaytestRequest, mk flowProfileFactory) int {
 	adminFactory, _ := mk(g, in.adminProfile)
 	playerFactory, _ := mk(g, in.playerProfile)
@@ -593,15 +710,31 @@ func runFlowGoldenM3Live(ctx context.Context, stdout, stderr io.Writer, g *Globa
 	if code != exitOK {
 		return code
 	}
-	applicantID, code := flowGoldenM2SignupAndAccept(ctx, stdout, stderr, g, playerFactory, in, playtestID)
-	if code != exitOK {
-		return code
-	}
-	if code := flowGoldenM2UploadAndApprove(ctx, stdout, stderr, g, adminFactory, in, playtestID, applicantID); code != exitOK {
-		return code
-	}
-	if code := flowGoldenM2GetCode(ctx, stdout, stderr, g, playerFactory, playtestID); code != exitOK {
-		return code
+	if in.autoApprove {
+		if code := flowGoldenM2UploadCodes(ctx, stdout, stderr, g, adminFactory, in, playtestID); code != exitOK {
+			return code
+		}
+		applicantID, code := flowGoldenM2SignupAndAccept(ctx, stdout, stderr, g, playerFactory, in, playtestID)
+		if code != exitOK {
+			return code
+		}
+		if code := flowGoldenM2AssertAutoApproved(ctx, stdout, stderr, g, adminFactory, playtestID, applicantID); code != exitOK {
+			return code
+		}
+		if code := flowGoldenM2GetCode(ctx, stdout, stderr, g, playerFactory, playtestID); code != exitOK {
+			return code
+		}
+	} else {
+		applicantID, code := flowGoldenM2SignupAndAccept(ctx, stdout, stderr, g, playerFactory, in, playtestID)
+		if code != exitOK {
+			return code
+		}
+		if code := flowGoldenM2UploadAndApprove(ctx, stdout, stderr, g, adminFactory, in, playtestID, applicantID); code != exitOK {
+			return code
+		}
+		if code := flowGoldenM2GetCode(ctx, stdout, stderr, g, playerFactory, playtestID); code != exitOK {
+			return code
+		}
 	}
 
 	survey, code := flowGoldenM3CreateSurvey(ctx, stdout, stderr, g, adminFactory, playtestID)
@@ -770,7 +903,7 @@ func writeFlowDryRun(stdout, stderr io.Writer, label string, msg proto.Message) 
 		fmt.Fprintf(stderr, "flow: marshal %s request: %v\n", label, err)
 		return false
 	}
-	if err := writeJSONLine(stdout, flowDryRunLine{Step: label, Status: "DRY_RUN", Request: body}); err != nil {
+	if err := writeJSONLine(stdout, flowDryRunLine{Step: label, Status: statusDryRun, Request: body}); err != nil {
 		fmt.Fprintf(stderr, "flow: %v\n", err)
 		return false
 	}

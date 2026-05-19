@@ -245,7 +245,7 @@ var catalogue = []commandSpec{
 	{
 		Name:        "flow golden-m2",
 		Milestone:   "M2",
-		Description: "Composite: golden-m1 → accept-nda → upload codes → approve → assert APPROVED + code visible. NDJSON output (cli.md §6.4).",
+		Description: "Composite: golden-m1 → accept-nda → upload codes → approve → assert APPROVED + code visible. NDJSON output (cli.md §6.4). With --auto-approve, upload-codes hoists before signup and the manual approve step is replaced by assert-applicant-auto-approved (M5.A).",
 		RequiredFlags: []flagSpec{
 			slugFlag(),
 			{Name: "--admin-profile", Description: "credential profile for admin steps (create, transition, upload, approve)", ValueType: "string"},
@@ -257,6 +257,8 @@ var catalogue = []commandSpec{
 			{Name: "--nda-text", Description: "NDA prose; @file to load from disk", ValueType: "string"},
 			{Name: "--codes-file", Description: "CSV path to upload (overrides --codes-count; '-' reads stdin)", ValueType: "string"},
 			{Name: "--codes-count", Description: "number of synthetic codes when --codes-file is empty (1..50, default 1)", ValueType: "int"},
+			{Name: "--auto-approve", Description: "create the playtest with auto-approve enabled; rewrites the signup tail to assert-applicant-auto-approved (PRD §5.4 / M5.A)", ValueType: "bool"},
+			{Name: "--auto-approve-limit", Description: "auto-approve cap (1..100,000; required when --auto-approve)", ValueType: "int"},
 			{Name: "--dry-run", Description: "print every step's request JSON and exit without dialling", ValueType: "bool"},
 		},
 		Example: "pth --namespace mygame flow golden-m2 --slug e2e-1234 --admin-profile admin --player-profile player",
@@ -264,7 +266,7 @@ var catalogue = []commandSpec{
 	{
 		Name:        "flow golden-m3",
 		Milestone:   "M3",
-		Description: "Composite: golden-m2 → create-survey → submit-response → list-responses. Ten NDJSON lines, stop-on-first-failure (cli.md §6.4, STATUS M3 phase 12).",
+		Description: "Composite: golden-m2 → create-survey → submit-response → list-responses. Ten NDJSON lines, stop-on-first-failure (cli.md §6.4, STATUS M3 phase 12). Inherits the golden-m2 --auto-approve variant (M5.A).",
 		RequiredFlags: []flagSpec{
 			slugFlag(),
 			{Name: "--admin-profile", Description: "credential profile for admin steps (create, transition, upload, approve, create-survey, list-responses)", ValueType: "string"},
@@ -276,6 +278,8 @@ var catalogue = []commandSpec{
 			{Name: "--nda-text", Description: "NDA prose; @file to load from disk", ValueType: "string"},
 			{Name: "--codes-file", Description: "CSV path to upload (overrides --codes-count; '-' reads stdin)", ValueType: "string"},
 			{Name: "--codes-count", Description: "number of synthetic codes when --codes-file is empty (1..50, default 1)", ValueType: "int"},
+			{Name: "--auto-approve", Description: "create the playtest with auto-approve enabled; rewrites the M2 prefix to assert-applicant-auto-approved (PRD §5.4 / M5.A)", ValueType: "bool"},
+			{Name: "--auto-approve-limit", Description: "auto-approve cap (1..100,000; required when --auto-approve)", ValueType: "int"},
 			{Name: "--dry-run", Description: "print every step's request JSON and exit without dialling", ValueType: "bool"},
 		},
 		Example: "pth --namespace mygame flow golden-m3 --slug e2e-m3 --admin-profile admin --player-profile player",
@@ -314,6 +318,8 @@ var catalogue = []commandSpec{
 			{Name: "--nda-text", Description: "NDA prose; prefix with @ to read from a file (e.g. @nda.md)", ValueType: "string"},
 			{Name: "--distribution-model", Description: "STEAM_KEYS | AGS_CAMPAIGN (M1: AGS_CAMPAIGN returns Unimplemented)", ValueType: "enum"},
 			{Name: "--initial-code-quantity", Description: "initial code quantity (AGS_CAMPAIGN only)", ValueType: "int"},
+			{Name: "--auto-approve", Description: "enable auto-approve in Signup (PRD §5.4 / M5.A)", ValueType: "bool"},
+			{Name: "--auto-approve-limit", Description: "auto-approve cap (1..100,000; required when --auto-approve)", ValueType: "int"},
 			dryRunFlag(),
 		},
 		Example: "pth --namespace mygame --profile admin playtest create --slug summer-stress-test --title 'Summer Stress Test' --platforms STEAM",
@@ -340,6 +346,8 @@ var catalogue = []commandSpec{
 			{Name: "--ends-at", Description: "RFC3339 timestamp", ValueType: "string"},
 			{Name: "--nda-required", Description: "NDA required", ValueType: "bool"},
 			{Name: "--nda-text", Description: "NDA prose; @file to load from disk", ValueType: "string"},
+			{Name: "--auto-approve", Description: "enable auto-approve in Signup (PRD §5.4 / M5.A)", ValueType: "bool"},
+			{Name: "--auto-approve-limit", Description: "auto-approve cap (1..100,000; required when --auto-approve)", ValueType: "int"},
 			dryRunFlag(),
 		},
 		Example: "pth --namespace mygame --profile admin playtest edit --id 01J0... --title 'Updated Title'",

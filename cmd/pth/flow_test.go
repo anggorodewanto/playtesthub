@@ -137,7 +137,7 @@ func TestRunFlowGoldenM1_DryRunEmitsAllSteps(t *testing.T) {
 		if got.Step != wantSteps[i] {
 			t.Errorf("line %d step=%q, want %q", i, got.Step, wantSteps[i])
 		}
-		if got.Status != "DRY_RUN" {
+		if got.Status != statusDryRun {
 			t.Errorf("line %d status=%q, want DRY_RUN", i, got.Status)
 		}
 		if len(got.Request) == 0 {
@@ -509,6 +509,208 @@ func TestRunFlowGoldenM2_RequiresProfilesWhenNotDryRun(t *testing.T) {
 	}
 }
 
+// M5.A phase 5: --auto-approve hoists upload-codes before signup and
+// replaces the manual approve step with assert-applicant-auto-approved.
+func TestRunFlowGoldenM2_AutoApproveDryRunReorders(t *testing.T) {
+	rec := &flowFactoryRecorder{}
+	var stdout, stderr bytes.Buffer
+	code := runFlow(t.Context(), &stdout, &stderr, newFlowGlobals(),
+		[]string{"golden-m2", "--slug", "demo-flow-m2-aa",
+			"--auto-approve", "--auto-approve-limit", "5", "--dry-run"}, rec.factory)
+	if code != exitOK {
+		t.Fatalf("exit=%d, want %d (stderr=%q stdout=%q)", code, exitOK, stderr.String(), stdout.String())
+	}
+	lines := splitNDJSON(stdout.Bytes())
+	wantSteps := []string{
+		"create-playtest", "transition-open", "upload-codes",
+		"signup", "accept-nda", "assert-applicant-auto-approved", "get-code",
+	}
+	if got, want := len(lines), len(wantSteps); got != want {
+		t.Fatalf("emitted %d lines, want %d (stdout=%q)", got, want, stdout.String())
+	}
+	for i, raw := range lines {
+		var got struct {
+			Step    string          `json:"step"`
+			Status  string          `json:"status"`
+			Request json.RawMessage `json:"request"`
+		}
+		if err := json.Unmarshal(raw, &got); err != nil {
+			t.Fatalf("line %d unmarshal: %v: %q", i, err, raw)
+		}
+		if got.Step != wantSteps[i] {
+			t.Errorf("line %d step=%q, want %q", i, got.Step, wantSteps[i])
+		}
+		if got.Status != statusDryRun {
+			t.Errorf("line %d status=%q, want DRY_RUN", i, got.Status)
+		}
+	}
+	// create-playtest body must carry auto_approve=true + the cap.
+	var first struct {
+		Request struct {
+			AutoApprove      *bool   `json:"auto_approve"`
+			AutoApproveLimit *int32  `json:"auto_approve_limit"`
+			NdaText          *string `json:"nda_text"`
+		} `json:"request"`
+	}
+	if err := json.Unmarshal(lines[0], &first); err != nil {
+		t.Fatalf("unmarshal create-playtest line: %v", err)
+	}
+	if first.Request.AutoApprove == nil || !*first.Request.AutoApprove {
+		t.Errorf("create-playtest auto_approve missing or false: %s", lines[0])
+	}
+	if first.Request.AutoApproveLimit == nil || *first.Request.AutoApproveLimit != 5 {
+		t.Errorf("create-playtest auto_approve_limit missing or != 5: %s", lines[0])
+	}
+}
+
+func TestRunFlowGoldenM2_AutoApproveHappyPath(t *testing.T) {
+	createdID := testFlowPlaytestID
+	applicantID := "01J0M2AA"
+	uploadBeforeSignup := false
+	signupSeen := false
+	adminStub := &stubPlaytestClient{
+		createFunc: func(_ context.Context, in *pb.CreatePlaytestRequest, _ ...grpc.CallOption) (*pb.CreatePlaytestResponse, error) {
+			if !in.AutoApprove {
+				t.Errorf("create auto_approve=%v, want true", in.AutoApprove)
+			}
+			if in.AutoApproveLimit == nil || *in.AutoApproveLimit != 5 {
+				t.Errorf("create auto_approve_limit=%v, want 5", in.AutoApproveLimit)
+			}
+			return &pb.CreatePlaytestResponse{Playtest: &pb.Playtest{Id: createdID, Slug: in.Slug, Namespace: in.Namespace}}, nil
+		},
+		transitionFunc: func(_ context.Context, _ *pb.TransitionPlaytestStatusRequest, _ ...grpc.CallOption) (*pb.TransitionPlaytestStatusResponse, error) {
+			return &pb.TransitionPlaytestStatusResponse{Playtest: &pb.Playtest{Id: createdID, Status: pb.PlaytestStatus_PLAYTEST_STATUS_OPEN}}, nil
+		},
+		uploadCodesFunc: func(_ context.Context, _ *pb.UploadCodesRequest, _ ...grpc.CallOption) (*pb.UploadCodesResponse, error) {
+			if signupSeen {
+				t.Errorf("upload-codes ran after signup (auto-approve variant must hoist upload before signup)")
+			} else {
+				uploadBeforeSignup = true
+			}
+			return &pb.UploadCodesResponse{Inserted: 1}, nil
+		},
+		approveFunc: func(_ context.Context, _ *pb.ApproveApplicantRequest, _ ...grpc.CallOption) (*pb.ApproveApplicantResponse, error) {
+			t.Fatal("auto-approve variant must NOT call ApproveApplicant")
+			return nil, nil
+		},
+		listApplicantsFunc: func(_ context.Context, in *pb.ListApplicantsRequest, _ ...grpc.CallOption) (*pb.ListApplicantsResponse, error) {
+			if in.PlaytestId != createdID {
+				t.Errorf("list-applicants playtest_id=%q, want %q", in.PlaytestId, createdID)
+			}
+			return &pb.ListApplicantsResponse{Applicants: []*pb.Applicant{{
+				Id: applicantID, PlaytestId: createdID,
+				Status: pb.ApplicantStatus_APPLICANT_STATUS_APPROVED, AutoApproved: true,
+			}}}, nil
+		},
+	}
+	playerStub := &stubPlaytestClient{
+		signupFunc: func(_ context.Context, _ *pb.SignupRequest, _ ...grpc.CallOption) (*pb.SignupResponse, error) {
+			signupSeen = true
+			return &pb.SignupResponse{Applicant: &pb.Applicant{Id: applicantID, PlaytestId: createdID, Status: pb.ApplicantStatus_APPLICANT_STATUS_APPROVED}}, nil
+		},
+		acceptNDAFunc: func(_ context.Context, _ *pb.AcceptNDARequest, _ ...grpc.CallOption) (*pb.AcceptNDAResponse, error) {
+			return &pb.AcceptNDAResponse{Acceptance: &pb.NDAAcceptance{NdaVersionHash: "h"}}, nil
+		},
+		getGrantedCodeFunc: func(_ context.Context, _ *pb.GetGrantedCodeRequest, _ ...grpc.CallOption) (*pb.GetGrantedCodeResponse, error) {
+			return &pb.GetGrantedCodeResponse{Value: "STEAM-KEY-AA-1", DistributionModel: pb.DistributionModel_DISTRIBUTION_MODEL_STEAM_KEYS}, nil
+		},
+	}
+	rec := &flowFactoryRecorder{byProfile: map[string]*stubPlaytestClient{"admin": adminStub, "player": playerStub}}
+
+	var stdout, stderr bytes.Buffer
+	code := runFlow(t.Context(), &stdout, &stderr, newFlowGlobals(),
+		[]string{"golden-m2", "--slug", "demo-flow-m2-aa",
+			"--auto-approve", "--auto-approve-limit", "5",
+			"--admin-profile", "admin", "--player-profile", "player"}, rec.factory)
+	if code != exitOK {
+		t.Fatalf("exit=%d, want %d (stderr=%q stdout=%q)", code, exitOK, stderr.String(), stdout.String())
+	}
+	if !uploadBeforeSignup {
+		t.Fatal("expected upload-codes to run before signup")
+	}
+	lines := splitNDJSON(stdout.Bytes())
+	wantSteps := []string{
+		"create-playtest", "transition-open", "upload-codes",
+		"signup", "accept-nda", "assert-applicant-auto-approved", "get-code",
+	}
+	if got, want := len(lines), len(wantSteps); got != want {
+		t.Fatalf("emitted %d lines, want %d (stdout=%q)", got, want, stdout.String())
+	}
+	for i, raw := range lines {
+		var got struct {
+			Step   string `json:"step"`
+			Status string `json:"status"`
+		}
+		if err := json.Unmarshal(raw, &got); err != nil {
+			t.Fatalf("line %d unmarshal: %v: %q", i, err, raw)
+		}
+		if got.Step != wantSteps[i] {
+			t.Errorf("line %d step=%q, want %q", i, got.Step, wantSteps[i])
+		}
+		if got.Status != "OK" {
+			t.Errorf("line %d status=%q, want OK", i, got.Status)
+		}
+	}
+}
+
+func TestRunFlowGoldenM2_AutoApproveAssertionFailsOnPending(t *testing.T) {
+	createdID := testFlowPlaytestID
+	applicantID := "01J0M2AAPENDING"
+	adminStub := &stubPlaytestClient{
+		createFunc: func(_ context.Context, in *pb.CreatePlaytestRequest, _ ...grpc.CallOption) (*pb.CreatePlaytestResponse, error) {
+			return &pb.CreatePlaytestResponse{Playtest: &pb.Playtest{Id: createdID, Slug: in.Slug}}, nil
+		},
+		transitionFunc: func(_ context.Context, _ *pb.TransitionPlaytestStatusRequest, _ ...grpc.CallOption) (*pb.TransitionPlaytestStatusResponse, error) {
+			return &pb.TransitionPlaytestStatusResponse{Playtest: &pb.Playtest{Id: createdID, Status: pb.PlaytestStatus_PLAYTEST_STATUS_OPEN}}, nil
+		},
+		uploadCodesFunc: func(_ context.Context, _ *pb.UploadCodesRequest, _ ...grpc.CallOption) (*pb.UploadCodesResponse, error) {
+			return &pb.UploadCodesResponse{Inserted: 1}, nil
+		},
+		listApplicantsFunc: func(_ context.Context, _ *pb.ListApplicantsRequest, _ ...grpc.CallOption) (*pb.ListApplicantsResponse, error) {
+			// Pool was empty → silent PENDING fallback. assert step must fail.
+			return &pb.ListApplicantsResponse{Applicants: []*pb.Applicant{{
+				Id: applicantID, PlaytestId: createdID,
+				Status: pb.ApplicantStatus_APPLICANT_STATUS_PENDING, AutoApproved: false,
+			}}}, nil
+		},
+	}
+	playerStub := &stubPlaytestClient{
+		signupFunc: func(_ context.Context, _ *pb.SignupRequest, _ ...grpc.CallOption) (*pb.SignupResponse, error) {
+			return &pb.SignupResponse{Applicant: &pb.Applicant{Id: applicantID, PlaytestId: createdID, Status: pb.ApplicantStatus_APPLICANT_STATUS_PENDING}}, nil
+		},
+		acceptNDAFunc: func(_ context.Context, _ *pb.AcceptNDARequest, _ ...grpc.CallOption) (*pb.AcceptNDAResponse, error) {
+			return &pb.AcceptNDAResponse{Acceptance: &pb.NDAAcceptance{NdaVersionHash: "h"}}, nil
+		},
+	}
+	rec := &flowFactoryRecorder{byProfile: map[string]*stubPlaytestClient{"admin": adminStub, "player": playerStub}}
+
+	var stdout, stderr bytes.Buffer
+	code := runFlow(t.Context(), &stdout, &stderr, newFlowGlobals(),
+		[]string{"golden-m2", "--slug", "demo-flow-m2-aa-fail",
+			"--auto-approve", "--auto-approve-limit", "5",
+			"--admin-profile", "admin", "--player-profile", "player"}, rec.factory)
+	if code != exitClientError {
+		t.Fatalf("exit=%d, want %d (stderr=%q)", code, exitClientError, stderr.String())
+	}
+	lines := splitNDJSON(stdout.Bytes())
+	// 6 OK (the ListApplicants RPC succeeds — it's the *post-RPC* data
+	// check that fails) + 1 synthetic FAILED on the same step. get-code
+	// must NOT run. Mirrors the golden-m1 assert-pending FAILED shape.
+	if got, want := len(lines), 7; got != want {
+		t.Fatalf("emitted %d lines, want %d (stdout=%q)", got, want, stdout.String())
+	}
+	var last struct {
+		Step   string `json:"step"`
+		Status string `json:"status"`
+	}
+	if err := json.Unmarshal(lines[6], &last); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if last.Step != "assert-applicant-auto-approved" || last.Status != statusFailed {
+		t.Errorf("got %q/%q, want assert-applicant-auto-approved/%s", last.Step, last.Status, statusFailed)
+	}
+}
+
 func TestRunFlowGoldenM3_HappyPath(t *testing.T) {
 	createdID := testFlowPlaytestID
 	applicantID := "01J0M3APP"
@@ -761,7 +963,7 @@ func TestRunFlowGoldenM4_DryRunEmitsFourSteps(t *testing.T) {
 		if got.Step != wantSteps[i] {
 			t.Errorf("line %d step=%q, want %q", i, got.Step, wantSteps[i])
 		}
-		if got.Status != "DRY_RUN" {
+		if got.Status != statusDryRun {
 			t.Errorf("line %d status=%q, want DRY_RUN", i, got.Status)
 		}
 	}

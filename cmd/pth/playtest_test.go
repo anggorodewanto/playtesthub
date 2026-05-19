@@ -630,6 +630,99 @@ func TestRunPlaytestEdit_DryRunBuildsRequest(t *testing.T) {
 	}
 }
 
+// --- M5.A phase 5: --auto-approve + --auto-approve-limit ---
+
+func TestRunPlaytestCreate_AutoApproveDryRunPopulatesFields(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	g := &Globals{Addr: "localhost:6565", Namespace: testNamespaceDev}
+	code := runPlaytest(t.Context(), &stdout, &stderr, g, []string{
+		"create",
+		"--slug", testSlugDemo01,
+		"--title", "Demo AA",
+		"--auto-approve",
+		"--auto-approve-limit", "50",
+		"--dry-run",
+	}, factoryFor(nil))
+	if code != exitOK {
+		t.Fatalf("exit=%d, want %d (stderr=%q)", code, exitOK, stderr.String())
+	}
+	var got map[string]any
+	if err := json.Unmarshal(bytes.TrimSpace(stdout.Bytes()), &got); err != nil {
+		t.Fatalf("stdout not JSON: %v: %q", err, stdout.String())
+	}
+	if got["auto_approve"] != true {
+		t.Errorf("auto_approve=%v, want true", got["auto_approve"])
+	}
+	switch v := got["auto_approve_limit"].(type) {
+	case float64:
+		if int(v) != 50 {
+			t.Errorf("auto_approve_limit=%v, want 50", v)
+		}
+	case string:
+		if v != "50" {
+			t.Errorf("auto_approve_limit=%v, want 50", v)
+		}
+	default:
+		t.Errorf("auto_approve_limit missing or wrong type: %v", v)
+	}
+}
+
+func TestRunPlaytestCreate_AutoApproveDefaultOffOmitsFields(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	g := &Globals{Addr: "localhost:6565", Namespace: testNamespaceDev}
+	code := runPlaytest(t.Context(), &stdout, &stderr, g, []string{
+		"create",
+		"--slug", testSlugDemo01,
+		"--title", "Demo",
+		"--dry-run",
+	}, factoryFor(nil))
+	if code != exitOK {
+		t.Fatalf("exit=%d, want %d (stderr=%q)", code, exitOK, stderr.String())
+	}
+	var got map[string]any
+	_ = json.Unmarshal(bytes.TrimSpace(stdout.Bytes()), &got)
+	if v, ok := got["auto_approve"]; ok && v != false {
+		t.Errorf("default auto_approve should be unset/false, got %v", v)
+	}
+	if _, ok := got["auto_approve_limit"]; ok {
+		t.Errorf("default auto_approve_limit must be omitted, got %v", got["auto_approve_limit"])
+	}
+}
+
+func TestRunPlaytestEdit_AutoApproveDryRunPopulatesFields(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	g := &Globals{Addr: "localhost:6565", Namespace: testNamespaceDev}
+	code := runPlaytest(t.Context(), &stdout, &stderr, g, []string{
+		"edit",
+		"--id", "p1",
+		"--auto-approve",
+		"--auto-approve-limit", "25",
+		"--dry-run",
+	}, factoryFor(nil))
+	if code != exitOK {
+		t.Fatalf("exit=%d, want %d (stderr=%q)", code, exitOK, stderr.String())
+	}
+	var got map[string]any
+	if err := json.Unmarshal(bytes.TrimSpace(stdout.Bytes()), &got); err != nil {
+		t.Fatalf("stdout not JSON: %v: %q", err, stdout.String())
+	}
+	if got["auto_approve"] != true {
+		t.Errorf("auto_approve=%v, want true", got["auto_approve"])
+	}
+	switch v := got["auto_approve_limit"].(type) {
+	case float64:
+		if int(v) != 25 {
+			t.Errorf("auto_approve_limit=%v, want 25", v)
+		}
+	case string:
+		if v != "25" {
+			t.Errorf("auto_approve_limit=%v, want 25", v)
+		}
+	default:
+		t.Errorf("auto_approve_limit missing or wrong type: %v", v)
+	}
+}
+
 // --- 10.5: delete ---
 
 func TestRunPlaytestDelete_Success(t *testing.T) {

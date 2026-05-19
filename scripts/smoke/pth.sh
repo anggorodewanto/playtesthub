@@ -253,12 +253,37 @@ create_dry=$("$PTH_BIN" --namespace smoke playtest create \
 [[ "$(jq -r '.platforms | length' <<<"$create_dry")" == "2" ]] \
     || fail "playtest create dry-run platforms length wrong: $create_dry"
 
+# M5.A phase 5: --auto-approve + --auto-approve-limit reach the request
+# body. Default OFF must not populate auto_approve_limit (oneof presence
+# leaks model intent into the wire shape).
+log "pth playtest create --auto-approve --dry-run populates auto-approve fields"
+create_aa_dry=$("$PTH_BIN" --namespace smoke playtest create \
+    --slug demo-02 --title "Demo AA" \
+    --platforms STEAM \
+    --distribution-model STEAM_KEYS \
+    --auto-approve --auto-approve-limit 5 \
+    --dry-run)
+[[ "$(jq -r '.auto_approve' <<<"$create_aa_dry")" == "true" ]] \
+    || fail "playtest create --auto-approve dry-run auto_approve != true: $create_aa_dry"
+[[ "$(jq -r '.auto_approve_limit' <<<"$create_aa_dry")" == "5" ]] \
+    || fail "playtest create --auto-approve dry-run auto_approve_limit != 5: $create_aa_dry"
+[[ "$(jq -r '.auto_approve' <<<"$create_dry")" == "null" || "$(jq -r '.auto_approve' <<<"$create_dry")" == "false" ]] \
+    || fail "playtest create default dry-run auto_approve should be unset: $create_dry"
+
 log "pth playtest edit --dry-run"
 edit_dry=$("$PTH_BIN" --namespace smoke playtest edit --id p-smoke --title "New" --dry-run)
 [[ "$(jq -r '.playtest_id' <<<"$edit_dry")" == "p-smoke" ]] \
     || fail "playtest edit dry-run playtest_id mismatch: $edit_dry"
 [[ "$(jq -r '.title' <<<"$edit_dry")" == "New" ]] \
     || fail "playtest edit dry-run title mismatch: $edit_dry"
+
+log "pth playtest edit --auto-approve --dry-run populates auto-approve fields"
+edit_aa_dry=$("$PTH_BIN" --namespace smoke playtest edit --id p-smoke \
+    --auto-approve --auto-approve-limit 25 --dry-run)
+[[ "$(jq -r '.auto_approve' <<<"$edit_aa_dry")" == "true" ]] \
+    || fail "playtest edit --auto-approve dry-run auto_approve != true: $edit_aa_dry"
+[[ "$(jq -r '.auto_approve_limit' <<<"$edit_aa_dry")" == "25" ]] \
+    || fail "playtest edit --auto-approve dry-run auto_approve_limit != 25: $edit_aa_dry"
 # Edit must reject immutable flags client-side.
 log "pth playtest edit rejects --slug client-side"
 set +e
@@ -475,6 +500,30 @@ while IFS= read -r line; do
     i=$((i+1))
 done <<<"$flow_dry_m2"
 
+# M5.A phase 5: --auto-approve variant hoists upload-codes before signup
+# and substitutes `assert-applicant-auto-approved` for the manual
+# `approve` step. Still seven NDJSON steps, different ordering + tail.
+log "pth flow golden-m2 --auto-approve --dry-run reorders the prefix and replaces approve"
+flow_dry_m2_aa=$("$PTH_BIN" --namespace smoke flow golden-m2 --slug demo-flow-m2-aa \
+    --auto-approve --auto-approve-limit 5 --dry-run)
+flow_dry_m2_aa_lines=$(printf '%s\n' "$flow_dry_m2_aa" | wc -l | tr -d ' ')
+[[ "$flow_dry_m2_aa_lines" -eq 7 ]] \
+    || { printf '%s\n' "$flow_dry_m2_aa" >&2; fail "flow golden-m2 --auto-approve dry-run lines=$flow_dry_m2_aa_lines, want 7"; }
+expected_steps_m2_aa=("create-playtest" "transition-open" "upload-codes" "signup" "accept-nda" "assert-applicant-auto-approved" "get-code")
+i=0
+while IFS= read -r line; do
+    step=$(jq -r '.step' <<<"$line")
+    [[ "$step" == "${expected_steps_m2_aa[$i]}" ]] \
+        || fail "flow golden-m2 --auto-approve dry-run line $((i+1)) step=$step, want ${expected_steps_m2_aa[$i]}"
+    i=$((i+1))
+done <<<"$flow_dry_m2_aa"
+# The create-playtest request body must carry auto_approve=true + the cap.
+create_line=$(printf '%s\n' "$flow_dry_m2_aa" | head -n1)
+[[ "$(jq -r '.request.auto_approve' <<<"$create_line")" == "true" ]] \
+    || fail "flow golden-m2 --auto-approve create-playtest auto_approve != true: $create_line"
+[[ "$(jq -r '.request.auto_approve_limit' <<<"$create_line")" == "5" ]] \
+    || fail "flow golden-m2 --auto-approve create-playtest auto_approve_limit != 5: $create_line"
+
 # --- pth flow golden-m3 --dry-run (unconditional) ---------------------
 # Phase 12 (docs/STATUS.md M3): ten NDJSON steps with status=DRY_RUN.
 # Adds the M3 survey surface (create-survey, submit-response,
@@ -495,6 +544,24 @@ while IFS= read -r line; do
         || fail "flow golden-m3 dry-run line $((i+1)) status=$status, want DRY_RUN"
     i=$((i+1))
 done <<<"$flow_dry_m3"
+
+# M5.A phase 5: golden-m3 inherits the golden-m2 auto-approve prefix
+# reordering. Ten lines, but the M2-prefix tail uses
+# assert-applicant-auto-approved + upload-codes hoisted before signup.
+log "pth flow golden-m3 --auto-approve --dry-run inherits the M2 auto-approve prefix"
+flow_dry_m3_aa=$("$PTH_BIN" --namespace smoke flow golden-m3 --slug demo-flow-m3-aa \
+    --auto-approve --auto-approve-limit 5 --dry-run)
+flow_dry_m3_aa_lines=$(printf '%s\n' "$flow_dry_m3_aa" | wc -l | tr -d ' ')
+[[ "$flow_dry_m3_aa_lines" -eq 10 ]] \
+    || { printf '%s\n' "$flow_dry_m3_aa" >&2; fail "flow golden-m3 --auto-approve dry-run lines=$flow_dry_m3_aa_lines, want 10"; }
+expected_steps_m3_aa=("create-playtest" "transition-open" "upload-codes" "signup" "accept-nda" "assert-applicant-auto-approved" "get-code" "create-survey" "submit-response" "list-responses")
+i=0
+while IFS= read -r line; do
+    step=$(jq -r '.step' <<<"$line")
+    [[ "$step" == "${expected_steps_m3_aa[$i]}" ]] \
+        || fail "flow golden-m3 --auto-approve dry-run line $((i+1)) step=$step, want ${expected_steps_m3_aa[$i]}"
+    i=$((i+1))
+done <<<"$flow_dry_m3_aa"
 
 # --- pth flow golden-m4 --dry-run (unconditional) ---------------------
 # STATUS_M4 phase 8: four NDJSON steps with status=DRY_RUN. Window-

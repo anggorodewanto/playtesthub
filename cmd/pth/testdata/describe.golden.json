@@ -468,7 +468,7 @@
     {
       "name": "flow golden-m2",
       "milestone": "M2",
-      "description": "Composite: golden-m1 → accept-nda → upload codes → approve → assert APPROVED + code visible. NDJSON output (cli.md §6.4).",
+      "description": "Composite: golden-m1 → accept-nda → upload codes → approve → assert APPROVED + code visible. NDJSON output (cli.md §6.4). With --auto-approve, upload-codes hoists before signup and the manual approve step is replaced by assert-applicant-auto-approved (M5.A).",
       "requiredFlags": [
         {
           "name": "--slug",
@@ -513,6 +513,16 @@
           "valueType": "int"
         },
         {
+          "name": "--auto-approve",
+          "description": "create the playtest with auto-approve enabled; rewrites the signup tail to assert-applicant-auto-approved (PRD §5.4 / M5.A)",
+          "valueType": "bool"
+        },
+        {
+          "name": "--auto-approve-limit",
+          "description": "auto-approve cap (1..100,000; required when --auto-approve)",
+          "valueType": "int"
+        },
+        {
           "name": "--dry-run",
           "description": "print every step's request JSON and exit without dialling",
           "valueType": "bool"
@@ -523,7 +533,7 @@
     {
       "name": "flow golden-m3",
       "milestone": "M3",
-      "description": "Composite: golden-m2 → create-survey → submit-response → list-responses. Ten NDJSON lines, stop-on-first-failure (cli.md §6.4, STATUS M3 phase 12).",
+      "description": "Composite: golden-m2 → create-survey → submit-response → list-responses. Ten NDJSON lines, stop-on-first-failure (cli.md §6.4, STATUS M3 phase 12). Inherits the golden-m2 --auto-approve variant (M5.A).",
       "requiredFlags": [
         {
           "name": "--slug",
@@ -565,6 +575,16 @@
         {
           "name": "--codes-count",
           "description": "number of synthetic codes when --codes-file is empty (1..50, default 1)",
+          "valueType": "int"
+        },
+        {
+          "name": "--auto-approve",
+          "description": "create the playtest with auto-approve enabled; rewrites the M2 prefix to assert-applicant-auto-approved (PRD §5.4 / M5.A)",
+          "valueType": "bool"
+        },
+        {
+          "name": "--auto-approve-limit",
+          "description": "auto-approve cap (1..100,000; required when --auto-approve)",
           "valueType": "int"
         },
         {
@@ -693,6 +713,16 @@
           "valueType": "int"
         },
         {
+          "name": "--auto-approve",
+          "description": "enable auto-approve in Signup (PRD §5.4 / M5.A)",
+          "valueType": "bool"
+        },
+        {
+          "name": "--auto-approve-limit",
+          "description": "auto-approve cap (1..100,000; required when --auto-approve)",
+          "valueType": "int"
+        },
+        {
           "name": "--dry-run",
           "description": "print the request JSON and exit without dialling",
           "valueType": "bool"
@@ -771,6 +801,16 @@
           "name": "--nda-text",
           "description": "NDA prose; @file to load from disk",
           "valueType": "string"
+        },
+        {
+          "name": "--auto-approve",
+          "description": "enable auto-approve in Signup (PRD §5.4 / M5.A)",
+          "valueType": "bool"
+        },
+        {
+          "name": "--auto-approve-limit",
+          "description": "auto-approve cap (1..100,000; required when --auto-approve)",
+          "valueType": "int"
         },
         {
           "name": "--dry-run",
