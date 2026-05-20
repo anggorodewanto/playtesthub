@@ -76,11 +76,13 @@
       <p class="mt-4 text-sm text-slate-600">
         {formatDateRange(playtest.startsAt, playtest.endsAt)}
       </p>
-      {#if playtest.platforms && playtest.platforms.length > 0}
-        <p class="mt-2 text-sm text-slate-600">
+      <p class="mt-2 text-sm text-slate-600" data-testid="playtest-platforms">
+        {#if playtest.platforms && playtest.platforms.length > 0}
           Platforms: {playtest.platforms.map(platformLabel).join(', ')}
-        </p>
-      {/if}
+        {:else}
+          Platforms: not specified
+        {/if}
+      </p>
       <section class="mt-6 whitespace-pre-wrap text-slate-800" data-testid="playtest-description">
         {playtest.description}
       </section>

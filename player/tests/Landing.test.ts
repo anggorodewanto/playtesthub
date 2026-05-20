@@ -55,6 +55,29 @@ describe('Landing', () => {
     expect(screen.getByRole('button', { name: /sign up/i })).toBeInTheDocument();
   });
 
+  it('falls back to "Platforms: not specified" when the array is empty', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        json(200, {
+          playtest: {
+            slug: 'no-platforms',
+            title: 'Untyped',
+            description: 'd',
+            bannerImageUrl: '',
+            platforms: [],
+            startsAt: '2026-05-01T00:00:00Z',
+            endsAt: '2026-05-08T00:00:00Z',
+          },
+        }),
+      ),
+    );
+
+    render(Landing, { config, slug: 'no-platforms' });
+    expect(await screen.findByText('Untyped')).toBeInTheDocument();
+    expect(screen.getByTestId('playtest-platforms')).toHaveTextContent('Platforms: not specified');
+  });
+
   it('refetches when slug changes (hash-only navigation)', async () => {
     const playtestFor = (slug: string) => ({
       slug,
