@@ -984,18 +984,19 @@ func TestTransitionPlaytestStatus_OpenToClosed(t *testing.T) {
 // not payload fields, but both travel on the message.
 func TestEditPlaytestRequest_MutableFieldWhitelist(t *testing.T) {
 	wantMutable := map[string]struct{}{
-		"namespace":          {}, // path param
-		"playtest_id":        {}, // path param
-		"title":              {},
-		"description":        {},
-		"banner_image_url":   {},
-		"platforms":          {},
-		"starts_at":          {},
-		"ends_at":            {},
-		"nda_required":       {},
-		"nda_text":           {},
-		"auto_approve":       {}, // M5.A auto-approve, PRD §5.1 / §5.4
-		"auto_approve_limit": {},
+		"namespace":                 {}, // path param
+		"playtest_id":               {}, // path param
+		"title":                     {},
+		"description":               {},
+		"banner_image_url":          {},
+		"platforms":                 {},
+		"starts_at":                 {},
+		"ends_at":                   {},
+		"nda_required":              {},
+		"nda_text":                  {},
+		"auto_approve":              {}, // M5.A auto-approve, PRD §5.1 / §5.4
+		"auto_approve_limit":        {},
+		"adt_fallback_download_url": {}, // M5.B ADT static fallback URL, PRD §5.1 / §4.8
 	}
 	desc := (&pb.EditPlaytestRequest{}).ProtoReflect().Descriptor()
 	got := map[string]struct{}{}

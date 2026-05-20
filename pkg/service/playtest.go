@@ -38,10 +38,11 @@ const (
 	applicantStatusRejected = "REJECTED"
 )
 
-// Playtest.distributionModel TEXT values (migration 0001 / PRD §5.1).
+// Playtest.distributionModel TEXT values (migration 0001 + 0006 / PRD §5.1).
 const (
 	distModelSteamKeys   = "STEAM_KEYS"
 	distModelAGSCampaign = "AGS_CAMPAIGN"
+	distModelADT         = "ADT"
 )
 
 // PlaytesthubServiceServer is the gRPC handler for the playtesthub.v1
@@ -170,7 +171,8 @@ func (s *PlaytesthubServiceServer) CreatePlaytest(ctx context.Context, req *pb.C
 		return nil, err
 	}
 	if req.GetDistributionModel() != pb.DistributionModel_DISTRIBUTION_MODEL_STEAM_KEYS &&
-		req.GetDistributionModel() != pb.DistributionModel_DISTRIBUTION_MODEL_AGS_CAMPAIGN {
+		req.GetDistributionModel() != pb.DistributionModel_DISTRIBUTION_MODEL_AGS_CAMPAIGN &&
+		req.GetDistributionModel() != pb.DistributionModel_DISTRIBUTION_MODEL_ADT {
 		return nil, status.Error(codes.InvalidArgument, "distribution_model is required")
 	}
 	// STEAM_KEYS sources codes from admin CSV upload (M2), not AGS Campaign
@@ -179,6 +181,9 @@ func (s *PlaytesthubServiceServer) CreatePlaytest(ctx context.Context, req *pb.C
 	if req.GetDistributionModel() == pb.DistributionModel_DISTRIBUTION_MODEL_STEAM_KEYS && req.InitialCodeQuantity != nil {
 		return nil, status.Error(codes.InvalidArgument, "initial_code_quantity must not be set for STEAM_KEYS (only AGS_CAMPAIGN uses it; PRD §5.1)")
 	}
+	if req.GetDistributionModel() == pb.DistributionModel_DISTRIBUTION_MODEL_ADT && req.InitialCodeQuantity != nil {
+		return nil, status.Error(codes.InvalidArgument, errMsgADTPoolFieldOnADT)
+	}
 	var initialQty int32
 	if req.GetDistributionModel() == pb.DistributionModel_DISTRIBUTION_MODEL_AGS_CAMPAIGN {
 		q, err := validateAGSCampaignRequest(req)
@@ -186,6 +191,10 @@ func (s *PlaytesthubServiceServer) CreatePlaytest(ctx context.Context, req *pb.C
 			return nil, err
 		}
 		initialQty = q
+	}
+	isADT := req.GetDistributionModel() == pb.DistributionModel_DISTRIBUTION_MODEL_ADT
+	if err := validateADTFields(isADT, req.AdtNamespace, req.AdtGameId, req.AdtBuildId, req.AdtFallbackDownloadUrl); err != nil {
+		return nil, err
 	}
 	if err := validateSlug(req.GetSlug()); err != nil {
 		return nil, err
@@ -232,6 +241,9 @@ func (s *PlaytesthubServiceServer) CreatePlaytest(ctx context.Context, req *pb.C
 	if req.GetDistributionModel() == pb.DistributionModel_DISTRIBUTION_MODEL_AGS_CAMPAIGN {
 		distModel = distModelAGSCampaign
 	}
+	if isADT {
+		distModel = distModelADT
+	}
 	p := &repo.Playtest{
 		Namespace:             s.namespace,
 		Slug:                  req.GetSlug(),
@@ -253,6 +265,16 @@ func (s *PlaytesthubServiceServer) CreatePlaytest(ctx context.Context, req *pb.C
 	if distModel == distModelAGSCampaign {
 		p.InitialCodeQuantity = &initialQty
 		return s.createAGSCampaignPlaytest(ctx, p, initialQty)
+	}
+
+	if distModel == distModelADT {
+		if err := s.verifyADTBuild(ctx, *req.AdtNamespace, *req.AdtGameId, *req.AdtBuildId); err != nil {
+			return nil, err
+		}
+		p.ADTNamespace = req.AdtNamespace
+		p.ADTGameID = req.AdtGameId
+		p.ADTBuildID = req.AdtBuildId
+		p.ADTFallbackDownloadURL = req.AdtFallbackDownloadUrl
 	}
 
 	got, err := s.playtest.Create(ctx, p)
@@ -323,6 +345,17 @@ func (s *PlaytesthubServiceServer) EditPlaytest(ctx context.Context, req *pb.Edi
 	previousNDAText := current.NDAText
 	ndaTextChanged := req.GetNdaText() != current.NDAText
 
+	// ADT fallback URL is the one ADT identifier mutable post-create; the
+	// others (adt_namespace / adt_game_id / adt_build_id) are not on
+	// EditPlaytestRequest so a wire-level reject isn't possible. Reject
+	// fallback URL on non-ADT playtests so the field can't be smuggled in.
+	if req.AdtFallbackDownloadUrl != nil && current.DistributionModel != distModelADT {
+		return nil, status.Error(codes.InvalidArgument, errMsgADTUnsupportedFields)
+	}
+	if err := validateADTFallbackURL(req.AdtFallbackDownloadUrl); err != nil {
+		return nil, err
+	}
+
 	current.Title = req.GetTitle()
 	current.Description = req.GetDescription()
 	current.BannerImageURL = req.GetBannerImageUrl()
@@ -332,6 +365,9 @@ func (s *PlaytesthubServiceServer) EditPlaytest(ctx context.Context, req *pb.Edi
 	current.NDARequired = req.GetNdaRequired()
 	current.AutoApprove = req.GetAutoApprove()
 	current.AutoApproveLimit = req.AutoApproveLimit
+	if current.DistributionModel == distModelADT {
+		current.ADTFallbackDownloadURL = req.AdtFallbackDownloadUrl
+	}
 	// PRD §5.3: changing NDA text forces every approved applicant back
 	// to re-accept. Only recompute the version hash when the text has
 	// actually changed so clients can edit cosmetic fields without
@@ -505,6 +541,43 @@ func (s *PlaytesthubServiceServer) GetPlaytestForPlayer(ctx context.Context, req
 	return &pb.GetPlaytestForPlayerResponse{Playtest: playtestToPlayer(got)}, nil
 }
 
+// verifyADTBuild defends against pth/api callers bypassing the UI build
+// picker — confirms an adt_linkage row exists for the caller's studio and
+// that the adt_build_id belongs to (adt_namespace, adt_game_id). PRD
+// §4.8 / STATUS_M5.md B5.
+func (s *PlaytesthubServiceServer) verifyADTBuild(ctx context.Context, adtNamespace, adtGameID, adtBuildID string) error {
+	if s.adtClient == nil {
+		return status.Error(codes.Internal, "ADT client not configured")
+	}
+	store, err := s.requireADTLinkageStore()
+	if err != nil {
+		return err
+	}
+	studio, err := s.resolveStudioNamespace(ctx)
+	if err != nil {
+		return err
+	}
+	if _, lookupErr := store.GetLive(ctx, studio, adtNamespace); lookupErr != nil {
+		if errors.Is(lookupErr, repo.ErrNotFound) {
+			return status.Error(codes.FailedPrecondition, "no ADT linkage covers this studio + adt_namespace; link the ADT namespace first")
+		}
+		return status.Errorf(codes.Internal, "loading adt_linkage: %v", lookupErr)
+	}
+	builds, listErr := s.adtClient.ListBuilds(ctx, studio, adtNamespace, adtGameID)
+	if errors.Is(listErr, adt.ErrLinkageMissing) {
+		return status.Error(codes.FailedPrecondition, "adt linkage no longer exists or service token rejected, re-link required")
+	}
+	if listErr != nil {
+		return status.Errorf(codes.Unavailable, "calling ADT ListBuilds: %v", listErr)
+	}
+	for _, b := range builds {
+		if b.ID == adtBuildID {
+			return nil
+		}
+	}
+	return status.Errorf(codes.InvalidArgument, "adt_build_id %q is not present under adt_namespace %q / adt_game_id %q", adtBuildID, adtNamespace, adtGameID)
+}
+
 // isApprovedApplicant checks whether the caller has an APPROVED applicant
 // row for the given playtest — the CLOSED-visibility gate for players.
 func (s *PlaytesthubServiceServer) isApprovedApplicant(ctx context.Context, playtestID, userID uuid.UUID) (bool, error) {
@@ -595,6 +668,22 @@ func playtestToProto(p *repo.Playtest) *pb.Playtest {
 		v := *p.AutoApproveLimit
 		out.AutoApproveLimit = &v
 	}
+	if p.ADTNamespace != nil {
+		v := *p.ADTNamespace
+		out.AdtNamespace = &v
+	}
+	if p.ADTGameID != nil {
+		v := *p.ADTGameID
+		out.AdtGameId = &v
+	}
+	if p.ADTBuildID != nil {
+		v := *p.ADTBuildID
+		out.AdtBuildId = &v
+	}
+	if p.ADTFallbackDownloadURL != nil {
+		v := *p.ADTFallbackDownloadURL
+		out.AdtFallbackDownloadUrl = &v
+	}
 	if p.DeletedAt != nil {
 		out.DeletedAt = timestamppb.New(*p.DeletedAt)
 	}
@@ -653,6 +742,8 @@ func distModelStringToEnum(s string) pb.DistributionModel {
 		return pb.DistributionModel_DISTRIBUTION_MODEL_STEAM_KEYS
 	case distModelAGSCampaign:
 		return pb.DistributionModel_DISTRIBUTION_MODEL_AGS_CAMPAIGN
+	case distModelADT:
+		return pb.DistributionModel_DISTRIBUTION_MODEL_ADT
 	}
 	return pb.DistributionModel_DISTRIBUTION_MODEL_UNSPECIFIED
 }

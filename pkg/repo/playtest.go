@@ -41,9 +41,16 @@ type Playtest struct {
 	// the migration 0005 CHECK constraint.
 	AutoApprove      bool
 	AutoApproveLimit *int32
-	CreatedAt        time.Time
-	UpdatedAt        time.Time
-	DeletedAt        *time.Time
+	// ADT distribution (PRD §5.1 / §4.8, M5.B). Populated when
+	// DistributionModel = 'ADT'; immutable post-create for the three
+	// identifiers. ADTFallbackDownloadURL is mutable via EditPlaytest.
+	ADTNamespace           *string
+	ADTGameID              *string
+	ADTBuildID             *string
+	ADTFallbackDownloadURL *string
+	CreatedAt              time.Time
+	UpdatedAt              time.Time
+	DeletedAt              *time.Time
 }
 
 // PlaytestStore is the data access surface the service layer depends on.
@@ -92,6 +99,7 @@ const playtestColumns = `
 	current_nda_version_hash, survey_id, distribution_model,
 	ags_item_id, ags_campaign_id, initial_code_quantity,
 	auto_approve, auto_approve_limit,
+	adt_namespace, adt_game_id, adt_build_id, adt_fallback_download_url,
 	created_at, updated_at, deleted_at`
 
 // Create inserts a new playtest row. The caller supplies business
@@ -111,9 +119,10 @@ func (s *PgPlaytestStore) CreateTx(ctx context.Context, q Querier, p *Playtest) 
 			starts_at, ends_at, status, nda_required, nda_text,
 			current_nda_version_hash, survey_id, distribution_model,
 			ags_item_id, ags_campaign_id, initial_code_quantity,
-			auto_approve, auto_approve_limit
+			auto_approve, auto_approve_limit,
+			adt_namespace, adt_game_id, adt_build_id, adt_fallback_download_url
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
 		RETURNING ` + playtestColumns
 
 	row := q.QueryRow(ctx, sql,
@@ -136,6 +145,10 @@ func (s *PgPlaytestStore) CreateTx(ctx context.Context, q Querier, p *Playtest) 
 		int32Ptr(p.InitialCodeQuantity),
 		p.AutoApprove,
 		int32Ptr(p.AutoApproveLimit),
+		stringPtr(p.ADTNamespace),
+		stringPtr(p.ADTGameID),
+		stringPtr(p.ADTBuildID),
+		stringPtr(p.ADTFallbackDownloadURL),
 	)
 	got, err := scanPlaytest(row)
 	if err != nil {
@@ -220,6 +233,7 @@ func (s *PgPlaytestStore) Update(ctx context.Context, p *Playtest) (*Playtest, e
 		       survey_id = $12,
 		       auto_approve = $13,
 		       auto_approve_limit = $14,
+		       adt_fallback_download_url = $15,
 		       updated_at = NOW()
 		 WHERE namespace = $1
 		   AND id = $2
@@ -241,6 +255,7 @@ func (s *PgPlaytestStore) Update(ctx context.Context, p *Playtest) (*Playtest, e
 		uuidPtr(p.SurveyID),
 		p.AutoApprove,
 		int32Ptr(p.AutoApproveLimit),
+		stringPtr(p.ADTFallbackDownloadURL),
 	)
 	got, err := scanPlaytest(row)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -368,15 +383,19 @@ func (s *PgPlaytestStore) TransitionStatus(ctx context.Context, namespace string
 // because *uuid.UUID / *string pointer-scan would need custom codecs.
 func scanPlaytest(row pgx.Row) (*Playtest, error) {
 	var (
-		p          Playtest
-		startsAt   pgtype.Timestamptz
-		endsAt     pgtype.Timestamptz
-		surveyID   pgtype.UUID
-		agsItemID  pgtype.Text
-		agsCampID  pgtype.Text
-		initialQty pgtype.Int4
-		autoAppLim pgtype.Int4
-		deletedAt  pgtype.Timestamptz
+		p            Playtest
+		startsAt     pgtype.Timestamptz
+		endsAt       pgtype.Timestamptz
+		surveyID     pgtype.UUID
+		agsItemID    pgtype.Text
+		agsCampID    pgtype.Text
+		initialQty   pgtype.Int4
+		autoAppLim   pgtype.Int4
+		adtNamespace pgtype.Text
+		adtGameID    pgtype.Text
+		adtBuildID   pgtype.Text
+		adtFallback  pgtype.Text
+		deletedAt    pgtype.Timestamptz
 	)
 	err := row.Scan(
 		&p.ID,
@@ -399,6 +418,10 @@ func scanPlaytest(row pgx.Row) (*Playtest, error) {
 		&initialQty,
 		&p.AutoApprove,
 		&autoAppLim,
+		&adtNamespace,
+		&adtGameID,
+		&adtBuildID,
+		&adtFallback,
 		&p.CreatedAt,
 		&p.UpdatedAt,
 		&deletedAt,
@@ -413,6 +436,10 @@ func scanPlaytest(row pgx.Row) (*Playtest, error) {
 	p.AGSCampaignID = stringPtrFromPg(agsCampID)
 	p.InitialCodeQuantity = int32PtrFromPg(initialQty)
 	p.AutoApproveLimit = int32PtrFromPg(autoAppLim)
+	p.ADTNamespace = stringPtrFromPg(adtNamespace)
+	p.ADTGameID = stringPtrFromPg(adtGameID)
+	p.ADTBuildID = stringPtrFromPg(adtBuildID)
+	p.ADTFallbackDownloadURL = stringPtrFromPg(adtFallback)
 	p.DeletedAt = timePtrFromPg(deletedAt)
 	return &p, nil
 }

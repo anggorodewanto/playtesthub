@@ -243,6 +243,61 @@ func validateAutoApprove(autoApprove bool, limit *int32) error {
 	return nil
 }
 
+// errMsgADTMissingFields / errMsgADTUnsupportedFields / errMsgADTPoolField
+// pin the byte-exact errors.md strings for the CreatePlaytest ADT branch
+// (PRD §5.1 / docs/errors.md "ADT cross-field").
+const (
+	errMsgADTMissingFields     = "adt_namespace, adt_game_id, and adt_build_id are required when distribution_model is ADT"
+	errMsgADTUnsupportedFields = "adt_namespace, adt_game_id, adt_build_id, and adt_fallback_download_url must not be set when distribution_model is not ADT"
+	errMsgADTPoolFieldOnADT    = "initial_code_quantity must not be set when distribution_model is ADT (no code pool; PRD §5.5)"
+	maxADTFallbackURLLen       = 2_048
+)
+
+// validateADTFields enforces the model↔fields invariant from PRD §5.1.
+// Rejects: ADT branch with any of the three identifiers missing; non-ADT
+// branch with any ADT field set; ADT branch with adtFallbackDownloadUrl
+// that isn't https.
+func validateADTFields(isADT bool, adtNamespace, adtGameID, adtBuildID, adtFallback *string) error {
+	if !isADT {
+		if !nilOrEmpty(adtNamespace) || !nilOrEmpty(adtGameID) || !nilOrEmpty(adtBuildID) || !nilOrEmpty(adtFallback) {
+			return status.Error(codes.InvalidArgument, errMsgADTUnsupportedFields)
+		}
+		return nil
+	}
+	if nilOrEmpty(adtNamespace) || nilOrEmpty(adtGameID) || nilOrEmpty(adtBuildID) {
+		return status.Error(codes.InvalidArgument, errMsgADTMissingFields)
+	}
+	if err := validateADTFallbackURL(adtFallback); err != nil {
+		return err
+	}
+	return nil
+}
+
+// validateADTFallbackURL enforces https-only + 2048-char cap on the
+// per-playtest static fallback URL. Empty/nil is accepted — the field is
+// optional. Shape mirrors validateBannerURL.
+func validateADTFallbackURL(p *string) error {
+	if nilOrEmpty(p) {
+		return nil
+	}
+	s := *p
+	if len(s) > maxADTFallbackURLLen {
+		return status.Errorf(codes.InvalidArgument, "adt_fallback_download_url exceeds %d chars (got %d)", maxADTFallbackURLLen, len(s))
+	}
+	u, err := url.Parse(s)
+	if err != nil {
+		return status.Errorf(codes.InvalidArgument, "adt_fallback_download_url is not a valid URL: %v", err)
+	}
+	if u.Scheme != "https" {
+		return status.Errorf(codes.InvalidArgument, "adt_fallback_download_url must use https (got %q)", u.Scheme)
+	}
+	return nil
+}
+
+func nilOrEmpty(p *string) bool {
+	return p == nil || *p == ""
+}
+
 // platformsErr wraps a platform conversion error so callers can surface
 // the field name cleanly.
 func wrapPlatformsErr(err error) error {

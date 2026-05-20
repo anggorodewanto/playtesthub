@@ -633,6 +633,10 @@ enum DistributionModel {
   DISTRIBUTION_MODEL_UNSPECIFIED = 0;
   DISTRIBUTION_MODEL_STEAM_KEYS = 1;
   DISTRIBUTION_MODEL_AGS_CAMPAIGN = 2;
+  // ADT — AccelByte Development Toolkit build download. No code pool;
+  // approve resolves a per-applicant download URL (or static fallback)
+  // via pkg/adt. PRD §4.8, schema.md §"Playtest entity (ADT fields)".
+  DISTRIBUTION_MODEL_ADT = 3;
 }
 
 enum ApplicantStatus {
@@ -689,6 +693,14 @@ message Playtest {
   // when auto_approve is true (bounded 1..100,000, DB-enforced).
   bool auto_approve = 22;
   optional int32 auto_approve_limit = 23;
+  // ADT distribution fields (PRD §5.1 / §4.8, M5.B). Populated when
+  // distribution_model = DISTRIBUTION_MODEL_ADT; all three identifiers
+  // immutable post-create. adt_fallback_download_url is the static
+  // per-playtest URL used when ADT can't mint a per-applicant URL.
+  optional string adt_namespace = 24;
+  optional string adt_game_id = 25;
+  optional string adt_build_id = 26;
+  optional string adt_fallback_download_url = 27;
 }
 
 // PublicPlaytest is the restricted field set exposed to unauthenticated
@@ -927,6 +939,15 @@ message CreatePlaytestRequest {
   // docs/errors.md.
   bool auto_approve = 13;
   optional int32 auto_approve_limit = 14;
+  // ADT distribution (M5.B). Required when distribution_model = ADT;
+  // rejected when set on STEAM_KEYS / AGS_CAMPAIGN. The linkage row
+  // covering (studio_namespace, adt_namespace) must already exist —
+  // CompleteADTLink first. adt_build_id is verified against
+  // adt.Client.ListBuilds(adt_namespace, adt_game_id) at create-time.
+  optional string adt_namespace = 15;
+  optional string adt_game_id = 16;
+  optional string adt_build_id = 17;
+  optional string adt_fallback_download_url = 18;
 }
 message CreatePlaytestResponse {
   Playtest playtest = 1;
@@ -952,6 +973,11 @@ message EditPlaytestRequest {
   // — operators tune the cap while signups are flowing in.
   bool auto_approve = 11;
   optional int32 auto_approve_limit = 12;
+  // ADT distribution (M5.B). adt_namespace / adt_game_id / adt_build_id
+  // are immutable post-create (mirrors ags_item_id); only the static
+  // fallback URL is editable so operators can repoint without
+  // recreating the playtest.
+  optional string adt_fallback_download_url = 13;
 }
 message EditPlaytestResponse {
   Playtest playtest = 1;

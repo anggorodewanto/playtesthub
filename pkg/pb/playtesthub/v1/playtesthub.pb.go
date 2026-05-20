@@ -140,6 +140,10 @@ const (
 	DistributionModel_DISTRIBUTION_MODEL_UNSPECIFIED  DistributionModel = 0
 	DistributionModel_DISTRIBUTION_MODEL_STEAM_KEYS   DistributionModel = 1
 	DistributionModel_DISTRIBUTION_MODEL_AGS_CAMPAIGN DistributionModel = 2
+	// ADT — AccelByte Development Toolkit build download. No code pool;
+	// approve resolves a per-applicant download URL (or static fallback)
+	// via pkg/adt. PRD §4.8, schema.md §"Playtest entity (ADT fields)".
+	DistributionModel_DISTRIBUTION_MODEL_ADT DistributionModel = 3
 )
 
 // Enum value maps for DistributionModel.
@@ -148,11 +152,13 @@ var (
 		0: "DISTRIBUTION_MODEL_UNSPECIFIED",
 		1: "DISTRIBUTION_MODEL_STEAM_KEYS",
 		2: "DISTRIBUTION_MODEL_AGS_CAMPAIGN",
+		3: "DISTRIBUTION_MODEL_ADT",
 	}
 	DistributionModel_value = map[string]int32{
 		"DISTRIBUTION_MODEL_UNSPECIFIED":  0,
 		"DISTRIBUTION_MODEL_STEAM_KEYS":   1,
 		"DISTRIBUTION_MODEL_AGS_CAMPAIGN": 2,
+		"DISTRIBUTION_MODEL_ADT":          3,
 	}
 )
 
@@ -424,8 +430,16 @@ type Playtest struct {
 	// when auto_approve is true (bounded 1..100,000, DB-enforced).
 	AutoApprove      bool   `protobuf:"varint,22,opt,name=auto_approve,json=autoApprove,proto3" json:"auto_approve,omitempty"`
 	AutoApproveLimit *int32 `protobuf:"varint,23,opt,name=auto_approve_limit,json=autoApproveLimit,proto3,oneof" json:"auto_approve_limit,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	// ADT distribution fields (PRD §5.1 / §4.8, M5.B). Populated when
+	// distribution_model = DISTRIBUTION_MODEL_ADT; all three identifiers
+	// immutable post-create. adt_fallback_download_url is the static
+	// per-playtest URL used when ADT can't mint a per-applicant URL.
+	AdtNamespace           *string `protobuf:"bytes,24,opt,name=adt_namespace,json=adtNamespace,proto3,oneof" json:"adt_namespace,omitempty"`
+	AdtGameId              *string `protobuf:"bytes,25,opt,name=adt_game_id,json=adtGameId,proto3,oneof" json:"adt_game_id,omitempty"`
+	AdtBuildId             *string `protobuf:"bytes,26,opt,name=adt_build_id,json=adtBuildId,proto3,oneof" json:"adt_build_id,omitempty"`
+	AdtFallbackDownloadUrl *string `protobuf:"bytes,27,opt,name=adt_fallback_download_url,json=adtFallbackDownloadUrl,proto3,oneof" json:"adt_fallback_download_url,omitempty"`
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
 }
 
 func (x *Playtest) Reset() {
@@ -617,6 +631,34 @@ func (x *Playtest) GetAutoApproveLimit() int32 {
 		return *x.AutoApproveLimit
 	}
 	return 0
+}
+
+func (x *Playtest) GetAdtNamespace() string {
+	if x != nil && x.AdtNamespace != nil {
+		return *x.AdtNamespace
+	}
+	return ""
+}
+
+func (x *Playtest) GetAdtGameId() string {
+	if x != nil && x.AdtGameId != nil {
+		return *x.AdtGameId
+	}
+	return ""
+}
+
+func (x *Playtest) GetAdtBuildId() string {
+	if x != nil && x.AdtBuildId != nil {
+		return *x.AdtBuildId
+	}
+	return ""
+}
+
+func (x *Playtest) GetAdtFallbackDownloadUrl() string {
+	if x != nil && x.AdtFallbackDownloadUrl != nil {
+		return *x.AdtFallbackDownloadUrl
+	}
+	return ""
 }
 
 // PublicPlaytest is the restricted field set exposed to unauthenticated
@@ -2220,8 +2262,17 @@ type CreatePlaytestRequest struct {
 	// docs/errors.md.
 	AutoApprove      bool   `protobuf:"varint,13,opt,name=auto_approve,json=autoApprove,proto3" json:"auto_approve,omitempty"`
 	AutoApproveLimit *int32 `protobuf:"varint,14,opt,name=auto_approve_limit,json=autoApproveLimit,proto3,oneof" json:"auto_approve_limit,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	// ADT distribution (M5.B). Required when distribution_model = ADT;
+	// rejected when set on STEAM_KEYS / AGS_CAMPAIGN. The linkage row
+	// covering (studio_namespace, adt_namespace) must already exist —
+	// CompleteADTLink first. adt_build_id is verified against
+	// adt.Client.ListBuilds(adt_namespace, adt_game_id) at create-time.
+	AdtNamespace           *string `protobuf:"bytes,15,opt,name=adt_namespace,json=adtNamespace,proto3,oneof" json:"adt_namespace,omitempty"`
+	AdtGameId              *string `protobuf:"bytes,16,opt,name=adt_game_id,json=adtGameId,proto3,oneof" json:"adt_game_id,omitempty"`
+	AdtBuildId             *string `protobuf:"bytes,17,opt,name=adt_build_id,json=adtBuildId,proto3,oneof" json:"adt_build_id,omitempty"`
+	AdtFallbackDownloadUrl *string `protobuf:"bytes,18,opt,name=adt_fallback_download_url,json=adtFallbackDownloadUrl,proto3,oneof" json:"adt_fallback_download_url,omitempty"`
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
 }
 
 func (x *CreatePlaytestRequest) Reset() {
@@ -2352,6 +2403,34 @@ func (x *CreatePlaytestRequest) GetAutoApproveLimit() int32 {
 	return 0
 }
 
+func (x *CreatePlaytestRequest) GetAdtNamespace() string {
+	if x != nil && x.AdtNamespace != nil {
+		return *x.AdtNamespace
+	}
+	return ""
+}
+
+func (x *CreatePlaytestRequest) GetAdtGameId() string {
+	if x != nil && x.AdtGameId != nil {
+		return *x.AdtGameId
+	}
+	return ""
+}
+
+func (x *CreatePlaytestRequest) GetAdtBuildId() string {
+	if x != nil && x.AdtBuildId != nil {
+		return *x.AdtBuildId
+	}
+	return ""
+}
+
+func (x *CreatePlaytestRequest) GetAdtFallbackDownloadUrl() string {
+	if x != nil && x.AdtFallbackDownloadUrl != nil {
+		return *x.AdtFallbackDownloadUrl
+	}
+	return ""
+}
+
 type CreatePlaytestResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Playtest      *Playtest              `protobuf:"bytes,1,opt,name=playtest,proto3" json:"playtest,omitempty"`
@@ -2417,8 +2496,13 @@ type EditPlaytestRequest struct {
 	// — operators tune the cap while signups are flowing in.
 	AutoApprove      bool   `protobuf:"varint,11,opt,name=auto_approve,json=autoApprove,proto3" json:"auto_approve,omitempty"`
 	AutoApproveLimit *int32 `protobuf:"varint,12,opt,name=auto_approve_limit,json=autoApproveLimit,proto3,oneof" json:"auto_approve_limit,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	// ADT distribution (M5.B). adt_namespace / adt_game_id / adt_build_id
+	// are immutable post-create (mirrors ags_item_id); only the static
+	// fallback URL is editable so operators can repoint without
+	// recreating the playtest.
+	AdtFallbackDownloadUrl *string `protobuf:"bytes,13,opt,name=adt_fallback_download_url,json=adtFallbackDownloadUrl,proto3,oneof" json:"adt_fallback_download_url,omitempty"`
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
 }
 
 func (x *EditPlaytestRequest) Reset() {
@@ -2533,6 +2617,13 @@ func (x *EditPlaytestRequest) GetAutoApproveLimit() int32 {
 		return *x.AutoApproveLimit
 	}
 	return 0
+}
+
+func (x *EditPlaytestRequest) GetAdtFallbackDownloadUrl() string {
+	if x != nil && x.AdtFallbackDownloadUrl != nil {
+		return *x.AdtFallbackDownloadUrl
+	}
+	return ""
 }
 
 type EditPlaytestResponse struct {
@@ -5859,7 +5950,8 @@ var File_playtesthub_v1_playtesthub_proto protoreflect.FileDescriptor
 
 const file_playtesthub_v1_playtesthub_proto_rawDesc = "" +
 	"\n" +
-	" playtesthub/v1/playtesthub.proto\x12\x0eplaytesthub.v1\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1fplaytesthub/v1/permission.proto\x1a.protoc-gen-openapiv2/options/annotations.proto\"\xec\b\n" +
+	" playtesthub/v1/playtesthub.proto\x12\x0eplaytesthub.v1\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1fplaytesthub/v1/permission.proto\x1a.protoc-gen-openapiv2/options/annotations.proto\"\xf3\n" +
+	"\n" +
 	"\bPlaytest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1c\n" +
 	"\tnamespace\x18\x02 \x01(\tR\tnamespace\x12\x12\n" +
@@ -5887,13 +5979,22 @@ const file_playtesthub_v1_playtesthub_proto_rawDesc = "" +
 	"\n" +
 	"deleted_at\x18\x15 \x01(\v2\x1a.google.protobuf.TimestampR\tdeletedAt\x12!\n" +
 	"\fauto_approve\x18\x16 \x01(\bR\vautoApprove\x121\n" +
-	"\x12auto_approve_limit\x18\x17 \x01(\x05H\x04R\x10autoApproveLimit\x88\x01\x01B\f\n" +
+	"\x12auto_approve_limit\x18\x17 \x01(\x05H\x04R\x10autoApproveLimit\x88\x01\x01\x12(\n" +
+	"\radt_namespace\x18\x18 \x01(\tH\x05R\fadtNamespace\x88\x01\x01\x12#\n" +
+	"\vadt_game_id\x18\x19 \x01(\tH\x06R\tadtGameId\x88\x01\x01\x12%\n" +
+	"\fadt_build_id\x18\x1a \x01(\tH\aR\n" +
+	"adtBuildId\x88\x01\x01\x12>\n" +
+	"\x19adt_fallback_download_url\x18\x1b \x01(\tH\bR\x16adtFallbackDownloadUrl\x88\x01\x01B\f\n" +
 	"\n" +
 	"_survey_idB\x0e\n" +
 	"\f_ags_item_idB\x12\n" +
 	"\x10_ags_campaign_idB\x18\n" +
 	"\x16_initial_code_quantityB\x15\n" +
-	"\x13_auto_approve_limit\"\xac\x02\n" +
+	"\x13_auto_approve_limitB\x10\n" +
+	"\x0e_adt_namespaceB\x0e\n" +
+	"\f_adt_game_idB\x0f\n" +
+	"\r_adt_build_idB\x1c\n" +
+	"\x1a_adt_fallback_download_url\"\xac\x02\n" +
 	"\x0ePublicPlaytest\x12\x12\n" +
 	"\x04slug\x18\x01 \x01(\tR\x04slug\x12\x14\n" +
 	"\x05title\x18\x02 \x01(\tR\x05title\x12 \n" +
@@ -6038,7 +6139,7 @@ const file_playtesthub_v1_playtesthub_proto_rawDesc = "" +
 	"\x14ListPlaytestsRequest\x12\x1c\n" +
 	"\tnamespace\x18\x01 \x01(\tR\tnamespace\"O\n" +
 	"\x15ListPlaytestsResponse\x126\n" +
-	"\tplaytests\x18\x01 \x03(\v2\x18.playtesthub.v1.PlaytestR\tplaytests\"\xa1\x05\n" +
+	"\tplaytests\x18\x01 \x03(\v2\x18.playtesthub.v1.PlaytestR\tplaytests\"\xa8\a\n" +
 	"\x15CreatePlaytestRequest\x12\x1c\n" +
 	"\tnamespace\x18\x01 \x01(\tR\tnamespace\x12\x12\n" +
 	"\x04slug\x18\x02 \x01(\tR\x04slug\x12\x14\n" +
@@ -6054,11 +6155,20 @@ const file_playtesthub_v1_playtesthub_proto_rawDesc = "" +
 	"\x12distribution_model\x18\v \x01(\x0e2!.playtesthub.v1.DistributionModelR\x11distributionModel\x127\n" +
 	"\x15initial_code_quantity\x18\f \x01(\x05H\x00R\x13initialCodeQuantity\x88\x01\x01\x12!\n" +
 	"\fauto_approve\x18\r \x01(\bR\vautoApprove\x121\n" +
-	"\x12auto_approve_limit\x18\x0e \x01(\x05H\x01R\x10autoApproveLimit\x88\x01\x01B\x18\n" +
+	"\x12auto_approve_limit\x18\x0e \x01(\x05H\x01R\x10autoApproveLimit\x88\x01\x01\x12(\n" +
+	"\radt_namespace\x18\x0f \x01(\tH\x02R\fadtNamespace\x88\x01\x01\x12#\n" +
+	"\vadt_game_id\x18\x10 \x01(\tH\x03R\tadtGameId\x88\x01\x01\x12%\n" +
+	"\fadt_build_id\x18\x11 \x01(\tH\x04R\n" +
+	"adtBuildId\x88\x01\x01\x12>\n" +
+	"\x19adt_fallback_download_url\x18\x12 \x01(\tH\x05R\x16adtFallbackDownloadUrl\x88\x01\x01B\x18\n" +
 	"\x16_initial_code_quantityB\x15\n" +
-	"\x13_auto_approve_limit\"N\n" +
+	"\x13_auto_approve_limitB\x10\n" +
+	"\x0e_adt_namespaceB\x0e\n" +
+	"\f_adt_game_idB\x0f\n" +
+	"\r_adt_build_idB\x1c\n" +
+	"\x1a_adt_fallback_download_url\"N\n" +
 	"\x16CreatePlaytestResponse\x124\n" +
-	"\bplaytest\x18\x01 \x01(\v2\x18.playtesthub.v1.PlaytestR\bplaytest\"\x87\x04\n" +
+	"\bplaytest\x18\x01 \x01(\v2\x18.playtesthub.v1.PlaytestR\bplaytest\"\xe5\x04\n" +
 	"\x13EditPlaytestRequest\x12\x1c\n" +
 	"\tnamespace\x18\x01 \x01(\tR\tnamespace\x12\x1f\n" +
 	"\vplaytest_id\x18\x02 \x01(\tR\n" +
@@ -6073,8 +6183,10 @@ const file_playtesthub_v1_playtesthub_proto_rawDesc = "" +
 	"\bnda_text\x18\n" +
 	" \x01(\tR\andaText\x12!\n" +
 	"\fauto_approve\x18\v \x01(\bR\vautoApprove\x121\n" +
-	"\x12auto_approve_limit\x18\f \x01(\x05H\x00R\x10autoApproveLimit\x88\x01\x01B\x15\n" +
-	"\x13_auto_approve_limit\"L\n" +
+	"\x12auto_approve_limit\x18\f \x01(\x05H\x00R\x10autoApproveLimit\x88\x01\x01\x12>\n" +
+	"\x19adt_fallback_download_url\x18\r \x01(\tH\x01R\x16adtFallbackDownloadUrl\x88\x01\x01B\x15\n" +
+	"\x13_auto_approve_limitB\x1c\n" +
+	"\x1a_adt_fallback_download_url\"L\n" +
 	"\x14EditPlaytestResponse\x124\n" +
 	"\bplaytest\x18\x01 \x01(\v2\x18.playtesthub.v1.PlaytestR\bplaytest\"Z\n" +
 	"\x19SoftDeletePlaytestRequest\x12\x1c\n" +
@@ -6312,11 +6424,12 @@ const file_playtesthub_v1_playtesthub_proto_rawDesc = "" +
 	"\x1bPLAYTEST_STATUS_UNSPECIFIED\x10\x00\x12\x19\n" +
 	"\x15PLAYTEST_STATUS_DRAFT\x10\x01\x12\x18\n" +
 	"\x14PLAYTEST_STATUS_OPEN\x10\x02\x12\x1a\n" +
-	"\x16PLAYTEST_STATUS_CLOSED\x10\x03*\x7f\n" +
+	"\x16PLAYTEST_STATUS_CLOSED\x10\x03*\x9b\x01\n" +
 	"\x11DistributionModel\x12\"\n" +
 	"\x1eDISTRIBUTION_MODEL_UNSPECIFIED\x10\x00\x12!\n" +
 	"\x1dDISTRIBUTION_MODEL_STEAM_KEYS\x10\x01\x12#\n" +
-	"\x1fDISTRIBUTION_MODEL_AGS_CAMPAIGN\x10\x02*\x8f\x01\n" +
+	"\x1fDISTRIBUTION_MODEL_AGS_CAMPAIGN\x10\x02\x12\x1a\n" +
+	"\x16DISTRIBUTION_MODEL_ADT\x10\x03*\x8f\x01\n" +
 	"\x0fApplicantStatus\x12 \n" +
 	"\x1cAPPLICANT_STATUS_UNSPECIFIED\x10\x00\x12\x1c\n" +
 	"\x18APPLICANT_STATUS_PENDING\x10\x01\x12\x1d\n" +
