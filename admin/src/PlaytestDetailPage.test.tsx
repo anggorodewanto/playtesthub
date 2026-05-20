@@ -136,6 +136,42 @@ describe('PlaytestDetailPage shell', () => {
     expect(screen.getByText(/not found/i)).toBeInTheDocument()
   })
 
+  it('Discord Bot Tools tab disables the form on closed playtest', async () => {
+    renderDetail('autumn-closed')
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('tab', { name: 'Discord Bot Tools' }))
+    expect(await screen.findByTestId('bot-tools-closed-banner')).toBeInTheDocument()
+  })
+
+  it('Discord Bot Tools tab submits CreateAnnouncement with form values', async () => {
+    const mutate = vi.fn()
+    mockCreateAnnouncement.mockReturnValue({ mutate, isPending: false })
+    renderDetail('autumn-draft')
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('tab', { name: 'Discord Bot Tools' }))
+    const subj = await screen.findByTestId('bot-tools-subject')
+    const msg = screen.getByTestId('bot-tools-message')
+    await user.type(subj, 'Build update')
+    await user.type(msg, 'New patch live')
+    await user.click(screen.getByTestId('bot-tools-submit'))
+    await waitFor(() => expect(mutate).toHaveBeenCalled())
+    expect(mutate.mock.calls[0][0]).toMatchObject({
+      playtestId: 'pt-draft',
+      data: {
+        sendToFilter: 'ANNOUNCEMENT_SEND_TO_FILTER_APPROVED_ONLY',
+        subject: 'Build update',
+        message: 'New patch live'
+      }
+    })
+  })
+
+  it('Discord Bot Tools tab renders the empty-history copy', async () => {
+    renderDetail('autumn-draft')
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('tab', { name: 'Discord Bot Tools' }))
+    expect(await screen.findByText(/No announcements sent yet/)).toBeInTheDocument()
+  })
+
   it('Participants tab renders the 6-column table + capacity counter', async () => {
     mockGetParticipants.mockReturnValue({
       data: {
