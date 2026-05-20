@@ -358,7 +358,8 @@ func buildPlaytesthubServer(cfg *config.Config, dbPool *pgxpool.Pool, httpClient
 	// above (AuthEnabled + ADT_BASE_URL present → SDK; else mem).
 	adtClient := adt.NewMemClient()
 	logger.Info("adt client: in-memory (live adapter pending ADT-eng endpoint shapes)")
-	_ = adtClient // wired into svcServer when the ADT branches land (B4+).
+
+	adtLinkageStore := repo.NewPgADTLinkageStore(dbPool)
 
 	leaderStore := repo.NewPgLeaderStore(dbPool)
 	workers := []service.WorkerInfo{{
@@ -385,6 +386,14 @@ func buildPlaytesthubServer(cfg *config.Config, dbPool *pgxpool.Pool, httpClient
 		WithPlayerBaseURL(cfg.PlayerBaseURL).
 		WithAGSClient(agsClient).
 		WithAGSCodeBatchSize(cfg.AGSCodeBatchSize).
+		WithADTLinkageStore(adtLinkageStore).
+		WithADTClient(adtClient).
+		WithADTLinkConfig(service.ADTLinkConfig{
+			ADTBaseURL:        cfg.ADTBaseURL,
+			RedirectBaseURL:   cfg.ADTRedirectBaseURL,
+			PendingTTLSeconds: cfg.ADTLinkagePendingTTLSeconds,
+		}).
+		WithStudioNamespaceResolver(buildStudioNamespaceResolver(cfg, httpClient)).
 		WithWorkerHealth(leaderStore, workers).
 		WithLogger(logger)
 	if botClient != nil {
@@ -405,6 +414,38 @@ func buildPlaytesthubServer(cfg *config.Config, dbPool *pgxpool.Pool, httpClient
 		ClientSecret: cfg.AGSIAMClientSecret,
 		HTTPClient:   httpClient,
 	}), dmQueue, platformLogin
+}
+
+// buildStudioNamespaceResolver returns the ADT-linkage studio resolver.
+// In production it mints a client-credentials AGS service IAM token
+// (via AGSAdminPlatformLookup) and reads `union_namespace ?? namespace`
+// off the resulting JWT — this is what ADT will see on every
+// downstream API call from playtesthub, so the linkage row MUST be
+// keyed on the same value (PRD §4.8.2).
+//
+// In dev / smoke / e2e (auth disabled or AGS creds absent), no service
+// token is mintable; the resolver falls back to cfg.AGSNamespace as a
+// stand-in for the studio identity. This is deliberately permissive
+// for tests + smoke probes — the live boot path always has the AGS
+// creds + a real token.
+func buildStudioNamespaceResolver(cfg *config.Config, httpClient *http.Client) service.StudioNamespaceResolver {
+	if cfg.AGSBaseURL == "" || cfg.AGSIAMClientID == "" || cfg.AGSIAMClientSecret == "" {
+		// Dev / smoke / e2e fallback: linkage rows are scoped to the
+		// configured AGS_NAMESPACE so single-namespace tests work
+		// end-to-end without minting a real JWT.
+		ns := cfg.AGSNamespace
+		return func(_ context.Context) (string, error) { return ns, nil }
+	}
+	lookup := &iampkg.AGSAdminPlatformLookup{
+		HTTPClient:   httpClient,
+		BaseURL:      cfg.AGSBaseURL,
+		Namespace:    cfg.AGSNamespace,
+		ClientID:     cfg.AGSIAMClientID,
+		ClientSecret: cfg.AGSIAMClientSecret,
+	}
+	return func(ctx context.Context) (string, error) {
+		return lookup.GetStudioNamespace(ctx)
+	}
 }
 
 // noopDMSender is the fallback Sender used when DISCORD_BOT_TOKEN is

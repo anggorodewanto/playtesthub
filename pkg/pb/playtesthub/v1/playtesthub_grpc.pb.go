@@ -48,6 +48,11 @@ const (
 	PlaytesthubService_ListAuditLog_FullMethodName             = "/playtesthub.v1.PlaytesthubService/ListAuditLog"
 	PlaytesthubService_RetryFailedDms_FullMethodName           = "/playtesthub.v1.PlaytesthubService/RetryFailedDms"
 	PlaytesthubService_GetWorkerHealth_FullMethodName          = "/playtesthub.v1.PlaytesthubService/GetWorkerHealth"
+	PlaytesthubService_ListADTLinkages_FullMethodName          = "/playtesthub.v1.PlaytesthubService/ListADTLinkages"
+	PlaytesthubService_StartADTLink_FullMethodName             = "/playtesthub.v1.PlaytesthubService/StartADTLink"
+	PlaytesthubService_CompleteADTLink_FullMethodName          = "/playtesthub.v1.PlaytesthubService/CompleteADTLink"
+	PlaytesthubService_UnlinkADT_FullMethodName                = "/playtesthub.v1.PlaytesthubService/UnlinkADT"
+	PlaytesthubService_ListADTBuilds_FullMethodName            = "/playtesthub.v1.PlaytesthubService/ListADTBuilds"
 )
 
 // PlaytesthubServiceClient is the client API for PlaytesthubService service.
@@ -95,6 +100,11 @@ type PlaytesthubServiceClient interface {
 	ListAuditLog(ctx context.Context, in *ListAuditLogRequest, opts ...grpc.CallOption) (*ListAuditLogResponse, error)
 	RetryFailedDms(ctx context.Context, in *RetryFailedDmsRequest, opts ...grpc.CallOption) (*RetryFailedDmsResponse, error)
 	GetWorkerHealth(ctx context.Context, in *GetWorkerHealthRequest, opts ...grpc.CallOption) (*GetWorkerHealthResponse, error)
+	ListADTLinkages(ctx context.Context, in *ListADTLinkagesRequest, opts ...grpc.CallOption) (*ListADTLinkagesResponse, error)
+	StartADTLink(ctx context.Context, in *StartADTLinkRequest, opts ...grpc.CallOption) (*StartADTLinkResponse, error)
+	CompleteADTLink(ctx context.Context, in *CompleteADTLinkRequest, opts ...grpc.CallOption) (*CompleteADTLinkResponse, error)
+	UnlinkADT(ctx context.Context, in *UnlinkADTRequest, opts ...grpc.CallOption) (*UnlinkADTResponse, error)
+	ListADTBuilds(ctx context.Context, in *ListADTBuildsRequest, opts ...grpc.CallOption) (*ListADTBuildsResponse, error)
 }
 
 type playtesthubServiceClient struct {
@@ -395,6 +405,56 @@ func (c *playtesthubServiceClient) GetWorkerHealth(ctx context.Context, in *GetW
 	return out, nil
 }
 
+func (c *playtesthubServiceClient) ListADTLinkages(ctx context.Context, in *ListADTLinkagesRequest, opts ...grpc.CallOption) (*ListADTLinkagesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListADTLinkagesResponse)
+	err := c.cc.Invoke(ctx, PlaytesthubService_ListADTLinkages_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *playtesthubServiceClient) StartADTLink(ctx context.Context, in *StartADTLinkRequest, opts ...grpc.CallOption) (*StartADTLinkResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(StartADTLinkResponse)
+	err := c.cc.Invoke(ctx, PlaytesthubService_StartADTLink_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *playtesthubServiceClient) CompleteADTLink(ctx context.Context, in *CompleteADTLinkRequest, opts ...grpc.CallOption) (*CompleteADTLinkResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CompleteADTLinkResponse)
+	err := c.cc.Invoke(ctx, PlaytesthubService_CompleteADTLink_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *playtesthubServiceClient) UnlinkADT(ctx context.Context, in *UnlinkADTRequest, opts ...grpc.CallOption) (*UnlinkADTResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UnlinkADTResponse)
+	err := c.cc.Invoke(ctx, PlaytesthubService_UnlinkADT_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *playtesthubServiceClient) ListADTBuilds(ctx context.Context, in *ListADTBuildsRequest, opts ...grpc.CallOption) (*ListADTBuildsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListADTBuildsResponse)
+	err := c.cc.Invoke(ctx, PlaytesthubService_ListADTBuilds_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // PlaytesthubServiceServer is the server API for PlaytesthubService service.
 // All implementations should embed UnimplementedPlaytesthubServiceServer
 // for forward compatibility.
@@ -440,6 +500,11 @@ type PlaytesthubServiceServer interface {
 	ListAuditLog(context.Context, *ListAuditLogRequest) (*ListAuditLogResponse, error)
 	RetryFailedDms(context.Context, *RetryFailedDmsRequest) (*RetryFailedDmsResponse, error)
 	GetWorkerHealth(context.Context, *GetWorkerHealthRequest) (*GetWorkerHealthResponse, error)
+	ListADTLinkages(context.Context, *ListADTLinkagesRequest) (*ListADTLinkagesResponse, error)
+	StartADTLink(context.Context, *StartADTLinkRequest) (*StartADTLinkResponse, error)
+	CompleteADTLink(context.Context, *CompleteADTLinkRequest) (*CompleteADTLinkResponse, error)
+	UnlinkADT(context.Context, *UnlinkADTRequest) (*UnlinkADTResponse, error)
+	ListADTBuilds(context.Context, *ListADTBuildsRequest) (*ListADTBuildsResponse, error)
 }
 
 // UnimplementedPlaytesthubServiceServer should be embedded to have
@@ -535,6 +600,21 @@ func (UnimplementedPlaytesthubServiceServer) RetryFailedDms(context.Context, *Re
 }
 func (UnimplementedPlaytesthubServiceServer) GetWorkerHealth(context.Context, *GetWorkerHealthRequest) (*GetWorkerHealthResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetWorkerHealth not implemented")
+}
+func (UnimplementedPlaytesthubServiceServer) ListADTLinkages(context.Context, *ListADTLinkagesRequest) (*ListADTLinkagesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListADTLinkages not implemented")
+}
+func (UnimplementedPlaytesthubServiceServer) StartADTLink(context.Context, *StartADTLinkRequest) (*StartADTLinkResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method StartADTLink not implemented")
+}
+func (UnimplementedPlaytesthubServiceServer) CompleteADTLink(context.Context, *CompleteADTLinkRequest) (*CompleteADTLinkResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CompleteADTLink not implemented")
+}
+func (UnimplementedPlaytesthubServiceServer) UnlinkADT(context.Context, *UnlinkADTRequest) (*UnlinkADTResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method UnlinkADT not implemented")
+}
+func (UnimplementedPlaytesthubServiceServer) ListADTBuilds(context.Context, *ListADTBuildsRequest) (*ListADTBuildsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListADTBuilds not implemented")
 }
 func (UnimplementedPlaytesthubServiceServer) testEmbeddedByValue() {}
 
@@ -1078,6 +1158,96 @@ func _PlaytesthubService_GetWorkerHealth_Handler(srv interface{}, ctx context.Co
 	return interceptor(ctx, in, info, handler)
 }
 
+func _PlaytesthubService_ListADTLinkages_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListADTLinkagesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PlaytesthubServiceServer).ListADTLinkages(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PlaytesthubService_ListADTLinkages_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PlaytesthubServiceServer).ListADTLinkages(ctx, req.(*ListADTLinkagesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PlaytesthubService_StartADTLink_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(StartADTLinkRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PlaytesthubServiceServer).StartADTLink(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PlaytesthubService_StartADTLink_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PlaytesthubServiceServer).StartADTLink(ctx, req.(*StartADTLinkRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PlaytesthubService_CompleteADTLink_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CompleteADTLinkRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PlaytesthubServiceServer).CompleteADTLink(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PlaytesthubService_CompleteADTLink_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PlaytesthubServiceServer).CompleteADTLink(ctx, req.(*CompleteADTLinkRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PlaytesthubService_UnlinkADT_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UnlinkADTRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PlaytesthubServiceServer).UnlinkADT(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PlaytesthubService_UnlinkADT_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PlaytesthubServiceServer).UnlinkADT(ctx, req.(*UnlinkADTRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PlaytesthubService_ListADTBuilds_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListADTBuildsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PlaytesthubServiceServer).ListADTBuilds(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PlaytesthubService_ListADTBuilds_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PlaytesthubServiceServer).ListADTBuilds(ctx, req.(*ListADTBuildsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // PlaytesthubService_ServiceDesc is the grpc.ServiceDesc for PlaytesthubService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1200,6 +1370,26 @@ var PlaytesthubService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetWorkerHealth",
 			Handler:    _PlaytesthubService_GetWorkerHealth_Handler,
+		},
+		{
+			MethodName: "ListADTLinkages",
+			Handler:    _PlaytesthubService_ListADTLinkages_Handler,
+		},
+		{
+			MethodName: "StartADTLink",
+			Handler:    _PlaytesthubService_StartADTLink_Handler,
+		},
+		{
+			MethodName: "CompleteADTLink",
+			Handler:    _PlaytesthubService_CompleteADTLink_Handler,
+		},
+		{
+			MethodName: "UnlinkADT",
+			Handler:    _PlaytesthubService_UnlinkADT_Handler,
+		},
+		{
+			MethodName: "ListADTBuilds",
+			Handler:    _PlaytesthubService_ListADTBuilds_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

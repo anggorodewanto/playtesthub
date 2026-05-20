@@ -48,6 +48,12 @@ func TestServiceDescriptorMethods(t *testing.T) {
 		"RetryFailedDms":       true,
 		// M4
 		"GetWorkerHealth": true,
+		// M5.B (ADT linkage)
+		"ListADTLinkages": true,
+		"StartADTLink":    true,
+		"CompleteADTLink": true,
+		"UnlinkADT":       true,
+		"ListADTBuilds":   true,
 	}
 
 	methods := pb.PlaytesthubService_ServiceDesc.Methods

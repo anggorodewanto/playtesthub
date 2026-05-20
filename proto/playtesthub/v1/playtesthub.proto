@@ -516,6 +516,99 @@ service PlaytesthubService {
       }
     };
   }
+
+  // ---------------- M5.B (ADT) ----------------
+  //
+  // ADT distribution model linkage CRUD + build picker. PRD §4.8 +
+  // STATUS_M5.md Track B. Linkage is studio-scoped — derived
+  // server-side from the calling admin's AGS token claim
+  // `union_namespace ?? namespace`; no namespace path param.
+
+  rpc ListADTLinkages(ListADTLinkagesRequest) returns (ListADTLinkagesResponse) {
+    option (playtesthub.v1.action) = ACTION_READ;
+    option (playtesthub.v1.resource) = "ADMIN:NAMESPACE:{namespace}:EXTEND:APPUI";
+    option (google.api.http) = {get: "/v1/admin/namespaces/{namespace}/adt/linkages"};
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "List ADT linkages for the caller's studio (admin)"
+      description: "Scoped to the caller's studio namespace (union_namespace ?? namespace). Returns identity columns only — no credential bytes exist (PRD §4.8.2)."
+      security: {
+        security_requirement: {
+          key: "Bearer"
+          value: {}
+        }
+      }
+    };
+  }
+
+  rpc StartADTLink(StartADTLinkRequest) returns (StartADTLinkResponse) {
+    option (playtesthub.v1.action) = ACTION_CREATE;
+    option (playtesthub.v1.resource) = "ADMIN:NAMESPACE:{namespace}:EXTEND:APPUI";
+    option (google.api.http) = {
+      post: "/v1/admin/namespaces/{namespace}/adt/linkages:start"
+      body: "*"
+    };
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Begin an ADT linking round-trip (admin)"
+      description: "Mints a 32-byte CSRF state, persists adt_link_pending, returns linkUrl that the admin UI redirects to. studio_namespace is derived server-side from the caller's token. No credential is exchanged (PRD §4.8.2)."
+      security: {
+        security_requirement: {
+          key: "Bearer"
+          value: {}
+        }
+      }
+    };
+  }
+
+  rpc CompleteADTLink(CompleteADTLinkRequest) returns (CompleteADTLinkResponse) {
+    option (playtesthub.v1.action) = ACTION_CREATE;
+    option (playtesthub.v1.resource) = "ADMIN:NAMESPACE:{namespace}:EXTEND:APPUI";
+    option (google.api.http) = {
+      post: "/v1/admin/namespaces/{namespace}/adt/linkages:complete"
+      body: "*"
+    };
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Finalize an ADT linking round-trip (admin)"
+      description: "Consumes the adt_link_pending row matching `state` (not expired); inserts the adt_linkage identity row with `adt_namespace` echoed by ADT on the callback URL. No outbound ADT call — tampering is self-defeating because the first downstream service-JWT call would 401 (PRD §4.8.2)."
+      security: {
+        security_requirement: {
+          key: "Bearer"
+          value: {}
+        }
+      }
+    };
+  }
+
+  rpc UnlinkADT(UnlinkADTRequest) returns (UnlinkADTResponse) {
+    option (playtesthub.v1.action) = ACTION_DELETE;
+    option (playtesthub.v1.resource) = "ADMIN:NAMESPACE:{namespace}:EXTEND:APPUI";
+    option (google.api.http) = {delete: "/v1/admin/namespaces/{namespace}/adt/linkages/{adt_linkage_id}"};
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Soft-delete an ADT linkage (admin; idempotent)"
+      description: "Idempotent re-unlink against an already soft-deleted row is a no-op success. Linkage absent for the caller's studio → NotFound (PRD §4.8)."
+      security: {
+        security_requirement: {
+          key: "Bearer"
+          value: {}
+        }
+      }
+    };
+  }
+
+  rpc ListADTBuilds(ListADTBuildsRequest) returns (ListADTBuildsResponse) {
+    option (playtesthub.v1.action) = ACTION_READ;
+    option (playtesthub.v1.resource) = "ADMIN:NAMESPACE:{namespace}:EXTEND:APPUI";
+    option (google.api.http) = {get: "/v1/admin/namespaces/{namespace}/adt/linkages/{adt_linkage_id}/builds"};
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "List builds in an ADT linkage's namespace + game (admin)"
+      description: "Proxies adt.Client.ListBuilds keyed on the studio derived from the caller's token. Returns FailedPrecondition when ADT reports the linkage flag missing."
+      security: {
+        security_requirement: {
+          key: "Bearer"
+          value: {}
+        }
+      }
+    };
+  }
 }
 
 // ---------------- enums ----------------
@@ -1159,6 +1252,85 @@ message WorkerHealthEntry {
 
 message GetWorkerHealthResponse {
   repeated WorkerHealthEntry workers = 1;
+}
+
+// ---------------- M5.B (ADT) entities + request/response messages ----------------
+
+// ADTLinkage mirrors the adt_linkage row (schema.md §"adt_linkage table"
+// / PRD §4.8.1). Identity columns only — no credential payload exists
+// to leak (PRD §4.8.2). `deleted_at` is unset on live rows.
+message ADTLinkage {
+  string id = 1;
+  string studio_namespace = 2;
+  string adt_namespace = 3;
+  string linked_by_user_id = 4;
+  google.protobuf.Timestamp linked_at = 5;
+  google.protobuf.Timestamp deleted_at = 6;
+}
+
+// ADTBuild is the minimum build row the admin UI / pth CLI needs to
+// drive the build picker. Mirrors pkg/adt.Build but rendered as proto.
+message ADTBuild {
+  string id = 1;
+  string name = 2;
+  string version = 3;
+  google.protobuf.Timestamp uploaded_at = 4;
+}
+
+message ListADTLinkagesRequest {
+  // Mirrors the existing admin RPC namespace path-param convention.
+  // Service layer ignores it for authorization (linkage scope is the
+  // studio derived from the caller's token, not this path), but the
+  // value MUST equal AGS_NAMESPACE so the URL remains stable across
+  // existing CORS / gateway routing.
+  string namespace = 1;
+}
+message ListADTLinkagesResponse {
+  repeated ADTLinkage linkages = 1;
+}
+
+message StartADTLinkRequest {
+  string namespace = 1;
+}
+message StartADTLinkResponse {
+  // Full URL the admin UI assigns to window.location.href to begin the
+  // ADT-side linking dance. Carries the redirect_uri + state +
+  // studio_namespace query params (PRD §4.8.2).
+  string link_url = 1;
+  // The opaque CSRF nonce. Admin UI keeps it (and ADT round-trips it
+  // verbatim) so CompleteADTLink can match the adt_link_pending row.
+  string state = 2;
+  // Expiry of the adt_link_pending row, in seconds-from-epoch. Surfaced
+  // so a CLI driver can decide whether to retry before the row sweeps.
+  google.protobuf.Timestamp expires_at = 3;
+}
+
+message CompleteADTLinkRequest {
+  string namespace = 1;
+  // CSRF nonce echoed by ADT on the redirect-back URL.
+  string state = 2;
+  // ADT namespace ADT echoed on the redirect-back URL. Required —
+  // missing/empty → InvalidArgument byte-exact (errors.md).
+  string adt_namespace = 3;
+}
+message CompleteADTLinkResponse {
+  ADTLinkage linkage = 1;
+}
+
+message UnlinkADTRequest {
+  string namespace = 1;
+  string adt_linkage_id = 2;
+}
+message UnlinkADTResponse {}
+
+message ListADTBuildsRequest {
+  string namespace = 1;
+  string adt_linkage_id = 2;
+  // ADT game id under the linkage's namespace. Required.
+  string adt_game_id = 3;
+}
+message ListADTBuildsResponse {
+  repeated ADTBuild builds = 1;
 }
 
 // ---------------- swagger root ----------------

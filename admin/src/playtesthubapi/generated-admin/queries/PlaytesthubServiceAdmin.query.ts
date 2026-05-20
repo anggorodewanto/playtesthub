@@ -13,6 +13,7 @@ import type { AxiosError, AxiosResponse } from 'axios'
 import { PlaytesthubServiceAdminApi } from '../PlaytesthubServiceAdminApi.js'
 
 import { PlaytesthubServiceApproveApplicantBody } from '../../generated-definitions/PlaytesthubServiceApproveApplicantBody.js'
+import { PlaytesthubServiceCompleteAdtLinkBody } from '../../generated-definitions/PlaytesthubServiceCompleteAdtLinkBody.js'
 import { PlaytesthubServiceCreatePlaytestBody } from '../../generated-definitions/PlaytesthubServiceCreatePlaytestBody.js'
 import { PlaytesthubServiceCreateSurveyBody } from '../../generated-definitions/PlaytesthubServiceCreateSurveyBody.js'
 import { PlaytesthubServiceEditPlaytestBody } from '../../generated-definitions/PlaytesthubServiceEditPlaytestBody.js'
@@ -20,18 +21,22 @@ import { PlaytesthubServiceEditSurveyBody } from '../../generated-definitions/Pl
 import { PlaytesthubServiceRejectApplicantBody } from '../../generated-definitions/PlaytesthubServiceRejectApplicantBody.js'
 import { PlaytesthubServiceRetryDmBody } from '../../generated-definitions/PlaytesthubServiceRetryDmBody.js'
 import { PlaytesthubServiceRetryFailedDmsBody } from '../../generated-definitions/PlaytesthubServiceRetryFailedDmsBody.js'
+import { PlaytesthubServiceStartAdtLinkBody } from '../../generated-definitions/PlaytesthubServiceStartAdtLinkBody.js'
 import { PlaytesthubServiceSyncFromAgsBody } from '../../generated-definitions/PlaytesthubServiceSyncFromAgsBody.js'
 import { PlaytesthubServiceTopUpCodesBody } from '../../generated-definitions/PlaytesthubServiceTopUpCodesBody.js'
 import { PlaytesthubServiceTransitionPlaytestStatusBody } from '../../generated-definitions/PlaytesthubServiceTransitionPlaytestStatusBody.js'
 import { PlaytesthubServiceUploadCodesBody } from '../../generated-definitions/PlaytesthubServiceUploadCodesBody.js'
 import { V1AdminGetPlaytestResponse } from '../../generated-definitions/V1AdminGetPlaytestResponse.js'
 import { V1ApproveApplicantResponse } from '../../generated-definitions/V1ApproveApplicantResponse.js'
+import { V1CompleteAdtLinkResponse } from '../../generated-definitions/V1CompleteAdtLinkResponse.js'
 import { V1CreatePlaytestResponse } from '../../generated-definitions/V1CreatePlaytestResponse.js'
 import { V1CreateSurveyResponse } from '../../generated-definitions/V1CreateSurveyResponse.js'
 import { V1EditPlaytestResponse } from '../../generated-definitions/V1EditPlaytestResponse.js'
 import { V1EditSurveyResponse } from '../../generated-definitions/V1EditSurveyResponse.js'
 import { V1GetCodePoolResponse } from '../../generated-definitions/V1GetCodePoolResponse.js'
 import { V1GetWorkerHealthResponse } from '../../generated-definitions/V1GetWorkerHealthResponse.js'
+import { V1ListAdtBuildsResponse } from '../../generated-definitions/V1ListAdtBuildsResponse.js'
+import { V1ListAdtLinkagesResponse } from '../../generated-definitions/V1ListAdtLinkagesResponse.js'
 import { V1ListApplicantsResponse } from '../../generated-definitions/V1ListApplicantsResponse.js'
 import { V1ListAuditLogResponse } from '../../generated-definitions/V1ListAuditLogResponse.js'
 import { V1ListPlaytestsResponse } from '../../generated-definitions/V1ListPlaytestsResponse.js'
@@ -40,16 +45,22 @@ import { V1RejectApplicantResponse } from '../../generated-definitions/V1RejectA
 import { V1RetryDmResponse } from '../../generated-definitions/V1RetryDmResponse.js'
 import { V1RetryFailedDmsResponse } from '../../generated-definitions/V1RetryFailedDmsResponse.js'
 import { V1SoftDeletePlaytestResponse } from '../../generated-definitions/V1SoftDeletePlaytestResponse.js'
+import { V1StartAdtLinkResponse } from '../../generated-definitions/V1StartAdtLinkResponse.js'
 import { V1SyncFromAgsResponse } from '../../generated-definitions/V1SyncFromAgsResponse.js'
 import { V1TopUpCodesResponse } from '../../generated-definitions/V1TopUpCodesResponse.js'
 import { V1TransitionPlaytestStatusResponse } from '../../generated-definitions/V1TransitionPlaytestStatusResponse.js'
+import { V1UnlinkAdtResponse } from '../../generated-definitions/V1UnlinkAdtResponse.js'
 import { V1UploadCodesResponse } from '../../generated-definitions/V1UploadCodesResponse.js'
 
 export const Key_PlaytesthubServiceAdmin = {
   Playtests: 'Playtesthubapi.PlaytesthubServiceAdmin.Playtests',
   Playtest: 'Playtesthubapi.PlaytesthubServiceAdmin.Playtest',
+  AdtLinkages: 'Playtesthubapi.PlaytesthubServiceAdmin.AdtLinkages',
   WorkersHealth: 'Playtesthubapi.PlaytesthubServiceAdmin.WorkersHealth',
+  AdtLinkagesStart: 'Playtesthubapi.PlaytesthubServiceAdmin.AdtLinkagesStart',
+  AdtLinkagesComplete: 'Playtesthubapi.PlaytesthubServiceAdmin.AdtLinkagesComplete',
   Playtest_ByPlaytestId: 'Playtesthubapi.PlaytesthubServiceAdmin.Playtest_ByPlaytestId',
+  AdtLinkage_ByAdtLinkageId: 'Playtesthubapi.PlaytesthubServiceAdmin.AdtLinkage_ByAdtLinkageId',
   Codes_ByPlaytestId: 'Playtesthubapi.PlaytesthubServiceAdmin.Codes_ByPlaytestId',
   Survey_ByPlaytestId: 'Playtesthubapi.PlaytesthubServiceAdmin.Survey_ByPlaytestId',
   Applicant_ByApplicantIdReject: 'Playtesthubapi.PlaytesthubServiceAdmin.Applicant_ByApplicantIdReject',
@@ -57,6 +68,7 @@ export const Key_PlaytesthubServiceAdmin = {
   Applicant_ByApplicantIdApprove: 'Playtesthubapi.PlaytesthubServiceAdmin.Applicant_ByApplicantIdApprove',
   Applicant_ByApplicantIdRetryDm: 'Playtesthubapi.PlaytesthubServiceAdmin.Applicant_ByApplicantIdRetryDm',
   Applicants_ByPlaytestId: 'Playtesthubapi.PlaytesthubServiceAdmin.Applicants_ByPlaytestId',
+  BuildsAdt_ByAdtLinkageId: 'Playtesthubapi.PlaytesthubServiceAdmin.BuildsAdt_ByAdtLinkageId',
   CodesTopUp_ByPlaytestId: 'Playtesthubapi.PlaytesthubServiceAdmin.CodesTopUp_ByPlaytestId',
   CodesUpload_ByPlaytestId: 'Playtesthubapi.PlaytesthubServiceAdmin.CodesUpload_ByPlaytestId',
   Playtest_ByPlaytestIdTransitionStatu: 'Playtesthubapi.PlaytesthubServiceAdmin.Playtest_ByPlaytestIdTransitionStatu',
@@ -123,6 +135,39 @@ export const usePlaytesthubServiceAdminApi_CreatePlaytestMutation = (
 }
 
 /**
+ * Scoped to the caller's studio namespace (union_namespace ?? namespace). Returns identity columns only — no credential bytes exist (PRD §4.8.2).
+ *
+ * #### Default Query Options
+ * The default options include:
+ * ```
+ * {
+ *    queryKey: [Key_PlaytesthubServiceAdmin.AdtLinkages, input]
+ * }
+ * ```
+ */
+export const usePlaytesthubServiceAdminApi_GetAdtLinkages = (
+  sdk: AccelByteSDK,
+  input: SdkSetConfigParam,
+  options?: Omit<UseQueryOptions<V1ListAdtLinkagesResponse, AxiosError<ApiError>>, 'queryKey'>,
+  callback?: (data: AxiosResponse<V1ListAdtLinkagesResponse>) => void
+): UseQueryResult<V1ListAdtLinkagesResponse, AxiosError<ApiError>> => {
+  const queryFn = (sdk: AccelByteSDK, input: Parameters<typeof usePlaytesthubServiceAdminApi_GetAdtLinkages>[1]) => async () => {
+    const response = await PlaytesthubServiceAdminApi(sdk, {
+      coreConfig: input.coreConfig,
+      axiosConfig: input.axiosConfig
+    }).getAdtLinkages()
+    callback?.(response)
+    return response.data
+  }
+
+  return useQuery<V1ListAdtLinkagesResponse, AxiosError<ApiError>>({
+    queryKey: [Key_PlaytesthubServiceAdmin.AdtLinkages, input],
+    queryFn: queryFn(sdk, input),
+    ...options
+  })
+}
+
+/**
  * Returns one entry per registered background worker (reclaim_worker, window_worker). stale := now > expires_at + 2*tick_interval. Missing rows surface as lease_holder='' with stale=true so a never-ticked worker is unmissable. Reads leader_lease directly — no new table.
  *
  * #### Default Query Options
@@ -151,6 +196,84 @@ export const usePlaytesthubServiceAdminApi_GetWorkersHealth = (
   return useQuery<V1GetWorkerHealthResponse, AxiosError<ApiError>>({
     queryKey: [Key_PlaytesthubServiceAdmin.WorkersHealth, input],
     queryFn: queryFn(sdk, input),
+    ...options
+  })
+}
+
+/**
+ * Mints a 32-byte CSRF state, persists adt_link_pending, returns linkUrl that the admin UI redirects to. studio_namespace is derived server-side from the caller's token. No credential is exchanged (PRD §4.8.2).
+ *
+ * #### Default Query Options
+ * The default options include:
+ * ```
+ * {
+ *    queryKey: [Key_PlaytesthubServiceAdmin.AdtLinkagesStart, input]
+ * }
+ * ```
+ */
+export const usePlaytesthubServiceAdminApi_CreateAdtLinkagesStartMutation = (
+  sdk: AccelByteSDK,
+  options?: Omit<
+    UseMutationOptions<V1StartAdtLinkResponse, AxiosError<ApiError>, SdkSetConfigParam & { data: PlaytesthubServiceStartAdtLinkBody }>,
+    'mutationKey'
+  >,
+  callback?: (data: V1StartAdtLinkResponse) => void
+): UseMutationResult<V1StartAdtLinkResponse, AxiosError<ApiError>, SdkSetConfigParam & { data: PlaytesthubServiceStartAdtLinkBody }> => {
+  const mutationFn = async (input: SdkSetConfigParam & { data: PlaytesthubServiceStartAdtLinkBody }) => {
+    const response = await PlaytesthubServiceAdminApi(sdk, {
+      coreConfig: input.coreConfig,
+      axiosConfig: input.axiosConfig
+    }).createAdtLinkagesStart(input.data)
+    callback?.(response.data)
+    return response.data
+  }
+
+  return useMutation({
+    mutationKey: [Key_PlaytesthubServiceAdmin.AdtLinkagesStart],
+    mutationFn,
+    ...options
+  })
+}
+
+/**
+ * Consumes the adt_link_pending row matching `state` (not expired); inserts the adt_linkage identity row with `adt_namespace` echoed by ADT on the callback URL. No outbound ADT call — tampering is self-defeating because the first downstream service-JWT call would 401 (PRD §4.8.2).
+ *
+ * #### Default Query Options
+ * The default options include:
+ * ```
+ * {
+ *    queryKey: [Key_PlaytesthubServiceAdmin.AdtLinkagesComplete, input]
+ * }
+ * ```
+ */
+export const usePlaytesthubServiceAdminApi_CreateAdtLinkagesCompleteMutation = (
+  sdk: AccelByteSDK,
+  options?: Omit<
+    UseMutationOptions<
+      V1CompleteAdtLinkResponse,
+      AxiosError<ApiError>,
+      SdkSetConfigParam & { data: PlaytesthubServiceCompleteAdtLinkBody }
+    >,
+    'mutationKey'
+  >,
+  callback?: (data: V1CompleteAdtLinkResponse) => void
+): UseMutationResult<
+  V1CompleteAdtLinkResponse,
+  AxiosError<ApiError>,
+  SdkSetConfigParam & { data: PlaytesthubServiceCompleteAdtLinkBody }
+> => {
+  const mutationFn = async (input: SdkSetConfigParam & { data: PlaytesthubServiceCompleteAdtLinkBody }) => {
+    const response = await PlaytesthubServiceAdminApi(sdk, {
+      coreConfig: input.coreConfig,
+      axiosConfig: input.axiosConfig
+    }).createAdtLinkagesComplete(input.data)
+    callback?.(response.data)
+    return response.data
+  }
+
+  return useMutation({
+    mutationKey: [Key_PlaytesthubServiceAdmin.AdtLinkagesComplete],
+    mutationFn,
     ...options
   })
 }
@@ -239,6 +362,41 @@ export const usePlaytesthubServiceAdminApi_PatchPlaytest_ByPlaytestIdMutation = 
 
   return useMutation({
     mutationKey: [Key_PlaytesthubServiceAdmin.Playtest_ByPlaytestId],
+    mutationFn,
+    ...options
+  })
+}
+
+/**
+ * Idempotent re-unlink against an already soft-deleted row is a no-op success. Linkage absent for the caller's studio → NotFound (PRD §4.8).
+ *
+ * #### Default Query Options
+ * The default options include:
+ * ```
+ * {
+ *    queryKey: [Key_PlaytesthubServiceAdmin.AdtLinkage_ByAdtLinkageId, input]
+ * }
+ * ```
+ */
+export const usePlaytesthubServiceAdminApi_DeleteAdtLinkage_ByAdtLinkageIdMutation = (
+  sdk: AccelByteSDK,
+  options?: Omit<
+    UseMutationOptions<V1UnlinkAdtResponse, AxiosError<ApiError>, SdkSetConfigParam & { adtLinkageId: string }>,
+    'mutationKey'
+  >,
+  callback?: (data: V1UnlinkAdtResponse) => void
+): UseMutationResult<V1UnlinkAdtResponse, AxiosError<ApiError>, SdkSetConfigParam & { adtLinkageId: string }> => {
+  const mutationFn = async (input: SdkSetConfigParam & { adtLinkageId: string }) => {
+    const response = await PlaytesthubServiceAdminApi(sdk, {
+      coreConfig: input.coreConfig,
+      axiosConfig: input.axiosConfig
+    }).deleteAdtLinkage_ByAdtLinkageId(input.adtLinkageId)
+    callback?.(response.data)
+    return response.data
+  }
+
+  return useMutation({
+    mutationKey: [Key_PlaytesthubServiceAdmin.AdtLinkage_ByAdtLinkageId],
     mutationFn,
     ...options
   })
@@ -565,6 +723,40 @@ export const usePlaytesthubServiceAdminApi_GetApplicants_ByPlaytestId = (
 
   return useQuery<V1ListApplicantsResponse, AxiosError<ApiError>>({
     queryKey: [Key_PlaytesthubServiceAdmin.Applicants_ByPlaytestId, input],
+    queryFn: queryFn(sdk, input),
+    ...options
+  })
+}
+
+/**
+ * Proxies adt.Client.ListBuilds keyed on the studio derived from the caller's token. Returns FailedPrecondition when ADT reports the linkage flag missing.
+ *
+ * #### Default Query Options
+ * The default options include:
+ * ```
+ * {
+ *    queryKey: [Key_PlaytesthubServiceAdmin.BuildsAdt_ByAdtLinkageId, input]
+ * }
+ * ```
+ */
+export const usePlaytesthubServiceAdminApi_GetBuildsAdt_ByAdtLinkageId = (
+  sdk: AccelByteSDK,
+  input: SdkSetConfigParam & { adtLinkageId: string; queryParams?: { adtGameId?: string | null } },
+  options?: Omit<UseQueryOptions<V1ListAdtBuildsResponse, AxiosError<ApiError>>, 'queryKey'>,
+  callback?: (data: AxiosResponse<V1ListAdtBuildsResponse>) => void
+): UseQueryResult<V1ListAdtBuildsResponse, AxiosError<ApiError>> => {
+  const queryFn =
+    (sdk: AccelByteSDK, input: Parameters<typeof usePlaytesthubServiceAdminApi_GetBuildsAdt_ByAdtLinkageId>[1]) => async () => {
+      const response = await PlaytesthubServiceAdminApi(sdk, {
+        coreConfig: input.coreConfig,
+        axiosConfig: input.axiosConfig
+      }).getBuildsAdt_ByAdtLinkageId(input.adtLinkageId, input.queryParams)
+      callback?.(response)
+      return response.data
+    }
+
+  return useQuery<V1ListAdtBuildsResponse, AxiosError<ApiError>>({
+    queryKey: [Key_PlaytesthubServiceAdmin.BuildsAdt_ByAdtLinkageId, input],
     queryFn: queryFn(sdk, input),
     ...options
   })

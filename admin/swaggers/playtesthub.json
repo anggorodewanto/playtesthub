@@ -17,6 +17,227 @@
     "application/json"
   ],
   "paths": {
+    "/v1/admin/namespaces/{namespace}/adt/linkages": {
+      "get": {
+        "summary": "List ADT linkages for the caller's studio (admin)",
+        "description": "Scoped to the caller's studio namespace (union_namespace ?? namespace). Returns identity columns only — no credential bytes exist (PRD §4.8.2).",
+        "operationId": "PlaytesthubService_ListADTLinkages",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListADTLinkagesResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "namespace",
+            "description": "Mirrors the existing admin RPC namespace path-param convention.\nService layer ignores it for authorization (linkage scope is the\nstudio derived from the caller's token, not this path), but the\nvalue MUST equal AGS_NAMESPACE so the URL remains stable across\nexisting CORS / gateway routing.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "PlaytesthubService"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v1/admin/namespaces/{namespace}/adt/linkages/{adtLinkageId}": {
+      "delete": {
+        "summary": "Soft-delete an ADT linkage (admin; idempotent)",
+        "description": "Idempotent re-unlink against an already soft-deleted row is a no-op success. Linkage absent for the caller's studio → NotFound (PRD §4.8).",
+        "operationId": "PlaytesthubService_UnlinkADT",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1UnlinkADTResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "adtLinkageId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "PlaytesthubService"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v1/admin/namespaces/{namespace}/adt/linkages/{adtLinkageId}/builds": {
+      "get": {
+        "summary": "List builds in an ADT linkage's namespace + game (admin)",
+        "description": "Proxies adt.Client.ListBuilds keyed on the studio derived from the caller's token. Returns FailedPrecondition when ADT reports the linkage flag missing.",
+        "operationId": "PlaytesthubService_ListADTBuilds",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListADTBuildsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "adtLinkageId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "adtGameId",
+            "description": "ADT game id under the linkage's namespace. Required.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "PlaytesthubService"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v1/admin/namespaces/{namespace}/adt/linkages:complete": {
+      "post": {
+        "summary": "Finalize an ADT linking round-trip (admin)",
+        "description": "Consumes the adt_link_pending row matching `state` (not expired); inserts the adt_linkage identity row with `adt_namespace` echoed by ADT on the callback URL. No outbound ADT call — tampering is self-defeating because the first downstream service-JWT call would 401 (PRD §4.8.2).",
+        "operationId": "PlaytesthubService_CompleteADTLink",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1CompleteADTLinkResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/PlaytesthubServiceCompleteADTLinkBody"
+            }
+          }
+        ],
+        "tags": [
+          "PlaytesthubService"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v1/admin/namespaces/{namespace}/adt/linkages:start": {
+      "post": {
+        "summary": "Begin an ADT linking round-trip (admin)",
+        "description": "Mints a 32-byte CSRF state, persists adt_link_pending, returns linkUrl that the admin UI redirects to. studio_namespace is derived server-side from the caller's token. No credential is exchanged (PRD §4.8.2).",
+        "operationId": "PlaytesthubService_StartADTLink",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1StartADTLinkResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/PlaytesthubServiceStartADTLinkBody"
+            }
+          }
+        ],
+        "tags": [
+          "PlaytesthubService"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
     "/v1/admin/namespaces/{namespace}/applicants/{applicantId}:approve": {
       "post": {
         "summary": "Approve a PENDING applicant (admin; reserve → fenced finalize per schema.md)",
@@ -1386,6 +1607,19 @@
     "PlaytesthubServiceApproveApplicantBody": {
       "type": "object"
     },
+    "PlaytesthubServiceCompleteADTLinkBody": {
+      "type": "object",
+      "properties": {
+        "state": {
+          "type": "string",
+          "description": "CSRF nonce echoed by ADT on the redirect-back URL."
+        },
+        "adtNamespace": {
+          "type": "string",
+          "description": "ADT namespace ADT echoed on the redirect-back URL. Required —\nmissing/empty → InvalidArgument byte-exact (errors.md)."
+        }
+      }
+    },
     "PlaytesthubServiceCreatePlaytestBody": {
       "type": "object",
       "properties": {
@@ -1533,6 +1767,9 @@
         }
       }
     },
+    "PlaytesthubServiceStartADTLinkBody": {
+      "type": "object"
+    },
     "PlaytesthubServiceSubmitSurveyResponseBody": {
       "type": "object",
       "properties": {
@@ -1610,6 +1847,51 @@
           }
         }
       }
+    },
+    "v1ADTBuild": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        },
+        "uploadedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "description": "ADTBuild is the minimum build row the admin UI / pth CLI needs to\ndrive the build picker. Mirrors pkg/adt.Build but rendered as proto."
+    },
+    "v1ADTLinkage": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "studioNamespace": {
+          "type": "string"
+        },
+        "adtNamespace": {
+          "type": "string"
+        },
+        "linkedByUserId": {
+          "type": "string"
+        },
+        "linkedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "deletedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "description": "ADTLinkage mirrors the adt_linkage row (schema.md §\"adt_linkage table\"\n/ PRD §4.8.1). Identity columns only — no credential payload exists\nto leak (PRD §4.8.2). `deleted_at` is unset on live rows."
     },
     "v1AcceptNDAResponse": {
       "type": "object",
@@ -1800,6 +2082,14 @@
       "default": "CODE_STATE_UNSPECIFIED",
       "description": "CodeState — per-code state machine for the Code pool (PRD §5.5,\nschema.md §\"Code table\"). Pool-only grant (no external entitlement\nin MVP)."
     },
+    "v1CompleteADTLinkResponse": {
+      "type": "object",
+      "properties": {
+        "linkage": {
+          "$ref": "#/definitions/v1ADTLinkage"
+        }
+      }
+    },
     "v1CreatePlaytestResponse": {
       "type": "object",
       "properties": {
@@ -1954,6 +2244,30 @@
           "items": {
             "type": "object",
             "$ref": "#/definitions/v1WorkerHealthEntry"
+          }
+        }
+      }
+    },
+    "v1ListADTBuildsResponse": {
+      "type": "object",
+      "properties": {
+        "builds": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1ADTBuild"
+          }
+        }
+      }
+    },
+    "v1ListADTLinkagesResponse": {
+      "type": "object",
+      "properties": {
+        "linkages": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1ADTLinkage"
           }
         }
       }
@@ -2278,6 +2592,24 @@
     "v1SoftDeletePlaytestResponse": {
       "type": "object"
     },
+    "v1StartADTLinkResponse": {
+      "type": "object",
+      "properties": {
+        "linkUrl": {
+          "type": "string",
+          "description": "Full URL the admin UI assigns to window.location.href to begin the\nADT-side linking dance. Carries the redirect_uri + state +\nstudio_namespace query params (PRD §4.8.2)."
+        },
+        "state": {
+          "type": "string",
+          "description": "The opaque CSRF nonce. Admin UI keeps it (and ADT round-trips it\nverbatim) so CompleteADTLink can match the adt_link_pending row."
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Expiry of the adt_link_pending row, in seconds-from-epoch. Surfaced\nso a CLI driver can decide whether to retry before the row sweeps."
+        }
+      }
+    },
     "v1SubmitSurveyResponseResponse": {
       "type": "object",
       "properties": {
@@ -2444,6 +2776,9 @@
           "$ref": "#/definitions/v1Playtest"
         }
       }
+    },
+    "v1UnlinkADTResponse": {
+      "type": "object"
     },
     "v1UploadCodesRejection": {
       "type": "object",

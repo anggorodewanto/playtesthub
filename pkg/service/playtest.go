@@ -13,6 +13,7 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/anggorodewanto/playtesthub/pkg/adt"
 	"github.com/anggorodewanto/playtesthub/pkg/ags"
 	"github.com/anggorodewanto/playtesthub/pkg/discord"
 	iampkg "github.com/anggorodewanto/playtesthub/pkg/iam"
@@ -71,6 +72,14 @@ type PlaytesthubServiceServer struct {
 	agsCodeBatchSize int
 	logger           *slog.Logger
 	namespace        string
+
+	// ADT linkage wiring (M5.B / PRD §4.8). nil leaves every ADT RPC
+	// surfacing Internal — the bootapp wires both ports together when
+	// ADT env vars are present.
+	adtLinkage      repo.ADTLinkageStore
+	adtClient       adt.Client
+	adtLinkConfig   ADTLinkConfig
+	studioNamespace StudioNamespaceResolver
 
 	// leaderLease + workers back GetWorkerHealth (STATUS_M4.md phase 5).
 	// Wired via WithWorkerHealth from main.go. nil leaderLease leaves

@@ -36,6 +36,7 @@ const mockGetSurveyResponses = vi.fn()
 const mockGetSurveyPlayer = vi.fn()
 const mockGetAuditLog = vi.fn()
 const mockGetWorkersHealth = vi.fn()
+const mockCompleteAdtLinkMutation = vi.fn()
 
 vi.mock('./playtesthubapi/generated-admin/queries/PlaytesthubServiceAdmin.query', () => ({
   Key_PlaytesthubServiceAdmin: {
@@ -66,7 +67,8 @@ vi.mock('./playtesthubapi/generated-admin/queries/PlaytesthubServiceAdmin.query'
   usePlaytesthubServiceAdminApi_PatchSurvey_ByPlaytestIdMutation: (...args: unknown[]) => mockEditSurveyMutation(...args),
   usePlaytesthubServiceAdminApi_GetSurveyResponses_ByPlaytestId: (...args: unknown[]) => mockGetSurveyResponses(...args),
   usePlaytesthubServiceAdminApi_GetAuditLog_ByPlaytestId: (...args: unknown[]) => mockGetAuditLog(...args),
-  usePlaytesthubServiceAdminApi_GetWorkersHealth: (...args: unknown[]) => mockGetWorkersHealth(...args)
+  usePlaytesthubServiceAdminApi_GetWorkersHealth: (...args: unknown[]) => mockGetWorkersHealth(...args),
+  usePlaytesthubServiceAdminApi_CreateAdtLinkagesCompleteMutation: (...args: unknown[]) => mockCompleteAdtLinkMutation(...args)
 }))
 
 vi.mock('./playtesthubapi/generated-public/queries/PlaytesthubService.query', () => ({
@@ -108,6 +110,7 @@ beforeEach(() => {
   mockGetSurveyPlayer.mockReset()
   mockGetAuditLog.mockReset()
   mockGetWorkersHealth.mockReset()
+  mockCompleteAdtLinkMutation.mockReset()
 
   // Default: empty list + no-op mutations.
   mockGetPlaytests.mockReturnValue({ data: { playtests: [] }, isLoading: false, error: null, refetch: vi.fn() })
@@ -130,6 +133,7 @@ beforeEach(() => {
   mockGetSurveyPlayer.mockReturnValue({ data: undefined, isLoading: false, isError: false, error: null })
   mockGetAuditLog.mockReturnValue({ data: { entries: [], nextPageToken: '' }, isLoading: false, error: null, refetch: vi.fn() })
   mockGetWorkersHealth.mockReturnValue({ data: { workers: [] }, isLoading: false, error: null })
+  mockCompleteAdtLinkMutation.mockReturnValue({ mutate: vi.fn(), isPending: false, isError: false, error: null })
 })
 
 describe('PlaytestsListPage', () => {
@@ -1080,5 +1084,31 @@ describe('Playtest window (M4)', () => {
     // No hover; tooltip should not have a trigger wrapper. Tag rendered raw.
     expect(screen.getByText('Draft')).toBeInTheDocument()
     expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
+  })
+})
+
+describe('ADTLinkCallbackPage', () => {
+  it('calls CompleteADTLink with state + adt_namespace from the query string', async () => {
+    const mutate = vi.fn()
+    mockCompleteAdtLinkMutation.mockReturnValue({ mutate, isPending: false, isError: false, error: null })
+    renderAt('/adt-link-callback?state=abc123&result=success&adt_namespace=adt-studio-1')
+    await waitFor(() => expect(mutate).toHaveBeenCalledTimes(1))
+    expect(mutate).toHaveBeenCalledWith({ data: { state: 'abc123', adtNamespace: 'adt-studio-1' } })
+  })
+
+  it('surfaces an error and does not invoke the mutation when state is missing', async () => {
+    const mutate = vi.fn()
+    mockCompleteAdtLinkMutation.mockReturnValue({ mutate, isPending: false, isError: false, error: null })
+    renderAt('/adt-link-callback?result=success&adt_namespace=adt-studio-1')
+    expect(await screen.findByText(/missing the state or adt_namespace/i)).toBeInTheDocument()
+    expect(mutate).not.toHaveBeenCalled()
+  })
+
+  it('surfaces an error when ADT reports the link as failed', async () => {
+    const mutate = vi.fn()
+    mockCompleteAdtLinkMutation.mockReturnValue({ mutate, isPending: false, isError: false, error: null })
+    renderAt('/adt-link-callback?state=abc&adt_namespace=adt-studio-1&result=failed&reason=user_declined')
+    expect(await screen.findByText(/user_declined/)).toBeInTheDocument()
+    expect(mutate).not.toHaveBeenCalled()
   })
 })

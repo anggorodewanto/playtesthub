@@ -44,6 +44,34 @@ type AGSAdminPlatformLookup struct {
 
 const platformLookupTokenSkew = 60 * time.Second
 
+// GetStudioNamespace mints a client-credentials access token and
+// extracts the studio identity from its claims as
+// `union_namespace ?? namespace`. The token represents the playtesthub
+// backend itself — NOT any calling admin — and is the canonical
+// studio identity ADT sees on every downstream API call from
+// playtesthub (PRD §4.8.2). Used by the ADT linkage flow to scope
+// adt_linkage rows correctly. Returns an empty string + an error when
+// neither claim is set on the service token (boot-time
+// misconfiguration; the StartADTLink handler maps this to
+// FailedPrecondition per errors.md).
+func (l *AGSAdminPlatformLookup) GetStudioNamespace(ctx context.Context) (string, error) {
+	if l == nil {
+		return "", fmt.Errorf("iam: platform lookup not configured")
+	}
+	tok, err := l.adminToken(ctx)
+	if err != nil {
+		return "", err
+	}
+	claims, err := DecodeClaims(tok)
+	if err != nil {
+		return "", fmt.Errorf("iam: decode service token claims: %w", err)
+	}
+	if s := claims.StudioNamespace(); s != "" {
+		return s, nil
+	}
+	return "", fmt.Errorf("iam: service token carries neither union_namespace nor namespace claim")
+}
+
 // GetDiscordID implements PlatformLookup against AGS IAM.
 func (l *AGSAdminPlatformLookup) GetDiscordID(ctx context.Context, agsUserID string) (string, error) {
 	if l == nil {

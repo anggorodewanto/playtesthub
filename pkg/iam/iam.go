@@ -91,9 +91,30 @@ func IsDiscordFederatedFromContext(ctx context.Context) bool {
 // federated in via Discord OAuth. The Discord snowflake itself is NOT
 // in the JWT — the AGS IAM admin endpoint
 // `/users/{userId}/distinctPlatforms` is the source of truth.
+//
+// `namespace` / `union_namespace` are the AGS IAM namespace claims used
+// by the ADT linkage flow (PRD §4.8) to derive the studio identity from
+// the *backend's* service-IAM JWT (NOT the calling admin's token —
+// linkage scope is the studio the backend itself runs under, which is
+// what ADT sees on every downstream API call). StudioNamespace()
+// returns `union_namespace ?? namespace`.
 type Claims struct {
-	Sub string `json:"sub"`
-	IPF string `json:"ipf"`
+	Sub            string `json:"sub"`
+	IPF            string `json:"ipf"`
+	Namespace      string `json:"namespace"`
+	UnionNamespace string `json:"union_namespace"`
+}
+
+// StudioNamespace returns the studio identity for ADT linkage purposes:
+// `union_namespace ?? namespace`. Empty when neither claim is set.
+func (c *Claims) StudioNamespace() string {
+	if c == nil {
+		return ""
+	}
+	if c.UnionNamespace != "" {
+		return c.UnionNamespace
+	}
+	return c.Namespace
 }
 
 // DecodeClaims parses the payload segment of a JWT without verifying its

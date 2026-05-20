@@ -96,6 +96,29 @@ type Config struct {
 	// non-clickable copy. The hash-router's "#" prefix is appended by
 	// the service layer; do not include it here.
 	PlayerBaseURL string
+
+	// ADTBaseURL is the AccelByte Development Toolkit origin (no path)
+	// the admin UI redirects to at link time, e.g.
+	// "https://adt.example.com". Optional — when empty the ADT linkage
+	// surface is disabled (StartADTLink returns FailedPrecondition per
+	// errors.md). Required in production when any ADT-distribution
+	// playtest exists. PRD §5.9.
+	ADTBaseURL string
+
+	// ADTRedirectBaseURL is the admin-UI origin ADT redirects back to
+	// after the link round-trip, e.g.
+	// "https://admin.example.com". Combined with the literal path
+	// suffix "/adt-link-callback" to form the redirect_uri query param
+	// on the ADT link URL. Required when ADTBaseURL is set. PRD §5.9.
+	ADTRedirectBaseURL string
+
+	// ADTLinkagePendingTTLSeconds bounds the lifetime of an
+	// adt_link_pending row. Default 600 (10 minutes) — long enough for
+	// an operator to drive the ADT-side sign-in, short enough that
+	// stale rows don't accumulate. CompleteADTLink runs an inline
+	// sweep on every call so a positive value also bounds the table
+	// size. PRD §5.9.
+	ADTLinkagePendingTTLSeconds int
 }
 
 // MissingRequiredError lists every required env var that was unset or
@@ -190,14 +213,54 @@ func Load() (*Config, error) {
 	cfg.CORSAllowedOrigins = parseCSV(os.Getenv("CORS_ALLOWED_ORIGINS"))
 
 	cfg.PlayerBaseURL = strings.TrimRight(os.Getenv("PLAYER_BASE_URL"), "/")
-	if cfg.PlayerBaseURL != "" {
-		u, err := url.Parse(cfg.PlayerBaseURL)
-		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
-			return nil, fmt.Errorf("PLAYER_BASE_URL must be an http(s) URL with a host, got %q", cfg.PlayerBaseURL)
-		}
+	if err := validateHTTPURL("PLAYER_BASE_URL", cfg.PlayerBaseURL); err != nil {
+		return nil, err
+	}
+
+	if err := loadADT(cfg); err != nil {
+		return nil, err
 	}
 
 	return cfg, nil
+}
+
+// loadADT reads + validates the ADT-related env vars (PRD §5.9). Split
+// out of Load to keep cognitive complexity under the lint threshold.
+func loadADT(cfg *Config) error {
+	cfg.ADTBaseURL = strings.TrimRight(os.Getenv("ADT_BASE_URL"), "/")
+	if err := validateHTTPURL("ADT_BASE_URL", cfg.ADTBaseURL); err != nil {
+		return err
+	}
+	cfg.ADTRedirectBaseURL = strings.TrimRight(os.Getenv("ADT_REDIRECT_BASE_URL"), "/")
+	if err := validateHTTPURL("ADT_REDIRECT_BASE_URL", cfg.ADTRedirectBaseURL); err != nil {
+		return err
+	}
+	if cfg.ADTBaseURL != "" && cfg.ADTRedirectBaseURL == "" {
+		return fmt.Errorf("ADT_REDIRECT_BASE_URL is required when ADT_BASE_URL is set")
+	}
+	ttl, err := getInt("ADT_LINKAGE_PENDING_TTL_SECONDS", 600)
+	if err != nil {
+		return err
+	}
+	if ttl < 1 {
+		return fmt.Errorf("ADT_LINKAGE_PENDING_TTL_SECONDS must be >= 1, got %d", ttl)
+	}
+	cfg.ADTLinkagePendingTTLSeconds = ttl
+	return nil
+}
+
+// validateHTTPURL accepts an empty string (caller's "optional" sentinel)
+// or an http(s) URL with a host. Anything else returns a uniform error
+// naming the env var key.
+func validateHTTPURL(key, raw string) error {
+	if raw == "" {
+		return nil
+	}
+	u, err := url.Parse(raw)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+		return fmt.Errorf("%s must be an http(s) URL with a host, got %q", key, raw)
+	}
+	return nil
 }
 
 func parseCSV(raw string) []string {

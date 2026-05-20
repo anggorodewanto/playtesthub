@@ -32,7 +32,7 @@ import {
   dateRangeWindowRule
 } from './window'
 import { useEffect, useMemo, useState } from 'react'
-import { Route, Routes, useNavigate, useParams } from 'react-router'
+import { Route, Routes, useNavigate, useParams, useSearchParams } from 'react-router'
 import type { V1Applicant } from './playtesthubapi/generated-definitions/V1Applicant'
 import type { V1AuditLogEntry } from './playtesthubapi/generated-definitions/V1AuditLogEntry'
 import type { V1Code } from './playtesthubapi/generated-definitions/V1Code'
@@ -47,6 +47,7 @@ import type { V1UploadCodesRejection } from './playtesthubapi/generated-definiti
 import type { V1WorkerHealthEntry } from './playtesthubapi/generated-definitions/V1WorkerHealthEntry'
 import {
   Key_PlaytesthubServiceAdmin,
+  usePlaytesthubServiceAdminApi_CreateAdtLinkagesCompleteMutation,
   usePlaytesthubServiceAdminApi_CreateApplicant_ByApplicantIdApproveMutation,
   usePlaytesthubServiceAdminApi_CreateApplicant_ByApplicantIdRejectMutation,
   usePlaytesthubServiceAdminApi_CreateApplicant_ByApplicantIdRetryDmMutation,
@@ -170,7 +171,64 @@ export function FederatedElement() {
         <Route path=":playtestId/survey" element={<SurveyBuilderPage />} />
         <Route path=":playtestId/survey/responses" element={<SurveyResponsesPage />} />
         <Route path=":playtestId/audit" element={<AuditLogPage />} />
+        <Route path="adt-link-callback" element={<ADTLinkCallbackPage />} />
       </Routes>
+    </div>
+  )
+}
+
+// ADTLinkCallbackPage handles the redirect-back from ADT's linking
+// flow. ADT round-trips `state` + `result` + `adt_namespace` on the
+// query string; this page calls CompleteADTLink(state, adt_namespace)
+// and navigates back to the playtests list on success. Per PRD §4.8.2
+// no `grantCode` is read or forwarded — none is issued.
+function ADTLinkCallbackPage() {
+  const { sdk } = useAppUIContext()
+  const navigate = useNavigate()
+  const [params] = useSearchParams()
+  const [error, setError] = useState<string | null>(null)
+
+  const state = params.get('state') ?? ''
+  const result = params.get('result') ?? ''
+  const adtNamespace = params.get('adt_namespace') ?? ''
+
+  const completeMutation = usePlaytesthubServiceAdminApi_CreateAdtLinkagesCompleteMutation(sdk, {
+    onSuccess: () => {
+      message.success('ADT namespace linked')
+      navigate('/')
+    },
+    onError: (err: { message?: string }) => {
+      setError(err.message ?? 'ADT linking failed')
+    }
+  })
+
+  useEffect(() => {
+    if (result === 'failed') {
+      setError(params.get('reason') ?? 'ADT reported the link as failed')
+      return
+    }
+    if (!state || !adtNamespace) {
+      setError('Callback is missing the state or adt_namespace query parameter')
+      return
+    }
+    completeMutation.mutate({ data: { state, adtNamespace } })
+    // We deliberately depend only on the URL inputs — re-running on
+    // mutation churn would refire the mutation.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state, adtNamespace, result])
+
+  if (error) {
+    return (
+      <Space direction="vertical" style={{ width: '100%' }} data-testid="adt-link-callback">
+        <Alert type="error" message="ADT linking failed" description={error} showIcon />
+        <Button onClick={() => navigate('/')}>Back to playtests</Button>
+      </Space>
+    )
+  }
+  return (
+    <div data-testid="adt-link-callback">
+      <Spin size="large" />
+      <Typography.Paragraph style={{ marginTop: 12 }}>Finalizing ADT link…</Typography.Paragraph>
     </div>
   )
 }
