@@ -349,9 +349,10 @@ func adtLinkageToProto(r *repo.ADTLinkage) *pb.ADTLinkage {
 
 func adtBuildToProto(b adt.Build) *pb.ADTBuild {
 	out := &pb.ADTBuild{
-		Id:      b.ID,
-		Name:    b.Name,
-		Version: b.Version,
+		Id:       b.ID,
+		Name:     b.Name,
+		Version:  b.Version,
+		Platform: b.Platform,
 	}
 	if !b.UploadedAt.IsZero() {
 		out.UploadedAt = timestamppb.New(b.UploadedAt)

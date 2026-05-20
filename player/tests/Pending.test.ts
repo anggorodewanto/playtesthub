@@ -20,11 +20,17 @@ const json = (status: number, body: unknown) =>
 // Pending fetches the player playtest, the applicant row, and (on
 // APPROVED) the granted code. Tests route by URL so each call gets the
 // right body.
-type Routes = { playerPlaytest?: Response; applicant?: Response; grantedCode?: Response };
+type Routes = {
+  playerPlaytest?: Response;
+  applicant?: Response;
+  grantedCode?: Response;
+  adtDownload?: Response;
+};
 const stubFetchByUrl = (routes: Routes) => {
   const fn = vi.fn(async (input: RequestInfo | URL) => {
     const url = String(input);
     if (url.includes(':acceptNda')) return json(200, { acceptance: {} });
+    if (url.includes('/adtDownload')) return routes.adtDownload ?? json(404, {});
     if (url.includes('/grantedCode')) return routes.grantedCode ?? json(404, {});
     if (/\/applicant(\?|$)/.test(url)) return routes.applicant ?? json(404, {});
     return routes.playerPlaytest ?? json(404, {});
@@ -44,6 +50,20 @@ const playtestNoNda = (slug: string) =>
       ndaText: '',
       currentNdaVersionHash: '',
       distributionModel: 'DISTRIBUTION_MODEL_STEAM_KEYS',
+    },
+  });
+
+const playtestADT = (slug: string) =>
+  json(200, {
+    playtest: {
+      slug,
+      title: 't',
+      description: 'd',
+      status: 'PLAYTEST_STATUS_OPEN',
+      ndaRequired: false,
+      ndaText: '',
+      currentNdaVersionHash: '',
+      distributionModel: 'DISTRIBUTION_MODEL_ADT',
     },
   });
 
@@ -247,6 +267,70 @@ describe('Pending', () => {
     expect(screen.getByText(/NDA was updated/i)).toBeInTheDocument();
     // Must not redirect — APPROVED stays put even with re-accept required.
     expect(window.location.hash).not.toBe('#/playtest/demo/nda');
+  });
+
+  it('renders the ADT download card with an "issued" URL when distribution=ADT', async () => {
+    setAccessToken('tok');
+    stubFetchByUrl({
+      playerPlaytest: playtestADT('demo'),
+      applicant: json(200, {
+        applicant: {
+          id: 'a1',
+          playtestId: 'pt-1',
+          status: 'APPLICANT_STATUS_APPROVED',
+          ndaVersionHash: '',
+        },
+      }),
+      adtDownload: json(200, {
+        url: 'https://cdn.example.com/builds/abc.zip',
+        expiresAt: '2026-05-21T00:00:00Z',
+        source: 'issued',
+      }),
+    });
+    render(Pending, { config, slug: 'demo' });
+    const link = (await screen.findByTestId('adt-download-link')) as HTMLAnchorElement;
+    expect(link.href).toBe('https://cdn.example.com/builds/abc.zip');
+    expect(screen.getByTestId('adt-download-expiry')).toHaveTextContent(/Link expires/);
+    expect(screen.queryByTestId('adt-download-source')).toBeNull();
+  });
+
+  it('labels the fallback source on ADT downloads', async () => {
+    setAccessToken('tok');
+    stubFetchByUrl({
+      playerPlaytest: playtestADT('demo'),
+      applicant: json(200, {
+        applicant: {
+          id: 'a1',
+          playtestId: 'pt-1',
+          status: 'APPLICANT_STATUS_APPROVED',
+          ndaVersionHash: '',
+        },
+      }),
+      adtDownload: json(200, {
+        url: 'https://example.com/fallback.zip',
+        source: 'fallback',
+      }),
+    });
+    render(Pending, { config, slug: 'demo' });
+    expect(await screen.findByTestId('adt-download-source')).toHaveTextContent(/Shared playtest download/);
+  });
+
+  it('shows an ADT-download error message when fetchAdtDownloadInfo fails (non-401)', async () => {
+    setAccessToken('tok');
+    stubFetchByUrl({
+      playerPlaytest: playtestADT('demo'),
+      applicant: json(200, {
+        applicant: {
+          id: 'a1',
+          playtestId: 'pt-1',
+          status: 'APPLICANT_STATUS_APPROVED',
+          ndaVersionHash: '',
+        },
+      }),
+      adtDownload: json(503, { message: 'service unavailable' }),
+    });
+    render(Pending, { config, slug: 'demo' });
+    expect(await screen.findByRole('alert')).toHaveTextContent(/download link is not available/i);
   });
 
   it('shows a code-fetch error message when GetGrantedCode fails (non-401)', async () => {

@@ -1,5 +1,22 @@
 # playtesthub — Full Version History
 
+## v2.5.2 — 2026-05-20
+
+**ADT API spec resolved (2026-05-20 from ADT engineering)** — open questions §1–§2 in [`STATUS_M5.md`](STATUS_M5.md) now closed; the live-adapter sub-phase of B3 can begin against the canonical endpoints below. Significant correction to v2.5 / v2.5.1 prose: **download URLs are per-build, NOT per-applicant**, with a fixed 24-hour CDN TTL.
+
+- PRD §4.7 — `GetADTDownloadInfo` response shape note rewritten to use `source ∈ {'issued', 'fallback'}` (was `{'adt', 'fallback'}`).
+- PRD §4.8 heading retitled "ADT distribution model — linking flow, per-build URL resolution, fallback" (was "per-applicant").
+- PRD §4.8.3 rewritten: ADT issues per-build URLs only (every approved applicant for a playtest receives the same URL until the CDN TTL expires); per-applicant audit attribution lives on the playtesthub side; per-applicant revocation goes through `RejectApplicant` (which cuts off `GetADTDownloadInfo` access) — the URL itself stays valid for the TTL. ADT endpoint pinned: `GET <ADT_BASE>/profiling/namespaces/<adt_namespace>/agsplaytesthub/games/<adt_game_id>/builds/<adt_build_id>/downloadUrls?limit=20` returning `{urls, expiresAt}`. ADT can return multiple build assets; playtesthub uses the first.
+- PRD §4.8.4 — response field renamed `downloadUrl` → `url`; `source` enum updated to `issued | fallback`.
+- PRD §5.1 — `adtFallbackDownloadUrl` field doc clarified: "used when ADT cannot mint a download URL at approve time" (was "per-applicant download URL").
+- [`STATUS_M5.md`](STATUS_M5.md) — "Open questions" section retitled "Open questions (resolved)" with the resolved endpoint specs inline (linking, list-builds, issue-download-url, unlink, list-linkages, 401 semantics, production base URLs). New "Implementation impact" subsection records the prose-only and code patches landing alongside this CHANGELOG entry.
+- Code patches landing in the same wave:
+  - `pkg/adt.Build` gains a `Platform` field mapped from ADT's `platform_name`; field mapping comment block added (`ID ← id`, `Name ← game_version_name`, `Version ← game_version_id`, `UploadedAt ← created_at`, `Platform ← platform_name`).
+  - `proto/playtesthub/v1/playtesthub.proto` ADTBuild message gains `string platform = 5;` plus codegen refresh.
+  - `pkg/adt.IssueDownloadURLParams.ApplicantIdent` retained for forward-compat but documented as **unused by ADT** — playtesthub still threads the applicant id through so the audit row carries it (per-applicant attribution lives entirely on the playtesthub side now).
+  - `pkg/adt/client.go` doc comments rewritten to reflect "per-build, NOT per-applicant" + the 24h TTL.
+- **Backwards compatibility note**: no schema migration. The `applicant.approve` audit row's `adtUrlSource` JSONB field switches from the (still unimplemented) "adt" label to "issued" — no live ADT playtests exist yet, so the rename is safe. Player-side `GetADTDownloadInfo` response key is `url`, not `downloadUrl`; this is the first wire-shape pin (no caller in the field yet).
+
 ## v2.5.1 — 2026-05-20
 
 **Correction to v2.5 ADT linkage prose**: `studio_namespace` is derived from the playtesthub backend's own AGS service IAM JWT (`union_namespace ?? namespace`), NOT from the calling admin's request token. The v2.5 freeze prose at §4.8.1 / D1 / D2 / Resolved §1 / `schema.md` §"adt_linkage table" / `errors.md` `StartADTLink` row all read "calling admin's token" — that was wrong. Rationale for the fix: every downstream ADT API call from playtesthub carries the backend service JWT, so ADT's `(adt_namespace, studio_namespace) linked = true` flag is keyed on the *service token's* studio identity; keying the playtesthub-side `adt_linkage` row on the admin's request-token claims would cause a flag mismatch any time the two tokens disagree (e.g. an admin token at game-namespace scope vs a service token at studio scope), surfacing as `IssueDownloadURL` 401s post-link. PRD §4.8.1, `schema.md`, `errors.md`, and `STATUS_M5.md` (D1 / D2 / B1 / B4 / B11 / Resolved §1 + new §9) updated to read "backend's service IAM JWT". No code change required — the M5.B-phase-4 commit (`38b20fc`) shipped the correct implementation. No backwards-compatibility concern because no ADT linkage rows exist in any live deployment yet (Track B has not shipped end-to-end).

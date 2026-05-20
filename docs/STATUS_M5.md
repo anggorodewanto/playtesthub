@@ -127,7 +127,7 @@ B7. `[x]` **Admin UI — distribution selector adds ADT, link modal + callback r
     - **`/adt-link-callback` route**: reads `state` + `result` + `adt_namespace` from the query string (no `grantCode` — none is issued) → `CompleteADTLink(state, adt_namespace)` → redirect+flash on success / Alert+Retry on `result=failed` or backend rejection (missing/empty `adt_namespace` → InvalidArgument byte-exact from errors.md).
     - **CreatePlaytest form**: distribution-model `Select` gains `ADT` option. Switches between `initialCodeQuantity` (AGS_CAMPAIGN) and the three ADT-only fields (`adtLinkageId Select`, `adtGameId Input`, `adtBuildId Select` driven by `ListADTBuilds`). Optional `adtFallbackDownloadUrl Input`.
     - Vitest: 6 new cases (distribution-selector ADT render, ADT-required-fields validation, build picker disabled-until-prereqs, fallback URL accepts blank, link modal renders screenshot copy, callback route happy path with `state` only). Codegen-fresh gate green.
-B8. `[ ]` **Player Svelte — ADT download view in `Pending.svelte` + `GetADTDownloadInfo` wire** — for `distribution_model='ADT'`, `Pending.svelte` swaps the "Your code: …" Block for a "Download your playtest build" card with URL + expiry + "contact organiser" footer. New `fetchADTDownloadInfo` in [`player/src/lib/api.ts`](../player/src/lib/api.ts). Three Vitest cases (model-conditional render, expiry-passed banner, fallback-source label). axe-core green.
+B8. `[x]` **Player Svelte — ADT download view in `Pending.svelte` + `GetADTDownloadInfo` wire** — for `distribution_model='ADT'`, `Pending.svelte` swaps the "Your code: …" Block for a "Download your playtest build" card with URL + expiry + "contact organiser" footer. New `fetchADTDownloadInfo` in [`player/src/lib/api.ts`](../player/src/lib/api.ts). Three Vitest cases (model-conditional render, expiry-passed banner, fallback-source label). axe-core green.
 B9. `[ ]` **`pth` CLI ADT subcommands + `pth flow golden-m5`** —
     - `pth adt linkage list` / `pth adt linkage start` (echoes `linkUrl` + `state`; operator opens the link in a browser, completes the ADT side, then pipes both `state` and `adt_namespace` (read from the callback URL) back via `pth adt linkage complete --state … --adt-namespace …` — **no `--grant-code` flag**, none is issued) / `pth adt linkage unlink --id …`.
     - `pth adt build list --linkage-id … --game-id …`.
@@ -149,14 +149,26 @@ B11. `[ ]` **README walkthrough (Track B cadence) + `runbooks/adt-linking.md`** 
 - **No ADT credential exists to leak.** Linking does not return a credential — ADT records a flag and playtesthub records an identity row; every ADT API call uses a freshly-minted AGS service IAM JWT (existing `AGS_IAM_CLIENT_*` env vars). `adt_linkage` audit rows carry `{adtLinkageId, studioNamespace, adtNamespace, linkedBy}` only. Migration unit test asserts that **no `adt_credential_*` column exists** on `adt_linkage` (regression canary against any future attempt to re-add credential storage).
 - **Smoke harness lands with the code that introduces it** ([CLAUDE.md](../CLAUDE.md), [`engineering.md`](engineering.md) §5.1). B3's `adt_mem_client_wired` boot-line assertion is the load-bearing one; B4's `/adt-link-callback` admin route assertion is the second.
 
-## Open questions (resolve before B3 live adapter)
+## Open questions (resolved)
 
-These are TBD-from-ADT-eng and block **only** Track B's live adapter sub-phase — every Track A phase ships without them, and B1–B10 land against `adt.MemClient`. The live-adapter follow-up sub-phase to B3 blocks on (1) and (2).
+All Track B open questions are now resolved by the 2026-05-20 ADT-eng API spec. The live-adapter sub-phase to B3 can begin against the canonical endpoints below; B1–B10 continue to land against `adt.MemClient` in the same shape because the spec leaves the abstractions intact.
 
-1. **Per-applicant download URL endpoint**: does ADT expose `/builds/{id}/issueDownloadUrl?for={applicantIdent}` (or similar) — and what is `applicantIdent`? (Discord ID? AGS userId? ADT-internal identity?) **The static fallback (`adtFallbackDownloadUrl`) ships regardless** so M5 is shippable even if this never lands.
-2. **Build-picker browse surface**: does ADT expose `/namespaces/{ns}/games/{game}/builds` (or equivalent) for the build dropdown? If not, the admin UI swaps the `Select` for an `Input` and the operator copy-pastes the build id from the ADT Hub URL.
+**Resolved in the 2026-05-20 ADT-eng API spec:**
 
-**Resolved in the 2026-05-19 follow-up scoping:**
+- ~~Per-applicant download URL endpoint.~~ → **Per-build only** (NOT per-applicant). `GET <ADT_BASE>/profiling/namespaces/<ADT_NAMESPACE>/agsplaytesthub/games/<ADT_GAME_ID>/builds/<ADT_BUILD_ID>/downloadUrls?limit=20` returns `{ "urls": [...], "expiresAt": "RFC3339" }`. URL TTL is fixed at 24h on the CDN. ADT can return multiple files (build assets) but playtest builds are expected to be one. `applicantIdent` is unused — playtesthub keeps the field on `IssueDownloadURLParams` for audit attribution only.
+- ~~Build-picker browse surface.~~ → **Supported.** `GET <ADT_BASE>/profiling/namespaces/<ADT_NAMESPACE>/agsplaytesthub/games/<ADT_GAME_ID>/builds?buildName=&buildIds=&limit=` returns rows shaped `{ id, game_version_id, game_version_name, platform_name, created_at }`. Mapping into `pkg/adt.Build`: `ID ← id`, `Name ← game_version_name`, `Version ← game_version_id`, `Platform ← platform_name`, `UploadedAt ← created_at`.
+- Unlink endpoint → `DELETE <ADT_BASE>/profiling/namespaces/<ADT_NAMESPACE>/agsplaytesthub/linkage` (playtesthub side calls it best-effort from `UnlinkADT`; ADT eventual-consistency tolerated per the resolved D2 prose).
+- List-linkages endpoint → NICE-TO-HAVE, marked optional. `GET <ADT_BASE>/profiling/namespaces/<ADT_NAMESPACE>/agsplaytesthub/linkages` returns `{ "linkages": [{ "adt_namespace", "linked_at" }] }`. Playtesthub keeps `ListADTLinkages` as its own read against `adt_linkage` (the local-write-of-record); the ADT-side endpoint is reconciliation-only.
+- 401 semantics → ADT returns 401 specifically when the linkage flag is missing or revoked — already mapped to `adt.ErrLinkageMissing` → `FailedPrecondition` "adt linkage no longer exists or service token rejected, re-link required" in `pkg/service/approve.go`.
+- Production base URLs → `develop.blackbox.accelbyte.io`, `staging.blackbox.accelbyte.io`, `blackbox.accelbyte.io` (set via `ADT_BASE_URL`).
+
+**Implementation impact (carried through 2026-05-20 doc + code patches):**
+
+- `pkg/adt.Build` now carries `Platform` (was missing); proto `ADTBuild.platform` added (field 5).
+- `IssueDownloadURLParams.ApplicantIdent` retained as audit-only; documentation in `pkg/adt/client.go` now reflects that ADT does not key on it.
+- B6 fallback behaviour is now load-bearing for revocation: because per-applicant URLs do not exist, the only way to revoke a single tester is `RejectApplicant` (cuts off `GetADTDownloadInfo` access) — the URL itself stays valid for the build TTL. The static `adtFallbackDownloadUrl` field becomes the "you control your own CDN" knob; if not set, every approved applicant for the playtest receives the same ADT-issued URL.
+
+**Earlier resolutions (2026-05-19 follow-up scoping):**
 
 - ~~ADT linking endpoint shape (OAuth2 code grant vs bespoke).~~ → **State-bearing redirect, no `grantCode`.** ADT records a `(adt_namespace, studio_namespace) linked = true` flag on its side; the callback returns `state` + `result` only.
 - ~~Credential type and lifetime (short-lived bearer vs long-lived API key) + KEK rotation design.~~ → **No credential.** Auth to ADT on every API call is playtesthub's AGS service IAM JWT (existing `AGS_IAM_CLIENT_*` env vars); ADT validates against AGS JWKS and derives studio identity from `iss` / `union_namespace` claims. `pkg/adt` carries no `Credential` type.

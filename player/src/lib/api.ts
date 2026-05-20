@@ -22,7 +22,8 @@ export type PublicPlaytest = {
 export type DistributionModel =
   | 'DISTRIBUTION_MODEL_UNSPECIFIED'
   | 'DISTRIBUTION_MODEL_STEAM_KEYS'
-  | 'DISTRIBUTION_MODEL_AGS_CAMPAIGN';
+  | 'DISTRIBUTION_MODEL_AGS_CAMPAIGN'
+  | 'DISTRIBUTION_MODEL_ADT';
 
 export type PlaytestStatus =
   | 'PLAYTEST_STATUS_UNSPECIFIED'
@@ -208,6 +209,27 @@ export async function fetchGrantedCode(
   return doJson<GrantedCode>(
     config,
     `/v1/player/playtests/${encodeURIComponent(playtestId)}/grantedCode`,
+    { method: 'GET', authed: true },
+  );
+}
+
+// AdtDownloadInfo mirrors the GetADTDownloadInfoResponse proto shape.
+// `source` is "issued" (per-applicant ADT URL) or "fallback" (static
+// per-playtest URL) — surfaced in the UI so the player can tell the
+// two apart per dm-queue.md "DM body shape — ADT".
+export type AdtDownloadInfo = {
+  url: string;
+  expiresAt?: string;
+  source: 'issued' | 'fallback' | string;
+};
+
+export async function fetchAdtDownloadInfo(
+  config: Config,
+  playtestId: string,
+): Promise<AdtDownloadInfo> {
+  return doJson<AdtDownloadInfo>(
+    config,
+    `/v1/player/playtests/${encodeURIComponent(playtestId)}/adtDownload`,
     { method: 'GET', authed: true },
   );
 }

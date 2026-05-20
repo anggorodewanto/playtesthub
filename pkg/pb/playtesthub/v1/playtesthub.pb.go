@@ -5486,11 +5486,15 @@ func (x *ADTLinkage) GetDeletedAt() *timestamppb.Timestamp {
 // ADTBuild is the minimum build row the admin UI / pth CLI needs to
 // drive the build picker. Mirrors pkg/adt.Build but rendered as proto.
 type ADTBuild struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	Version       string                 `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"`
-	UploadedAt    *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=uploaded_at,json=uploadedAt,proto3" json:"uploaded_at,omitempty"`
+	state      protoimpl.MessageState `protogen:"open.v1"`
+	Id         string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Name       string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Version    string                 `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"`
+	UploadedAt *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=uploaded_at,json=uploadedAt,proto3" json:"uploaded_at,omitempty"`
+	// Platform — the ADT-reported target ("windows", "linux", ...). Empty
+	// when ADT does not surface it. Wire-added 2026-05-20 alongside the
+	// ADT-eng API spec resolution.
+	Platform      string `protobuf:"bytes,5,opt,name=platform,proto3" json:"platform,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -5551,6 +5555,13 @@ func (x *ADTBuild) GetUploadedAt() *timestamppb.Timestamp {
 		return x.UploadedAt
 	}
 	return nil
+}
+
+func (x *ADTBuild) GetPlatform() string {
+	if x != nil {
+		return x.Platform
+	}
+	return ""
 }
 
 type ListADTLinkagesRequest struct {
@@ -6498,13 +6509,14 @@ const file_playtesthub_v1_playtesthub_proto_rawDesc = "" +
 	"\x11linked_by_user_id\x18\x04 \x01(\tR\x0elinkedByUserId\x127\n" +
 	"\tlinked_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\blinkedAt\x129\n" +
 	"\n" +
-	"deleted_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\tdeletedAt\"\x85\x01\n" +
+	"deleted_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\tdeletedAt\"\xa1\x01\n" +
 	"\bADTBuild\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x18\n" +
 	"\aversion\x18\x03 \x01(\tR\aversion\x12;\n" +
 	"\vuploaded_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
-	"uploadedAt\"6\n" +
+	"uploadedAt\x12\x1a\n" +
+	"\bplatform\x18\x05 \x01(\tR\bplatform\"6\n" +
 	"\x16ListADTLinkagesRequest\x12\x1c\n" +
 	"\tnamespace\x18\x01 \x01(\tR\tnamespace\"Q\n" +
 	"\x17ListADTLinkagesResponse\x126\n" +

@@ -30,6 +30,20 @@ import (
 // pair has no flag with a ClientError so the service layer can surface
 // FailedPrecondition "adt linkage no longer exists or service token
 // rejected, re-link required" per docs/errors.md.
+//
+// Per the 2026-05-20 ADT-eng spec (docs/STATUS_M5.md Open Questions §1):
+//
+//	GET <ADT_BASE>/profiling/namespaces/<ADT_NAMESPACE>/agsplaytesthub/games/<ADT_GAME_ID>/builds
+//	GET <ADT_BASE>/profiling/namespaces/<ADT_NAMESPACE>/agsplaytesthub/games/<ADT_GAME_ID>/builds/<ADT_BUILD_ID>/downloadUrls
+//	DELETE <ADT_BASE>/profiling/namespaces/<ADT_NAMESPACE>/agsplaytesthub/linkage
+//
+// Per-applicant URLs are NOT supported — IssueDownloadURL returns the
+// same per-build URL for every applicant; ADT bounds the URL with a
+// 24-hour CDN TTL. The IssueDownloadURLParams.ApplicantIdent field is
+// retained for forward compatibility but is unused by both the
+// MemClient and the live adapter; the service layer continues to pass
+// the applicant id through so audit logs can still attribute the
+// download attempt to a specific applicant.
 type Client interface {
 	// ListBuilds returns every build under the given ADT namespace +
 	// game. Used by the admin create-playtest form's build picker and
@@ -37,39 +51,44 @@ type Client interface {
 	// adt_build_id belongs to the (adt_namespace, adt_game_id) pair.
 	//
 	// studioNamespace is the calling playtesthub studio derived from
-	// the admin's AGS token (union_namespace ?? namespace). ADT
-	// validates the (adt_namespace, studio_namespace) linkage flag
+	// the backend's AGS service token (union_namespace ?? namespace).
+	// ADT validates the (adt_namespace, studio_namespace) linkage flag
 	// exists before returning rows.
 	ListBuilds(ctx context.Context, studioNamespace, adtNamespace, adtGameID string) ([]Build, error)
 
-	// IssueDownloadURL asks ADT to mint a per-applicant, time-bounded
-	// build download URL. The applicantIdent is the playtesthub-side
-	// applicant identity ADT logs for per-tester audit/revoke (the
-	// exact shape is TBD-from-ADT-eng — STATUS_M5.md Open Question §1
-	// — and pinned by the live adapter when it lands).
+	// IssueDownloadURL asks ADT to mint a per-build, time-bounded
+	// download URL. Per the 2026-05-20 ADT spec, the URL is per-build
+	// (not per-applicant) and TTL is fixed at 24h on the CDN. Returns
+	// the first URL when ADT surfaces multiple files (build assets) —
+	// playtest builds are expected to be a single file but the API
+	// allows multiple. Linkage missing / revoked → ErrLinkageMissing.
 	//
 	// Per STATUS_M5.md B6, the service layer falls back to the
-	// playtest's adtFallbackDownloadUrl when ADT can't issue a
-	// per-applicant URL (ClientError) and surfaces Unavailable when
-	// retries exhaust.
+	// playtest's adtFallbackDownloadUrl when ADT returns a non-401
+	// transient error and surfaces Unavailable when retries exhaust.
 	IssueDownloadURL(ctx context.Context, params IssueDownloadURLParams) (IssuedDownloadURL, error)
 }
 
 // Build is the minimum build row the admin UI / pth CLI needs to drive
 // the build picker. ADT's full build payload is larger; we copy only
 // what we display.
+//
+// Field mapping from the 2026-05-20 ADT spec:
+//
+//	ID         ← ADT `id`                (uuid)
+//	Name       ← ADT `game_version_name` (operator-visible build label)
+//	Version    ← ADT `game_version_id`   (uuid; rendered as a
+//	                                       short-hash-style version tag)
+//	UploadedAt ← ADT `created_at`        (RFC3339)
+//	Platform   ← ADT `platform_name`     (e.g. "windows")
 type Build struct {
-	// ID is the ADT-assigned build identifier persisted as
-	// playtest.adt_build_id (PRD §5.1).
-	ID string
-	// Name is the operator-visible label rendered in the picker.
-	Name string
-	// Version is the optional build version string (semver / short
-	// hash / ADT-defined). Empty when the build has no version.
-	Version string
-	// UploadedAt is the build's upload timestamp; admin picker sorts
-	// descending on this. Zero when ADT does not surface it.
+	ID         string
+	Name       string
+	Version    string
 	UploadedAt time.Time
+	// Platform is the ADT-reported target platform ("windows" /
+	// "linux" / etc.). Empty when ADT does not surface it.
+	Platform string
 }
 
 // IssueDownloadURLParams is the input shape for IssueDownloadURL.
@@ -81,10 +100,9 @@ type IssueDownloadURLParams struct {
 	ADTNamespace    string
 	ADTGameID       string
 	ADTBuildID      string
-	// ApplicantIdent is the playtesthub-side identity ADT logs for
-	// per-tester audit. Exact shape TBD (STATUS_M5.md Open Question
-	// §1) — the service layer passes through whatever the live
-	// adapter pins.
+	// ApplicantIdent is the playtesthub-side applicant id used for
+	// audit attribution only — per the 2026-05-20 ADT spec ADT does
+	// NOT scope the issued URL on this value (per-build URLs only).
 	ApplicantIdent string
 }
 

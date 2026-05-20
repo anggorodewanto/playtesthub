@@ -1,7 +1,9 @@
 <script lang="ts">
   import type { Config } from '../lib/config';
   import {
+    type AdtDownloadInfo,
     ApiError,
+    fetchAdtDownloadInfo,
     fetchApplicantStatusWithIds,
     fetchGrantedCode,
     fetchPlayerPlaytest,
@@ -16,6 +18,7 @@
   let playtest = $state<PlayerPlaytest | null>(null);
   let applicant = $state<ApplicantWithPlaytestId | null>(null);
   let grantedCode = $state<GrantedCode | null>(null);
+  let adtDownload = $state<AdtDownloadInfo | null>(null);
   let codeError = $state<string | null>(null);
   let copied = $state(false);
   let loadError = $state<string | null>(null);
@@ -47,7 +50,11 @@
       playtest = pt;
       applicant = app;
       if (app.status === 'APPLICANT_STATUS_APPROVED') {
-        await loadGrantedCode(app.playtestId);
+        if (pt.distributionModel === 'DISTRIBUTION_MODEL_ADT') {
+          await loadAdtDownload(app.playtestId);
+        } else {
+          await loadGrantedCode(app.playtestId);
+        }
       }
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
@@ -71,6 +78,18 @@
         return;
       }
       codeError = 'Your code is not available yet — please refresh in a moment.';
+    }
+  }
+
+  async function loadAdtDownload(playtestId: string) {
+    try {
+      adtDownload = await fetchAdtDownloadInfo(config, playtestId);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        navigate(playtestPath(slug));
+        return;
+      }
+      codeError = 'Your download link is not available yet — please refresh in a moment.';
     }
   }
 
@@ -133,7 +152,39 @@
         submitting any future surveys.
       </p>
     {/if}
-    {#if grantedCode}
+    {#if playtest?.distributionModel === 'DISTRIBUTION_MODEL_ADT'}
+      {#if adtDownload}
+        <p class="mt-3 text-slate-700">Download your playtest build below.</p>
+        <div class="mt-4 rounded border border-slate-200 bg-slate-50 p-4" data-testid="adt-download-card">
+          <a
+            href={adtDownload.url}
+            data-testid="adt-download-link"
+            class="break-all font-medium text-indigo-700 underline hover:text-indigo-900"
+          >
+            Download playtest build
+          </a>
+          {#if adtDownload.expiresAt}
+            <p class="mt-2 text-xs text-slate-500" data-testid="adt-download-expiry">
+              Link expires at {new Date(adtDownload.expiresAt).toLocaleString()}.
+            </p>
+          {/if}
+          {#if adtDownload.source === 'fallback'}
+            <p class="mt-2 text-xs text-slate-500" data-testid="adt-download-source">
+              Shared playtest download (operator-managed).
+            </p>
+          {/if}
+        </div>
+        <p class="mt-4 text-sm text-slate-700">
+          Trouble downloading? Contact the studio organiser via Discord.
+        </p>
+      {:else if codeError}
+        <p class="mt-4 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-800" role="alert">
+          {codeError}
+        </p>
+      {:else}
+        <p class="mt-3 text-slate-500">Loading your download link…</p>
+      {/if}
+    {:else if grantedCode}
       <p class="mt-3 text-slate-700">Your key is below — copy it before redeeming.</p>
       <div class="mt-4 flex items-center gap-2">
         <input

@@ -1917,6 +1917,10 @@
         "uploadedAt": {
           "type": "string",
           "format": "date-time"
+        },
+        "platform": {
+          "type": "string",
+          "description": "Platform — the ADT-reported target (\"windows\", \"linux\", ...). Empty\nwhen ADT does not surface it. Wire-added 2026-05-20 alongside the\nADT-eng API spec resolution."
         }
       },
       "description": "ADTBuild is the minimum build row the admin UI / pth CLI needs to\ndrive the build picker. Mirrors pkg/adt.Build but rendered as proto."
