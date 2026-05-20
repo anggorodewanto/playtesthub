@@ -14,6 +14,7 @@ const mockTransition = vi.fn()
 const mockGetParticipants = vi.fn()
 const mockGetAnnouncements = vi.fn()
 const mockCreateAnnouncement = vi.fn()
+const mockGetCodes = vi.fn()
 
 vi.mock('./playtesthubapi/generated-admin/queries/PlaytesthubServiceAdmin.query', () => ({
   Key_PlaytesthubServiceAdmin: {
@@ -27,7 +28,8 @@ vi.mock('./playtesthubapi/generated-admin/queries/PlaytesthubServiceAdmin.query'
   usePlaytesthubServiceAdminApi_GetParticipants_ByPlaytestId: (...a: unknown[]) => mockGetParticipants(...a),
   usePlaytesthubServiceAdminApi_GetAnnouncements_ByPlaytestId: (...a: unknown[]) => mockGetAnnouncements(...a),
   usePlaytesthubServiceAdminApi_CreateAnnouncement_ByPlaytestIdMutation: (...a: unknown[]) =>
-    mockCreateAnnouncement(...a)
+    mockCreateAnnouncement(...a),
+  usePlaytesthubServiceAdminApi_GetCodes_ByPlaytestId: (...a: unknown[]) => mockGetCodes(...a)
 }))
 
 import { PlaytestDetailPage } from './PlaytestDetailPage'
@@ -74,6 +76,7 @@ beforeEach(() => {
   mockGetParticipants.mockReturnValue({ data: { participants: [] }, isLoading: false })
   mockGetAnnouncements.mockReturnValue({ data: { announcements: [] }, isLoading: false, refetch: vi.fn() })
   mockCreateAnnouncement.mockReturnValue({ mutate: vi.fn(), isPending: false })
+  mockGetCodes.mockReturnValue({ data: { stats: { total: 0, unused: 0, granted: 0 } }, isLoading: false })
 })
 
 describe('PlaytestDetailPage shell', () => {
@@ -124,6 +127,29 @@ describe('PlaytestDetailPage shell', () => {
   it('surfaces a warning when the slug is unknown', () => {
     renderDetail('does-not-exist')
     expect(screen.getByText(/not found/i)).toBeInTheDocument()
+  })
+
+  it('Distribution tab renders the Steam empty state when pool is empty', async () => {
+    mockGetCodes.mockReturnValue({ data: { stats: { total: 0, unused: 0, granted: 0 } }, isLoading: false })
+    renderDetail('autumn-draft')
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('tab', { name: 'Distribution' }))
+    expect(await screen.findByText('No codes uploaded yet')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Upload Codes (CSV)' })).toBeInTheDocument()
+  })
+
+  it('Distribution tab renders ADT empty-state when adt_namespace is missing', async () => {
+    const adtDraft = { ...DRAFT_PT, slug: 'autumn-adt', distributionModel: 'DISTRIBUTION_MODEL_ADT', adtNamespace: undefined }
+    mockGetPlaytests.mockReturnValue({
+      data: { playtests: [adtDraft] },
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn()
+    })
+    renderDetail('autumn-adt')
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('tab', { name: 'Distribution' }))
+    expect(await screen.findByText('🔗 ADT Namespace Not Linked')).toBeInTheDocument()
   })
 
   it('Publish click triggers the transition mutation via confirm modal', async () => {
