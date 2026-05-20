@@ -56,6 +56,21 @@ func AppendApplicantApprove(ctx context.Context, store AuditLogStore, namespace 
 	})
 }
 
+// AppendApplicantApproveADT records a successful PENDING → APPROVED
+// transition for an ADT-distribution playtest. There is no code pool /
+// grantedCodeId; the row carries the resolved download URL + its source
+// ("issued" via adt.Client.IssueDownloadURL or "fallback" to the
+// playtest's static adtFallbackDownloadUrl). URLs are NOT redacted —
+// they are operationally distinct from redemption codes and per
+// STATUS_M5.md B6 their presence in audit is forensically required.
+func AppendApplicantApproveADT(ctx context.Context, store AuditLogStore, namespace string, playtestID, actor, applicantID uuid.UUID, adtURL, adtURLSource string) error {
+	return appendAction(ctx, store, namespace, &playtestID, &actor, ActionApplicantApprove, map[string]any{
+		"applicantId":  applicantID.String(),
+		"adtUrl":       adtURL,
+		"adtUrlSource": adtURLSource,
+	})
+}
+
 // AppendApplicantReject records the terminal PENDING → REJECTED
 // transition. rejectionReason may be empty.
 func AppendApplicantReject(ctx context.Context, store AuditLogStore, namespace string, playtestID, actor, applicantID uuid.UUID, rejectionReason string) error {

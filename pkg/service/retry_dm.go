@@ -78,7 +78,11 @@ func (s *PlaytesthubServiceServer) RetryDM(ctx context.Context, req *pb.RetryDMR
 		return nil, e
 	}
 
-	enqueueErr := s.dmQueue.Enqueue(ctx, buildDMJob(a, pt, true, s.playerBaseURL))
+	adtURL, err := s.maybeResolveADTURL(ctx, pt, a)
+	if err != nil {
+		return nil, err
+	}
+	enqueueErr := s.dmQueue.Enqueue(ctx, buildDMJob(a, pt, true, s.playerBaseURL, adtURL))
 	// The queue handles overflow internally (writes failed status +
 	// audit and returns ErrQueueFull). We re-fetch so the response
 	// shows the synchronous state change instead of the stale row.
@@ -132,7 +136,11 @@ func (s *PlaytesthubServiceServer) RetryFailedDms(ctx context.Context, req *pb.R
 
 	var enqueued, overflow int32
 	for _, a := range rows {
-		enqErr := s.dmQueue.Enqueue(ctx, buildDMJob(a, pt, true, s.playerBaseURL))
+		adtURL, urlErr := s.maybeResolveADTURL(ctx, pt, a)
+		if urlErr != nil {
+			return nil, urlErr
+		}
+		enqErr := s.dmQueue.Enqueue(ctx, buildDMJob(a, pt, true, s.playerBaseURL, adtURL))
 		if errors.Is(enqErr, dmqueue.ErrQueueFull) {
 			overflow++
 			continue
@@ -143,6 +151,18 @@ func (s *PlaytesthubServiceServer) RetryFailedDms(ctx context.Context, req *pb.R
 		enqueued++
 	}
 	return &pb.RetryFailedDmsResponse{Enqueued: enqueued, Overflow: overflow}, nil
+}
+
+// maybeResolveADTURL re-mints a fresh ADT download URL when the
+// playtest is ADT-distribution; returns the empty string for the other
+// models. RetryDM + RetryFailedDms call it so the queued DM carries a
+// non-stale URL — the previous one may have expired.
+func (s *PlaytesthubServiceServer) maybeResolveADTURL(ctx context.Context, pt *repo.Playtest, a *repo.Applicant) (string, error) {
+	if pt.DistributionModel != distModelADT {
+		return "", nil
+	}
+	u, _, err := s.resolveADTDownloadURL(ctx, pt, a)
+	return u, err
 }
 
 // buildDMJob assembles the queue Job from an applicant + playtest.
@@ -158,7 +178,7 @@ func (s *PlaytesthubServiceServer) RetryFailedDms(ctx context.Context, req *pb.R
 // taps once and lands on the granted-code view (one further Discord
 // re-auth on the player domain may be required, but no manual
 // navigation). When empty the message falls back to non-clickable copy.
-func buildDMJob(a *repo.Applicant, pt *repo.Playtest, manual bool, playerBaseURL string) dmqueue.Job {
+func buildDMJob(a *repo.Applicant, pt *repo.Playtest, manual bool, playerBaseURL, adtDownloadURL string) dmqueue.Job {
 	var recipient string
 	if a.DiscordUserID != nil {
 		recipient = *a.DiscordUserID
@@ -168,7 +188,7 @@ func buildDMJob(a *repo.Applicant, pt *repo.Playtest, manual bool, playerBaseURL
 		PlaytestID:    a.PlaytestID,
 		UserID:        a.UserID,
 		DiscordUserID: recipient,
-		Message:       buildApprovalDMBody(pt, playerBaseURL),
+		Message:       buildApprovalDMBody(pt, playerBaseURL, adtDownloadURL),
 		Manual:        manual,
 	}
 }
@@ -179,7 +199,15 @@ func buildDMJob(a *repo.Applicant, pt *repo.Playtest, manual bool, playerBaseURL
 // to keep the output well-formed even if a future PRD revision relaxes
 // slug validation; current PRD §5.1 only allows characters that survive
 // PathEscape unchanged.
-func buildApprovalDMBody(pt *repo.Playtest, playerBaseURL string) string {
+//
+// ADT distribution (M5.B / dm-queue.md "DM body shape — ADT"): when
+// pt.DistributionModel == "ADT" the body is "Download your playtest
+// build for %q: %s" with the resolved per-applicant URL. RetryDM
+// re-mints a fresh URL because the previous one may have expired.
+func buildApprovalDMBody(pt *repo.Playtest, playerBaseURL, adtDownloadURL string) string {
+	if pt.DistributionModel == distModelADT {
+		return fmt.Sprintf("Download your playtest build for %q: %s", pt.Title, adtDownloadURL)
+	}
 	if playerBaseURL == "" {
 		return fmt.Sprintf("You're approved for %q. Open the playtest to view your code.", pt.Title)
 	}

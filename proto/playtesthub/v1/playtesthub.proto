@@ -215,7 +215,23 @@ service PlaytesthubService {
     option (google.api.http) = {get: "/v1/player/playtests/{playtest_id}/grantedCode"};
     option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
       summary: "Get the granted code for the caller (authenticated player; APPROVED applicants only)"
-      description: "NotFound for any soft-deleted playtest regardless of applicant state (PRD §5.1 / errors.md)."
+      description: "NotFound for any soft-deleted playtest regardless of applicant state (PRD §5.1 / errors.md). FailedPrecondition for ADT playtests — use GetADTDownloadInfo."
+      security: {
+        security_requirement: {
+          key: "Bearer"
+          value: {}
+        }
+      }
+    };
+  }
+
+  // GetADTDownloadInfo — ADT-distribution equivalent of GetGrantedCode
+  // (PRD §4.8 / M5.B). Player-only; gated on APPROVED applicant row.
+  rpc GetADTDownloadInfo(GetADTDownloadInfoRequest) returns (GetADTDownloadInfoResponse) {
+    option (google.api.http) = {get: "/v1/player/playtests/{playtest_id}/adtDownload"};
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Get the ADT build download URL for the caller (authenticated player; APPROVED applicants only)"
+      description: "FailedPrecondition for non-ADT playtests. URL re-minted on every call so the player always sees a fresh (possibly per-applicant) URL."
       security: {
         security_requirement: {
           key: "Bearer"
@@ -1056,6 +1072,22 @@ message GetGrantedCodeResponse {
   // app renders model-specific instructions off distribution_model.
   string value = 1;
   DistributionModel distribution_model = 2;
+}
+
+// GetADTDownloadInfo — player-side, M5.B / PRD §4.8.
+message GetADTDownloadInfoRequest {
+  string playtest_id = 1;
+}
+message GetADTDownloadInfoResponse {
+  // Resolved download URL. Issued via adt.Client.IssueDownloadURL when
+  // ADT can mint a per-applicant URL; falls back to the playtest's
+  // static adtFallbackDownloadUrl when ADT 4xx/5xx but the linkage row
+  // is still present.
+  string url = 1;
+  // Optional expiry; zero when ADT does not surface one.
+  google.protobuf.Timestamp expires_at = 2;
+  // "issued" (per-applicant ADT URL) or "fallback" (static playtest URL).
+  string source = 3;
 }
 
 message ListApplicantsRequest {

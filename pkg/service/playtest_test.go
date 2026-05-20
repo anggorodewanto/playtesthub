@@ -343,6 +343,26 @@ func (f *fakeApplicantStore) ApproveCAS(_ context.Context, _ repo.Querier, appli
 	return nil, repo.ErrNotFound
 }
 
+func (f *fakeApplicantStore) ApproveCASNoCode(_ context.Context, _ repo.Querier, applicantID uuid.UUID, approvedAt time.Time, autoApproved bool) (*repo.Applicant, error) {
+	for i, existing := range f.rows {
+		if existing.ID != applicantID {
+			continue
+		}
+		if existing.Status != applicantStatusPending {
+			return nil, repo.ErrStatusCASMismatch
+		}
+		clone := *existing
+		clone.Status = applicantStatusApproved
+		clone.GrantedCodeID = nil
+		clone.ApprovedAt = &approvedAt
+		clone.AutoApproved = autoApproved
+		f.rows[i] = &clone
+		ret := clone
+		return &ret, nil
+	}
+	return nil, repo.ErrNotFound
+}
+
 func (f *fakeApplicantStore) CountAutoApprovedByPlaytest(_ context.Context, _ repo.Querier, playtestID uuid.UUID) (int, error) {
 	n := 0
 	for _, existing := range f.rows {

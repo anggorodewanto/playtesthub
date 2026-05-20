@@ -106,6 +106,10 @@ type ApplicantStore interface {
 	// flows through the M5.A signup-chain path; false leaves the column
 	// at its DEFAULT (false) for manual ApproveApplicant clicks.
 	ApproveCAS(ctx context.Context, q Querier, applicantID, codeID uuid.UUID, approvedAt time.Time, autoApproved bool) (*Applicant, error)
+	// ApproveCASNoCode is the ADT-distribution variant (M5.B): PENDING →
+	// APPROVED with granted_code_id=NULL. Same CAS discipline as
+	// ApproveCAS — losing the race surfaces as ErrStatusCASMismatch.
+	ApproveCASNoCode(ctx context.Context, q Querier, applicantID uuid.UUID, approvedAt time.Time, autoApproved bool) (*Applicant, error)
 	// CountAutoApprovedByPlaytest returns the count of applicants where
 	// auto_approved=true for the playtest. Runs inside the caller's
 	// transaction so the playtest-scoped advisory lock the signup tx
@@ -399,6 +403,31 @@ func (s *PgApplicantStore) ApproveCAS(ctx context.Context, q Querier, applicantI
 	}
 	if err != nil {
 		return nil, fmt.Errorf("approving applicant: %w", classifyPgError(err))
+	}
+	return got, nil
+}
+
+// ApproveCASNoCode is the M5.B ADT-branch variant: PENDING → APPROVED
+// with granted_code_id explicitly NULL (ADT distribution carries no
+// code pool). Same CAS discipline as ApproveCAS.
+func (s *PgApplicantStore) ApproveCASNoCode(ctx context.Context, q Querier, applicantID uuid.UUID, approvedAt time.Time, autoApproved bool) (*Applicant, error) {
+	const sql = `
+		UPDATE applicant
+		   SET status = 'APPROVED',
+		       granted_code_id = NULL,
+		       approved_at = $2,
+		       auto_approved = $3
+		 WHERE id = $1
+		   AND status = 'PENDING'
+		RETURNING ` + applicantColumns
+
+	row := q.QueryRow(ctx, sql, applicantID, approvedAt, autoApproved)
+	got, err := scanApplicant(row)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrStatusCASMismatch
+	}
+	if err != nil {
+		return nil, fmt.Errorf("approving applicant (ADT): %w", classifyPgError(err))
 	}
 	return got, nil
 }

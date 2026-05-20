@@ -3367,6 +3367,117 @@ func (x *GetGrantedCodeResponse) GetDistributionModel() DistributionModel {
 	return DistributionModel_DISTRIBUTION_MODEL_UNSPECIFIED
 }
 
+// GetADTDownloadInfo — player-side, M5.B / PRD §4.8.
+type GetADTDownloadInfoRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	PlaytestId    string                 `protobuf:"bytes,1,opt,name=playtest_id,json=playtestId,proto3" json:"playtest_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetADTDownloadInfoRequest) Reset() {
+	*x = GetADTDownloadInfoRequest{}
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[40]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetADTDownloadInfoRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetADTDownloadInfoRequest) ProtoMessage() {}
+
+func (x *GetADTDownloadInfoRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[40]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetADTDownloadInfoRequest.ProtoReflect.Descriptor instead.
+func (*GetADTDownloadInfoRequest) Descriptor() ([]byte, []int) {
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{40}
+}
+
+func (x *GetADTDownloadInfoRequest) GetPlaytestId() string {
+	if x != nil {
+		return x.PlaytestId
+	}
+	return ""
+}
+
+type GetADTDownloadInfoResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Resolved download URL. Issued via adt.Client.IssueDownloadURL when
+	// ADT can mint a per-applicant URL; falls back to the playtest's
+	// static adtFallbackDownloadUrl when ADT 4xx/5xx but the linkage row
+	// is still present.
+	Url string `protobuf:"bytes,1,opt,name=url,proto3" json:"url,omitempty"`
+	// Optional expiry; zero when ADT does not surface one.
+	ExpiresAt *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
+	// "issued" (per-applicant ADT URL) or "fallback" (static playtest URL).
+	Source        string `protobuf:"bytes,3,opt,name=source,proto3" json:"source,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetADTDownloadInfoResponse) Reset() {
+	*x = GetADTDownloadInfoResponse{}
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[41]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetADTDownloadInfoResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetADTDownloadInfoResponse) ProtoMessage() {}
+
+func (x *GetADTDownloadInfoResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[41]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetADTDownloadInfoResponse.ProtoReflect.Descriptor instead.
+func (*GetADTDownloadInfoResponse) Descriptor() ([]byte, []int) {
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{41}
+}
+
+func (x *GetADTDownloadInfoResponse) GetUrl() string {
+	if x != nil {
+		return x.Url
+	}
+	return ""
+}
+
+func (x *GetADTDownloadInfoResponse) GetExpiresAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.ExpiresAt
+	}
+	return nil
+}
+
+func (x *GetADTDownloadInfoResponse) GetSource() string {
+	if x != nil {
+		return x.Source
+	}
+	return ""
+}
+
 type ListApplicantsRequest struct {
 	state      protoimpl.MessageState `protogen:"open.v1"`
 	Namespace  string                 `protobuf:"bytes,1,opt,name=namespace,proto3" json:"namespace,omitempty"`
@@ -3385,7 +3496,7 @@ type ListApplicantsRequest struct {
 
 func (x *ListApplicantsRequest) Reset() {
 	*x = ListApplicantsRequest{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[40]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3397,7 +3508,7 @@ func (x *ListApplicantsRequest) String() string {
 func (*ListApplicantsRequest) ProtoMessage() {}
 
 func (x *ListApplicantsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[40]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3410,7 +3521,7 @@ func (x *ListApplicantsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListApplicantsRequest.ProtoReflect.Descriptor instead.
 func (*ListApplicantsRequest) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{40}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{42}
 }
 
 func (x *ListApplicantsRequest) GetNamespace() string {
@@ -3465,7 +3576,7 @@ type ListApplicantsResponse struct {
 
 func (x *ListApplicantsResponse) Reset() {
 	*x = ListApplicantsResponse{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[41]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3477,7 +3588,7 @@ func (x *ListApplicantsResponse) String() string {
 func (*ListApplicantsResponse) ProtoMessage() {}
 
 func (x *ListApplicantsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[41]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3490,7 +3601,7 @@ func (x *ListApplicantsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListApplicantsResponse.ProtoReflect.Descriptor instead.
 func (*ListApplicantsResponse) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{41}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{43}
 }
 
 func (x *ListApplicantsResponse) GetApplicants() []*Applicant {
@@ -3517,7 +3628,7 @@ type ApproveApplicantRequest struct {
 
 func (x *ApproveApplicantRequest) Reset() {
 	*x = ApproveApplicantRequest{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[42]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3529,7 +3640,7 @@ func (x *ApproveApplicantRequest) String() string {
 func (*ApproveApplicantRequest) ProtoMessage() {}
 
 func (x *ApproveApplicantRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[42]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3542,7 +3653,7 @@ func (x *ApproveApplicantRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ApproveApplicantRequest.ProtoReflect.Descriptor instead.
 func (*ApproveApplicantRequest) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{42}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{44}
 }
 
 func (x *ApproveApplicantRequest) GetNamespace() string {
@@ -3568,7 +3679,7 @@ type ApproveApplicantResponse struct {
 
 func (x *ApproveApplicantResponse) Reset() {
 	*x = ApproveApplicantResponse{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[43]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3580,7 +3691,7 @@ func (x *ApproveApplicantResponse) String() string {
 func (*ApproveApplicantResponse) ProtoMessage() {}
 
 func (x *ApproveApplicantResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[43]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3593,7 +3704,7 @@ func (x *ApproveApplicantResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ApproveApplicantResponse.ProtoReflect.Descriptor instead.
 func (*ApproveApplicantResponse) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{43}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{45}
 }
 
 func (x *ApproveApplicantResponse) GetApplicant() *Applicant {
@@ -3615,7 +3726,7 @@ type RejectApplicantRequest struct {
 
 func (x *RejectApplicantRequest) Reset() {
 	*x = RejectApplicantRequest{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[44]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[46]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3627,7 +3738,7 @@ func (x *RejectApplicantRequest) String() string {
 func (*RejectApplicantRequest) ProtoMessage() {}
 
 func (x *RejectApplicantRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[44]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[46]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3640,7 +3751,7 @@ func (x *RejectApplicantRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RejectApplicantRequest.ProtoReflect.Descriptor instead.
 func (*RejectApplicantRequest) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{44}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{46}
 }
 
 func (x *RejectApplicantRequest) GetNamespace() string {
@@ -3673,7 +3784,7 @@ type RejectApplicantResponse struct {
 
 func (x *RejectApplicantResponse) Reset() {
 	*x = RejectApplicantResponse{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[45]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[47]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3685,7 +3796,7 @@ func (x *RejectApplicantResponse) String() string {
 func (*RejectApplicantResponse) ProtoMessage() {}
 
 func (x *RejectApplicantResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[45]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[47]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3698,7 +3809,7 @@ func (x *RejectApplicantResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RejectApplicantResponse.ProtoReflect.Descriptor instead.
 func (*RejectApplicantResponse) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{45}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{47}
 }
 
 func (x *RejectApplicantResponse) GetApplicant() *Applicant {
@@ -3718,7 +3829,7 @@ type RetryDMRequest struct {
 
 func (x *RetryDMRequest) Reset() {
 	*x = RetryDMRequest{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[46]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[48]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3730,7 +3841,7 @@ func (x *RetryDMRequest) String() string {
 func (*RetryDMRequest) ProtoMessage() {}
 
 func (x *RetryDMRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[46]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[48]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3743,7 +3854,7 @@ func (x *RetryDMRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RetryDMRequest.ProtoReflect.Descriptor instead.
 func (*RetryDMRequest) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{46}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{48}
 }
 
 func (x *RetryDMRequest) GetNamespace() string {
@@ -3769,7 +3880,7 @@ type RetryDMResponse struct {
 
 func (x *RetryDMResponse) Reset() {
 	*x = RetryDMResponse{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[47]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[49]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3781,7 +3892,7 @@ func (x *RetryDMResponse) String() string {
 func (*RetryDMResponse) ProtoMessage() {}
 
 func (x *RetryDMResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[47]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[49]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3794,7 +3905,7 @@ func (x *RetryDMResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RetryDMResponse.ProtoReflect.Descriptor instead.
 func (*RetryDMResponse) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{47}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{49}
 }
 
 func (x *RetryDMResponse) GetApplicant() *Applicant {
@@ -3821,7 +3932,7 @@ type UploadCodesRequest struct {
 
 func (x *UploadCodesRequest) Reset() {
 	*x = UploadCodesRequest{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[48]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[50]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3833,7 +3944,7 @@ func (x *UploadCodesRequest) String() string {
 func (*UploadCodesRequest) ProtoMessage() {}
 
 func (x *UploadCodesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[48]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[50]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3846,7 +3957,7 @@ func (x *UploadCodesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UploadCodesRequest.ProtoReflect.Descriptor instead.
 func (*UploadCodesRequest) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{48}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{50}
 }
 
 func (x *UploadCodesRequest) GetNamespace() string {
@@ -3893,7 +4004,7 @@ type UploadCodesRejection struct {
 
 func (x *UploadCodesRejection) Reset() {
 	*x = UploadCodesRejection{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[49]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[51]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3905,7 +4016,7 @@ func (x *UploadCodesRejection) String() string {
 func (*UploadCodesRejection) ProtoMessage() {}
 
 func (x *UploadCodesRejection) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[49]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[51]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3918,7 +4029,7 @@ func (x *UploadCodesRejection) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UploadCodesRejection.ProtoReflect.Descriptor instead.
 func (*UploadCodesRejection) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{49}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{51}
 }
 
 func (x *UploadCodesRejection) GetLineNumber() int32 {
@@ -3954,7 +4065,7 @@ type UploadCodesResponse struct {
 
 func (x *UploadCodesResponse) Reset() {
 	*x = UploadCodesResponse{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[50]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[52]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3966,7 +4077,7 @@ func (x *UploadCodesResponse) String() string {
 func (*UploadCodesResponse) ProtoMessage() {}
 
 func (x *UploadCodesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[50]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[52]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3979,7 +4090,7 @@ func (x *UploadCodesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UploadCodesResponse.ProtoReflect.Descriptor instead.
 func (*UploadCodesResponse) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{50}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{52}
 }
 
 func (x *UploadCodesResponse) GetInserted() int32 {
@@ -4008,7 +4119,7 @@ type TopUpCodesRequest struct {
 
 func (x *TopUpCodesRequest) Reset() {
 	*x = TopUpCodesRequest{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[51]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[53]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4020,7 +4131,7 @@ func (x *TopUpCodesRequest) String() string {
 func (*TopUpCodesRequest) ProtoMessage() {}
 
 func (x *TopUpCodesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[51]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[53]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4033,7 +4144,7 @@ func (x *TopUpCodesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TopUpCodesRequest.ProtoReflect.Descriptor instead.
 func (*TopUpCodesRequest) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{51}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{53}
 }
 
 func (x *TopUpCodesRequest) GetNamespace() string {
@@ -4069,7 +4180,7 @@ type TopUpCodesResponse struct {
 
 func (x *TopUpCodesResponse) Reset() {
 	*x = TopUpCodesResponse{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[52]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[54]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4081,7 +4192,7 @@ func (x *TopUpCodesResponse) String() string {
 func (*TopUpCodesResponse) ProtoMessage() {}
 
 func (x *TopUpCodesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[52]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[54]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4094,7 +4205,7 @@ func (x *TopUpCodesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TopUpCodesResponse.ProtoReflect.Descriptor instead.
 func (*TopUpCodesResponse) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{52}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{54}
 }
 
 func (x *TopUpCodesResponse) GetPool() *CodePoolStats {
@@ -4121,7 +4232,7 @@ type SyncFromAGSRequest struct {
 
 func (x *SyncFromAGSRequest) Reset() {
 	*x = SyncFromAGSRequest{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[53]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[55]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4133,7 +4244,7 @@ func (x *SyncFromAGSRequest) String() string {
 func (*SyncFromAGSRequest) ProtoMessage() {}
 
 func (x *SyncFromAGSRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[53]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[55]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4146,7 +4257,7 @@ func (x *SyncFromAGSRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SyncFromAGSRequest.ProtoReflect.Descriptor instead.
 func (*SyncFromAGSRequest) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{53}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{55}
 }
 
 func (x *SyncFromAGSRequest) GetNamespace() string {
@@ -4175,7 +4286,7 @@ type SyncFromAGSResponse struct {
 
 func (x *SyncFromAGSResponse) Reset() {
 	*x = SyncFromAGSResponse{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[54]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[56]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4187,7 +4298,7 @@ func (x *SyncFromAGSResponse) String() string {
 func (*SyncFromAGSResponse) ProtoMessage() {}
 
 func (x *SyncFromAGSResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[54]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[56]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4200,7 +4311,7 @@ func (x *SyncFromAGSResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SyncFromAGSResponse.ProtoReflect.Descriptor instead.
 func (*SyncFromAGSResponse) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{54}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{56}
 }
 
 func (x *SyncFromAGSResponse) GetPool() *CodePoolStats {
@@ -4227,7 +4338,7 @@ type GetCodePoolRequest struct {
 
 func (x *GetCodePoolRequest) Reset() {
 	*x = GetCodePoolRequest{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[55]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[57]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4239,7 +4350,7 @@ func (x *GetCodePoolRequest) String() string {
 func (*GetCodePoolRequest) ProtoMessage() {}
 
 func (x *GetCodePoolRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[55]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[57]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4252,7 +4363,7 @@ func (x *GetCodePoolRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetCodePoolRequest.ProtoReflect.Descriptor instead.
 func (*GetCodePoolRequest) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{55}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{57}
 }
 
 func (x *GetCodePoolRequest) GetNamespace() string {
@@ -4281,7 +4392,7 @@ type GetCodePoolResponse struct {
 
 func (x *GetCodePoolResponse) Reset() {
 	*x = GetCodePoolResponse{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[56]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[58]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4293,7 +4404,7 @@ func (x *GetCodePoolResponse) String() string {
 func (*GetCodePoolResponse) ProtoMessage() {}
 
 func (x *GetCodePoolResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[56]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[58]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4306,7 +4417,7 @@ func (x *GetCodePoolResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetCodePoolResponse.ProtoReflect.Descriptor instead.
 func (*GetCodePoolResponse) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{56}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{58}
 }
 
 func (x *GetCodePoolResponse) GetStats() *CodePoolStats {
@@ -4338,7 +4449,7 @@ type CreateSurveyRequest struct {
 
 func (x *CreateSurveyRequest) Reset() {
 	*x = CreateSurveyRequest{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[57]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[59]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4350,7 +4461,7 @@ func (x *CreateSurveyRequest) String() string {
 func (*CreateSurveyRequest) ProtoMessage() {}
 
 func (x *CreateSurveyRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[57]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[59]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4363,7 +4474,7 @@ func (x *CreateSurveyRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateSurveyRequest.ProtoReflect.Descriptor instead.
 func (*CreateSurveyRequest) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{57}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{59}
 }
 
 func (x *CreateSurveyRequest) GetNamespace() string {
@@ -4396,7 +4507,7 @@ type CreateSurveyResponse struct {
 
 func (x *CreateSurveyResponse) Reset() {
 	*x = CreateSurveyResponse{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[58]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[60]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4408,7 +4519,7 @@ func (x *CreateSurveyResponse) String() string {
 func (*CreateSurveyResponse) ProtoMessage() {}
 
 func (x *CreateSurveyResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[58]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[60]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4421,7 +4532,7 @@ func (x *CreateSurveyResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateSurveyResponse.ProtoReflect.Descriptor instead.
 func (*CreateSurveyResponse) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{58}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{60}
 }
 
 func (x *CreateSurveyResponse) GetSurvey() *Survey {
@@ -4446,7 +4557,7 @@ type EditSurveyRequest struct {
 
 func (x *EditSurveyRequest) Reset() {
 	*x = EditSurveyRequest{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[59]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[61]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4458,7 +4569,7 @@ func (x *EditSurveyRequest) String() string {
 func (*EditSurveyRequest) ProtoMessage() {}
 
 func (x *EditSurveyRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[59]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[61]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4471,7 +4582,7 @@ func (x *EditSurveyRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EditSurveyRequest.ProtoReflect.Descriptor instead.
 func (*EditSurveyRequest) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{59}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{61}
 }
 
 func (x *EditSurveyRequest) GetNamespace() string {
@@ -4504,7 +4615,7 @@ type EditSurveyResponse struct {
 
 func (x *EditSurveyResponse) Reset() {
 	*x = EditSurveyResponse{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[60]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[62]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4516,7 +4627,7 @@ func (x *EditSurveyResponse) String() string {
 func (*EditSurveyResponse) ProtoMessage() {}
 
 func (x *EditSurveyResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[60]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[62]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4529,7 +4640,7 @@ func (x *EditSurveyResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EditSurveyResponse.ProtoReflect.Descriptor instead.
 func (*EditSurveyResponse) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{60}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{62}
 }
 
 func (x *EditSurveyResponse) GetSurvey() *Survey {
@@ -4548,7 +4659,7 @@ type GetSurveyRequest struct {
 
 func (x *GetSurveyRequest) Reset() {
 	*x = GetSurveyRequest{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[61]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[63]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4560,7 +4671,7 @@ func (x *GetSurveyRequest) String() string {
 func (*GetSurveyRequest) ProtoMessage() {}
 
 func (x *GetSurveyRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[61]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[63]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4573,7 +4684,7 @@ func (x *GetSurveyRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetSurveyRequest.ProtoReflect.Descriptor instead.
 func (*GetSurveyRequest) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{61}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{63}
 }
 
 func (x *GetSurveyRequest) GetPlaytestId() string {
@@ -4592,7 +4703,7 @@ type GetSurveyResponse struct {
 
 func (x *GetSurveyResponse) Reset() {
 	*x = GetSurveyResponse{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[62]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[64]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4604,7 +4715,7 @@ func (x *GetSurveyResponse) String() string {
 func (*GetSurveyResponse) ProtoMessage() {}
 
 func (x *GetSurveyResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[62]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[64]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4617,7 +4728,7 @@ func (x *GetSurveyResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetSurveyResponse.ProtoReflect.Descriptor instead.
 func (*GetSurveyResponse) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{62}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{64}
 }
 
 func (x *GetSurveyResponse) GetSurvey() *Survey {
@@ -4640,7 +4751,7 @@ type SubmitSurveyResponseRequest struct {
 
 func (x *SubmitSurveyResponseRequest) Reset() {
 	*x = SubmitSurveyResponseRequest{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[63]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[65]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4652,7 +4763,7 @@ func (x *SubmitSurveyResponseRequest) String() string {
 func (*SubmitSurveyResponseRequest) ProtoMessage() {}
 
 func (x *SubmitSurveyResponseRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[63]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[65]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4665,7 +4776,7 @@ func (x *SubmitSurveyResponseRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SubmitSurveyResponseRequest.ProtoReflect.Descriptor instead.
 func (*SubmitSurveyResponseRequest) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{63}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{65}
 }
 
 func (x *SubmitSurveyResponseRequest) GetPlaytestId() string {
@@ -4698,7 +4809,7 @@ type SubmitSurveyResponseResponse struct {
 
 func (x *SubmitSurveyResponseResponse) Reset() {
 	*x = SubmitSurveyResponseResponse{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[64]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[66]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4710,7 +4821,7 @@ func (x *SubmitSurveyResponseResponse) String() string {
 func (*SubmitSurveyResponseResponse) ProtoMessage() {}
 
 func (x *SubmitSurveyResponseResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[64]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[66]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4723,7 +4834,7 @@ func (x *SubmitSurveyResponseResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SubmitSurveyResponseResponse.ProtoReflect.Descriptor instead.
 func (*SubmitSurveyResponseResponse) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{64}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{66}
 }
 
 func (x *SubmitSurveyResponseResponse) GetResponse() *SurveyResponse {
@@ -4751,7 +4862,7 @@ type ListSurveyResponsesRequest struct {
 
 func (x *ListSurveyResponsesRequest) Reset() {
 	*x = ListSurveyResponsesRequest{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[65]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[67]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4763,7 +4874,7 @@ func (x *ListSurveyResponsesRequest) String() string {
 func (*ListSurveyResponsesRequest) ProtoMessage() {}
 
 func (x *ListSurveyResponsesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[65]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[67]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4776,7 +4887,7 @@ func (x *ListSurveyResponsesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListSurveyResponsesRequest.ProtoReflect.Descriptor instead.
 func (*ListSurveyResponsesRequest) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{65}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{67}
 }
 
 func (x *ListSurveyResponsesRequest) GetNamespace() string {
@@ -4824,7 +4935,7 @@ type ListSurveyResponsesResponse struct {
 
 func (x *ListSurveyResponsesResponse) Reset() {
 	*x = ListSurveyResponsesResponse{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[66]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[68]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4836,7 +4947,7 @@ func (x *ListSurveyResponsesResponse) String() string {
 func (*ListSurveyResponsesResponse) ProtoMessage() {}
 
 func (x *ListSurveyResponsesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[66]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[68]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4849,7 +4960,7 @@ func (x *ListSurveyResponsesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListSurveyResponsesResponse.ProtoReflect.Descriptor instead.
 func (*ListSurveyResponsesResponse) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{66}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{68}
 }
 
 func (x *ListSurveyResponsesResponse) GetResponses() []*SurveyResponse {
@@ -4886,7 +4997,7 @@ type ListAuditLogRequest struct {
 
 func (x *ListAuditLogRequest) Reset() {
 	*x = ListAuditLogRequest{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[67]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[69]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4898,7 +5009,7 @@ func (x *ListAuditLogRequest) String() string {
 func (*ListAuditLogRequest) ProtoMessage() {}
 
 func (x *ListAuditLogRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[67]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[69]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4911,7 +5022,7 @@ func (x *ListAuditLogRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListAuditLogRequest.ProtoReflect.Descriptor instead.
 func (*ListAuditLogRequest) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{67}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{69}
 }
 
 func (x *ListAuditLogRequest) GetNamespace() string {
@@ -4966,7 +5077,7 @@ type ListAuditLogResponse struct {
 
 func (x *ListAuditLogResponse) Reset() {
 	*x = ListAuditLogResponse{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[68]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[70]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4978,7 +5089,7 @@ func (x *ListAuditLogResponse) String() string {
 func (*ListAuditLogResponse) ProtoMessage() {}
 
 func (x *ListAuditLogResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[68]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[70]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4991,7 +5102,7 @@ func (x *ListAuditLogResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListAuditLogResponse.ProtoReflect.Descriptor instead.
 func (*ListAuditLogResponse) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{68}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{70}
 }
 
 func (x *ListAuditLogResponse) GetEntries() []*AuditLogEntry {
@@ -5018,7 +5129,7 @@ type RetryFailedDmsRequest struct {
 
 func (x *RetryFailedDmsRequest) Reset() {
 	*x = RetryFailedDmsRequest{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[69]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[71]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5030,7 +5141,7 @@ func (x *RetryFailedDmsRequest) String() string {
 func (*RetryFailedDmsRequest) ProtoMessage() {}
 
 func (x *RetryFailedDmsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[69]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[71]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5043,7 +5154,7 @@ func (x *RetryFailedDmsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RetryFailedDmsRequest.ProtoReflect.Descriptor instead.
 func (*RetryFailedDmsRequest) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{69}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{71}
 }
 
 func (x *RetryFailedDmsRequest) GetNamespace() string {
@@ -5074,7 +5185,7 @@ type RetryFailedDmsResponse struct {
 
 func (x *RetryFailedDmsResponse) Reset() {
 	*x = RetryFailedDmsResponse{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[70]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[72]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5086,7 +5197,7 @@ func (x *RetryFailedDmsResponse) String() string {
 func (*RetryFailedDmsResponse) ProtoMessage() {}
 
 func (x *RetryFailedDmsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[70]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[72]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5099,7 +5210,7 @@ func (x *RetryFailedDmsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RetryFailedDmsResponse.ProtoReflect.Descriptor instead.
 func (*RetryFailedDmsResponse) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{70}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{72}
 }
 
 func (x *RetryFailedDmsResponse) GetEnqueued() int32 {
@@ -5125,7 +5236,7 @@ type GetWorkerHealthRequest struct {
 
 func (x *GetWorkerHealthRequest) Reset() {
 	*x = GetWorkerHealthRequest{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[71]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[73]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5137,7 +5248,7 @@ func (x *GetWorkerHealthRequest) String() string {
 func (*GetWorkerHealthRequest) ProtoMessage() {}
 
 func (x *GetWorkerHealthRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[71]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[73]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5150,7 +5261,7 @@ func (x *GetWorkerHealthRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetWorkerHealthRequest.ProtoReflect.Descriptor instead.
 func (*GetWorkerHealthRequest) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{71}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{73}
 }
 
 func (x *GetWorkerHealthRequest) GetNamespace() string {
@@ -5178,7 +5289,7 @@ type WorkerHealthEntry struct {
 
 func (x *WorkerHealthEntry) Reset() {
 	*x = WorkerHealthEntry{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[72]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[74]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5190,7 +5301,7 @@ func (x *WorkerHealthEntry) String() string {
 func (*WorkerHealthEntry) ProtoMessage() {}
 
 func (x *WorkerHealthEntry) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[72]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[74]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5203,7 +5314,7 @@ func (x *WorkerHealthEntry) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WorkerHealthEntry.ProtoReflect.Descriptor instead.
 func (*WorkerHealthEntry) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{72}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{74}
 }
 
 func (x *WorkerHealthEntry) GetName() string {
@@ -5250,7 +5361,7 @@ type GetWorkerHealthResponse struct {
 
 func (x *GetWorkerHealthResponse) Reset() {
 	*x = GetWorkerHealthResponse{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[73]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[75]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5262,7 +5373,7 @@ func (x *GetWorkerHealthResponse) String() string {
 func (*GetWorkerHealthResponse) ProtoMessage() {}
 
 func (x *GetWorkerHealthResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[73]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[75]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5275,7 +5386,7 @@ func (x *GetWorkerHealthResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetWorkerHealthResponse.ProtoReflect.Descriptor instead.
 func (*GetWorkerHealthResponse) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{73}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{75}
 }
 
 func (x *GetWorkerHealthResponse) GetWorkers() []*WorkerHealthEntry {
@@ -5302,7 +5413,7 @@ type ADTLinkage struct {
 
 func (x *ADTLinkage) Reset() {
 	*x = ADTLinkage{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[74]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[76]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5314,7 +5425,7 @@ func (x *ADTLinkage) String() string {
 func (*ADTLinkage) ProtoMessage() {}
 
 func (x *ADTLinkage) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[74]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[76]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5327,7 +5438,7 @@ func (x *ADTLinkage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ADTLinkage.ProtoReflect.Descriptor instead.
 func (*ADTLinkage) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{74}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{76}
 }
 
 func (x *ADTLinkage) GetId() string {
@@ -5386,7 +5497,7 @@ type ADTBuild struct {
 
 func (x *ADTBuild) Reset() {
 	*x = ADTBuild{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[75]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[77]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5398,7 +5509,7 @@ func (x *ADTBuild) String() string {
 func (*ADTBuild) ProtoMessage() {}
 
 func (x *ADTBuild) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[75]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[77]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5411,7 +5522,7 @@ func (x *ADTBuild) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ADTBuild.ProtoReflect.Descriptor instead.
 func (*ADTBuild) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{75}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{77}
 }
 
 func (x *ADTBuild) GetId() string {
@@ -5456,7 +5567,7 @@ type ListADTLinkagesRequest struct {
 
 func (x *ListADTLinkagesRequest) Reset() {
 	*x = ListADTLinkagesRequest{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[76]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[78]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5468,7 +5579,7 @@ func (x *ListADTLinkagesRequest) String() string {
 func (*ListADTLinkagesRequest) ProtoMessage() {}
 
 func (x *ListADTLinkagesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[76]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[78]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5481,7 +5592,7 @@ func (x *ListADTLinkagesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListADTLinkagesRequest.ProtoReflect.Descriptor instead.
 func (*ListADTLinkagesRequest) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{76}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{78}
 }
 
 func (x *ListADTLinkagesRequest) GetNamespace() string {
@@ -5500,7 +5611,7 @@ type ListADTLinkagesResponse struct {
 
 func (x *ListADTLinkagesResponse) Reset() {
 	*x = ListADTLinkagesResponse{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[77]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[79]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5512,7 +5623,7 @@ func (x *ListADTLinkagesResponse) String() string {
 func (*ListADTLinkagesResponse) ProtoMessage() {}
 
 func (x *ListADTLinkagesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[77]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[79]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5525,7 +5636,7 @@ func (x *ListADTLinkagesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListADTLinkagesResponse.ProtoReflect.Descriptor instead.
 func (*ListADTLinkagesResponse) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{77}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{79}
 }
 
 func (x *ListADTLinkagesResponse) GetLinkages() []*ADTLinkage {
@@ -5544,7 +5655,7 @@ type StartADTLinkRequest struct {
 
 func (x *StartADTLinkRequest) Reset() {
 	*x = StartADTLinkRequest{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[78]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[80]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5556,7 +5667,7 @@ func (x *StartADTLinkRequest) String() string {
 func (*StartADTLinkRequest) ProtoMessage() {}
 
 func (x *StartADTLinkRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[78]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[80]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5569,7 +5680,7 @@ func (x *StartADTLinkRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StartADTLinkRequest.ProtoReflect.Descriptor instead.
 func (*StartADTLinkRequest) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{78}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{80}
 }
 
 func (x *StartADTLinkRequest) GetNamespace() string {
@@ -5597,7 +5708,7 @@ type StartADTLinkResponse struct {
 
 func (x *StartADTLinkResponse) Reset() {
 	*x = StartADTLinkResponse{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[79]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[81]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5609,7 +5720,7 @@ func (x *StartADTLinkResponse) String() string {
 func (*StartADTLinkResponse) ProtoMessage() {}
 
 func (x *StartADTLinkResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[79]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[81]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5622,7 +5733,7 @@ func (x *StartADTLinkResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StartADTLinkResponse.ProtoReflect.Descriptor instead.
 func (*StartADTLinkResponse) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{79}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{81}
 }
 
 func (x *StartADTLinkResponse) GetLinkUrl() string {
@@ -5660,7 +5771,7 @@ type CompleteADTLinkRequest struct {
 
 func (x *CompleteADTLinkRequest) Reset() {
 	*x = CompleteADTLinkRequest{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[80]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[82]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5672,7 +5783,7 @@ func (x *CompleteADTLinkRequest) String() string {
 func (*CompleteADTLinkRequest) ProtoMessage() {}
 
 func (x *CompleteADTLinkRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[80]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[82]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5685,7 +5796,7 @@ func (x *CompleteADTLinkRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CompleteADTLinkRequest.ProtoReflect.Descriptor instead.
 func (*CompleteADTLinkRequest) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{80}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{82}
 }
 
 func (x *CompleteADTLinkRequest) GetNamespace() string {
@@ -5718,7 +5829,7 @@ type CompleteADTLinkResponse struct {
 
 func (x *CompleteADTLinkResponse) Reset() {
 	*x = CompleteADTLinkResponse{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[81]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[83]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5730,7 +5841,7 @@ func (x *CompleteADTLinkResponse) String() string {
 func (*CompleteADTLinkResponse) ProtoMessage() {}
 
 func (x *CompleteADTLinkResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[81]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[83]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5743,7 +5854,7 @@ func (x *CompleteADTLinkResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CompleteADTLinkResponse.ProtoReflect.Descriptor instead.
 func (*CompleteADTLinkResponse) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{81}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{83}
 }
 
 func (x *CompleteADTLinkResponse) GetLinkage() *ADTLinkage {
@@ -5763,7 +5874,7 @@ type UnlinkADTRequest struct {
 
 func (x *UnlinkADTRequest) Reset() {
 	*x = UnlinkADTRequest{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[82]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[84]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5775,7 +5886,7 @@ func (x *UnlinkADTRequest) String() string {
 func (*UnlinkADTRequest) ProtoMessage() {}
 
 func (x *UnlinkADTRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[82]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[84]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5788,7 +5899,7 @@ func (x *UnlinkADTRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UnlinkADTRequest.ProtoReflect.Descriptor instead.
 func (*UnlinkADTRequest) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{82}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{84}
 }
 
 func (x *UnlinkADTRequest) GetNamespace() string {
@@ -5813,7 +5924,7 @@ type UnlinkADTResponse struct {
 
 func (x *UnlinkADTResponse) Reset() {
 	*x = UnlinkADTResponse{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[83]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[85]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5825,7 +5936,7 @@ func (x *UnlinkADTResponse) String() string {
 func (*UnlinkADTResponse) ProtoMessage() {}
 
 func (x *UnlinkADTResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[83]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[85]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5838,7 +5949,7 @@ func (x *UnlinkADTResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UnlinkADTResponse.ProtoReflect.Descriptor instead.
 func (*UnlinkADTResponse) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{83}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{85}
 }
 
 type ListADTBuildsRequest struct {
@@ -5853,7 +5964,7 @@ type ListADTBuildsRequest struct {
 
 func (x *ListADTBuildsRequest) Reset() {
 	*x = ListADTBuildsRequest{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[84]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[86]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5865,7 +5976,7 @@ func (x *ListADTBuildsRequest) String() string {
 func (*ListADTBuildsRequest) ProtoMessage() {}
 
 func (x *ListADTBuildsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[84]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[86]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5878,7 +5989,7 @@ func (x *ListADTBuildsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListADTBuildsRequest.ProtoReflect.Descriptor instead.
 func (*ListADTBuildsRequest) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{84}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{86}
 }
 
 func (x *ListADTBuildsRequest) GetNamespace() string {
@@ -5911,7 +6022,7 @@ type ListADTBuildsResponse struct {
 
 func (x *ListADTBuildsResponse) Reset() {
 	*x = ListADTBuildsResponse{}
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[85]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[87]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5923,7 +6034,7 @@ func (x *ListADTBuildsResponse) String() string {
 func (*ListADTBuildsResponse) ProtoMessage() {}
 
 func (x *ListADTBuildsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[85]
+	mi := &file_playtesthub_v1_playtesthub_proto_msgTypes[87]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5936,7 +6047,7 @@ func (x *ListADTBuildsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListADTBuildsResponse.ProtoReflect.Descriptor instead.
 func (*ListADTBuildsResponse) Descriptor() ([]byte, []int) {
-	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{85}
+	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{87}
 }
 
 func (x *ListADTBuildsResponse) GetBuilds() []*ADTBuild {
@@ -6232,7 +6343,15 @@ const file_playtesthub_v1_playtesthub_proto_rawDesc = "" +
 	"playtestId\"\x80\x01\n" +
 	"\x16GetGrantedCodeResponse\x12\x14\n" +
 	"\x05value\x18\x01 \x01(\tR\x05value\x12P\n" +
-	"\x12distribution_model\x18\x02 \x01(\x0e2!.playtesthub.v1.DistributionModelR\x11distributionModel\"\x82\x02\n" +
+	"\x12distribution_model\x18\x02 \x01(\x0e2!.playtesthub.v1.DistributionModelR\x11distributionModel\"<\n" +
+	"\x19GetADTDownloadInfoRequest\x12\x1f\n" +
+	"\vplaytest_id\x18\x01 \x01(\tR\n" +
+	"playtestId\"\x81\x01\n" +
+	"\x1aGetADTDownloadInfoResponse\x12\x10\n" +
+	"\x03url\x18\x01 \x01(\tR\x03url\x129\n" +
+	"\n" +
+	"expires_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\x12\x16\n" +
+	"\x06source\x18\x03 \x01(\tR\x06source\"\x82\x02\n" +
 	"\x15ListApplicantsRequest\x12\x1c\n" +
 	"\tnamespace\x18\x01 \x01(\tR\tnamespace\x12\x1f\n" +
 	"\vplaytest_id\x18\x02 \x01(\tR\n" +
@@ -6448,7 +6567,7 @@ const file_playtesthub_v1_playtesthub_proto_rawDesc = "" +
 	" SURVEY_QUESTION_TYPE_UNSPECIFIED\x10\x00\x12\x1d\n" +
 	"\x19SURVEY_QUESTION_TYPE_TEXT\x10\x01\x12\x1f\n" +
 	"\x1bSURVEY_QUESTION_TYPE_RATING\x10\x02\x12%\n" +
-	"!SURVEY_QUESTION_TYPE_MULTI_CHOICE\x10\x032\xe9t\n" +
+	"!SURVEY_QUESTION_TYPE_MULTI_CHOICE\x10\x032\xccx\n" +
 	"\x12PlaytesthubService\x12\xa0\x02\n" +
 	"\x11GetPublicPlaytest\x12(.playtesthub.v1.GetPublicPlaytestRequest\x1a).playtesthub.v1.GetPublicPlaytestResponse\"\xb5\x01\x92A\x8e\x01\x12(Get a playtest by slug (unauthenticated)\x1abReturns the public field subset for an OPEN playtest. NotFound for DRAFT, CLOSED, or soft-deleted.\x82\xd3\xe4\x93\x02\x1d\x12\x1b/v1/public/playtests/{slug}\x12\xac\x02\n" +
 	"\x14GetPlaytestForPlayer\x12+.playtesthub.v1.GetPlaytestForPlayerRequest\x1a,.playtesthub.v1.GetPlaytestForPlayerResponse\"\xb8\x01\x92A\x91\x01\x12-Get a playtest by slug (authenticated player)\x1aRReturns the player-visible field set including NDA text and currentNdaVersionHash.b\f\n" +
@@ -6491,11 +6610,15 @@ const file_playtesthub_v1_playtesthub_proto_rawDesc = "" +
 	"\tAcceptNDA\x12 .playtesthub.v1.AcceptNDARequest\x1a!.playtesthub.v1.AcceptNDAResponse\"\xd9\x02\x92A\x9e\x02\x12<Accept the current NDA for a playtest (authenticated player)\x1a\xcf\x01Idempotent on (userId, playtestId, ndaVersionHash) per PRD §4.7. Backend recomputes the current hash from the live playtest row; second accept on the same tuple returns the existing NDAAcceptance, no error.b\f\n" +
 	"\n" +
 	"\n" +
-	"\x06Bearer\x12\x00\x82\xd3\xe4\x93\x021:\x01*\",/v1/player/playtests/{playtest_id}:acceptNda\x12\xdf\x02\n" +
-	"\x0eGetGrantedCode\x12%.playtesthub.v1.GetGrantedCodeRequest\x1a&.playtesthub.v1.GetGrantedCodeResponse\"\xfd\x01\x92A\xc3\x01\x12TGet the granted code for the caller (authenticated player; APPROVED applicants only)\x1a]NotFound for any soft-deleted playtest regardless of applicant state (PRD §5.1 / errors.md).b\f\n" +
+	"\x06Bearer\x12\x00\x82\xd3\xe4\x93\x021:\x01*\",/v1/player/playtests/{playtest_id}:acceptNda\x12\xa1\x03\n" +
+	"\x0eGetGrantedCode\x12%.playtesthub.v1.GetGrantedCodeRequest\x1a&.playtesthub.v1.GetGrantedCodeResponse\"\xbf\x02\x92A\x85\x02\x12TGet the granted code for the caller (authenticated player; APPROVED applicants only)\x1a\x9e\x01NotFound for any soft-deleted playtest regardless of applicant state (PRD §5.1 / errors.md). FailedPrecondition for ADT playtests — use GetADTDownloadInfo.b\f\n" +
 	"\n" +
 	"\n" +
-	"\x06Bearer\x12\x00\x82\xd3\xe4\x93\x020\x12./v1/player/playtests/{playtest_id}/grantedCode\x12\x8f\x04\n" +
+	"\x06Bearer\x12\x00\x82\xd3\xe4\x93\x020\x12./v1/player/playtests/{playtest_id}/grantedCode\x12\x9e\x03\n" +
+	"\x12GetADTDownloadInfo\x12).playtesthub.v1.GetADTDownloadInfoRequest\x1a*.playtesthub.v1.GetADTDownloadInfoResponse\"\xb0\x02\x92A\xf6\x01\x12^Get the ADT build download URL for the caller (authenticated player; APPROVED applicants only)\x1a\x85\x01FailedPrecondition for non-ADT playtests. URL re-minted on every call so the player always sees a fresh (possibly per-applicant) URL.b\f\n" +
+	"\n" +
+	"\n" +
+	"\x06Bearer\x12\x00\x82\xd3\xe4\x93\x020\x12./v1/player/playtests/{playtest_id}/adtDownload\x12\x8f\x04\n" +
 	"\x0eListApplicants\x12%.playtesthub.v1.ListApplicantsRequest\x1a&.playtesthub.v1.ListApplicantsResponse\"\xad\x03\x92A\xae\x02\x12BList applicants for a playtest (admin; cursor pagination, page 50)\x1a\xd9\x01Order: createdAt DESC. Filters: status_filter (UNSPECIFIED → no filter), dm_failed_filter (true → only lastDmStatus='failed'). page_token is opaque; absent → start of stream. page_size 0 → server default (50).b\f\n" +
 	"\n" +
 	"\n" +
@@ -6599,7 +6722,7 @@ func file_playtesthub_v1_playtesthub_proto_rawDescGZIP() []byte {
 }
 
 var file_playtesthub_v1_playtesthub_proto_enumTypes = make([]protoimpl.EnumInfo, 7)
-var file_playtesthub_v1_playtesthub_proto_msgTypes = make([]protoimpl.MessageInfo, 86)
+var file_playtesthub_v1_playtesthub_proto_msgTypes = make([]protoimpl.MessageInfo, 88)
 var file_playtesthub_v1_playtesthub_proto_goTypes = []any{
 	(Platform)(0),                            // 0: playtesthub.v1.Platform
 	(PlaytestStatus)(0),                      // 1: playtesthub.v1.PlaytestStatus
@@ -6648,102 +6771,104 @@ var file_playtesthub_v1_playtesthub_proto_goTypes = []any{
 	(*AcceptNDAResponse)(nil),                // 44: playtesthub.v1.AcceptNDAResponse
 	(*GetGrantedCodeRequest)(nil),            // 45: playtesthub.v1.GetGrantedCodeRequest
 	(*GetGrantedCodeResponse)(nil),           // 46: playtesthub.v1.GetGrantedCodeResponse
-	(*ListApplicantsRequest)(nil),            // 47: playtesthub.v1.ListApplicantsRequest
-	(*ListApplicantsResponse)(nil),           // 48: playtesthub.v1.ListApplicantsResponse
-	(*ApproveApplicantRequest)(nil),          // 49: playtesthub.v1.ApproveApplicantRequest
-	(*ApproveApplicantResponse)(nil),         // 50: playtesthub.v1.ApproveApplicantResponse
-	(*RejectApplicantRequest)(nil),           // 51: playtesthub.v1.RejectApplicantRequest
-	(*RejectApplicantResponse)(nil),          // 52: playtesthub.v1.RejectApplicantResponse
-	(*RetryDMRequest)(nil),                   // 53: playtesthub.v1.RetryDMRequest
-	(*RetryDMResponse)(nil),                  // 54: playtesthub.v1.RetryDMResponse
-	(*UploadCodesRequest)(nil),               // 55: playtesthub.v1.UploadCodesRequest
-	(*UploadCodesRejection)(nil),             // 56: playtesthub.v1.UploadCodesRejection
-	(*UploadCodesResponse)(nil),              // 57: playtesthub.v1.UploadCodesResponse
-	(*TopUpCodesRequest)(nil),                // 58: playtesthub.v1.TopUpCodesRequest
-	(*TopUpCodesResponse)(nil),               // 59: playtesthub.v1.TopUpCodesResponse
-	(*SyncFromAGSRequest)(nil),               // 60: playtesthub.v1.SyncFromAGSRequest
-	(*SyncFromAGSResponse)(nil),              // 61: playtesthub.v1.SyncFromAGSResponse
-	(*GetCodePoolRequest)(nil),               // 62: playtesthub.v1.GetCodePoolRequest
-	(*GetCodePoolResponse)(nil),              // 63: playtesthub.v1.GetCodePoolResponse
-	(*CreateSurveyRequest)(nil),              // 64: playtesthub.v1.CreateSurveyRequest
-	(*CreateSurveyResponse)(nil),             // 65: playtesthub.v1.CreateSurveyResponse
-	(*EditSurveyRequest)(nil),                // 66: playtesthub.v1.EditSurveyRequest
-	(*EditSurveyResponse)(nil),               // 67: playtesthub.v1.EditSurveyResponse
-	(*GetSurveyRequest)(nil),                 // 68: playtesthub.v1.GetSurveyRequest
-	(*GetSurveyResponse)(nil),                // 69: playtesthub.v1.GetSurveyResponse
-	(*SubmitSurveyResponseRequest)(nil),      // 70: playtesthub.v1.SubmitSurveyResponseRequest
-	(*SubmitSurveyResponseResponse)(nil),     // 71: playtesthub.v1.SubmitSurveyResponseResponse
-	(*ListSurveyResponsesRequest)(nil),       // 72: playtesthub.v1.ListSurveyResponsesRequest
-	(*ListSurveyResponsesResponse)(nil),      // 73: playtesthub.v1.ListSurveyResponsesResponse
-	(*ListAuditLogRequest)(nil),              // 74: playtesthub.v1.ListAuditLogRequest
-	(*ListAuditLogResponse)(nil),             // 75: playtesthub.v1.ListAuditLogResponse
-	(*RetryFailedDmsRequest)(nil),            // 76: playtesthub.v1.RetryFailedDmsRequest
-	(*RetryFailedDmsResponse)(nil),           // 77: playtesthub.v1.RetryFailedDmsResponse
-	(*GetWorkerHealthRequest)(nil),           // 78: playtesthub.v1.GetWorkerHealthRequest
-	(*WorkerHealthEntry)(nil),                // 79: playtesthub.v1.WorkerHealthEntry
-	(*GetWorkerHealthResponse)(nil),          // 80: playtesthub.v1.GetWorkerHealthResponse
-	(*ADTLinkage)(nil),                       // 81: playtesthub.v1.ADTLinkage
-	(*ADTBuild)(nil),                         // 82: playtesthub.v1.ADTBuild
-	(*ListADTLinkagesRequest)(nil),           // 83: playtesthub.v1.ListADTLinkagesRequest
-	(*ListADTLinkagesResponse)(nil),          // 84: playtesthub.v1.ListADTLinkagesResponse
-	(*StartADTLinkRequest)(nil),              // 85: playtesthub.v1.StartADTLinkRequest
-	(*StartADTLinkResponse)(nil),             // 86: playtesthub.v1.StartADTLinkResponse
-	(*CompleteADTLinkRequest)(nil),           // 87: playtesthub.v1.CompleteADTLinkRequest
-	(*CompleteADTLinkResponse)(nil),          // 88: playtesthub.v1.CompleteADTLinkResponse
-	(*UnlinkADTRequest)(nil),                 // 89: playtesthub.v1.UnlinkADTRequest
-	(*UnlinkADTResponse)(nil),                // 90: playtesthub.v1.UnlinkADTResponse
-	(*ListADTBuildsRequest)(nil),             // 91: playtesthub.v1.ListADTBuildsRequest
-	(*ListADTBuildsResponse)(nil),            // 92: playtesthub.v1.ListADTBuildsResponse
-	(*timestamppb.Timestamp)(nil),            // 93: google.protobuf.Timestamp
+	(*GetADTDownloadInfoRequest)(nil),        // 47: playtesthub.v1.GetADTDownloadInfoRequest
+	(*GetADTDownloadInfoResponse)(nil),       // 48: playtesthub.v1.GetADTDownloadInfoResponse
+	(*ListApplicantsRequest)(nil),            // 49: playtesthub.v1.ListApplicantsRequest
+	(*ListApplicantsResponse)(nil),           // 50: playtesthub.v1.ListApplicantsResponse
+	(*ApproveApplicantRequest)(nil),          // 51: playtesthub.v1.ApproveApplicantRequest
+	(*ApproveApplicantResponse)(nil),         // 52: playtesthub.v1.ApproveApplicantResponse
+	(*RejectApplicantRequest)(nil),           // 53: playtesthub.v1.RejectApplicantRequest
+	(*RejectApplicantResponse)(nil),          // 54: playtesthub.v1.RejectApplicantResponse
+	(*RetryDMRequest)(nil),                   // 55: playtesthub.v1.RetryDMRequest
+	(*RetryDMResponse)(nil),                  // 56: playtesthub.v1.RetryDMResponse
+	(*UploadCodesRequest)(nil),               // 57: playtesthub.v1.UploadCodesRequest
+	(*UploadCodesRejection)(nil),             // 58: playtesthub.v1.UploadCodesRejection
+	(*UploadCodesResponse)(nil),              // 59: playtesthub.v1.UploadCodesResponse
+	(*TopUpCodesRequest)(nil),                // 60: playtesthub.v1.TopUpCodesRequest
+	(*TopUpCodesResponse)(nil),               // 61: playtesthub.v1.TopUpCodesResponse
+	(*SyncFromAGSRequest)(nil),               // 62: playtesthub.v1.SyncFromAGSRequest
+	(*SyncFromAGSResponse)(nil),              // 63: playtesthub.v1.SyncFromAGSResponse
+	(*GetCodePoolRequest)(nil),               // 64: playtesthub.v1.GetCodePoolRequest
+	(*GetCodePoolResponse)(nil),              // 65: playtesthub.v1.GetCodePoolResponse
+	(*CreateSurveyRequest)(nil),              // 66: playtesthub.v1.CreateSurveyRequest
+	(*CreateSurveyResponse)(nil),             // 67: playtesthub.v1.CreateSurveyResponse
+	(*EditSurveyRequest)(nil),                // 68: playtesthub.v1.EditSurveyRequest
+	(*EditSurveyResponse)(nil),               // 69: playtesthub.v1.EditSurveyResponse
+	(*GetSurveyRequest)(nil),                 // 70: playtesthub.v1.GetSurveyRequest
+	(*GetSurveyResponse)(nil),                // 71: playtesthub.v1.GetSurveyResponse
+	(*SubmitSurveyResponseRequest)(nil),      // 72: playtesthub.v1.SubmitSurveyResponseRequest
+	(*SubmitSurveyResponseResponse)(nil),     // 73: playtesthub.v1.SubmitSurveyResponseResponse
+	(*ListSurveyResponsesRequest)(nil),       // 74: playtesthub.v1.ListSurveyResponsesRequest
+	(*ListSurveyResponsesResponse)(nil),      // 75: playtesthub.v1.ListSurveyResponsesResponse
+	(*ListAuditLogRequest)(nil),              // 76: playtesthub.v1.ListAuditLogRequest
+	(*ListAuditLogResponse)(nil),             // 77: playtesthub.v1.ListAuditLogResponse
+	(*RetryFailedDmsRequest)(nil),            // 78: playtesthub.v1.RetryFailedDmsRequest
+	(*RetryFailedDmsResponse)(nil),           // 79: playtesthub.v1.RetryFailedDmsResponse
+	(*GetWorkerHealthRequest)(nil),           // 80: playtesthub.v1.GetWorkerHealthRequest
+	(*WorkerHealthEntry)(nil),                // 81: playtesthub.v1.WorkerHealthEntry
+	(*GetWorkerHealthResponse)(nil),          // 82: playtesthub.v1.GetWorkerHealthResponse
+	(*ADTLinkage)(nil),                       // 83: playtesthub.v1.ADTLinkage
+	(*ADTBuild)(nil),                         // 84: playtesthub.v1.ADTBuild
+	(*ListADTLinkagesRequest)(nil),           // 85: playtesthub.v1.ListADTLinkagesRequest
+	(*ListADTLinkagesResponse)(nil),          // 86: playtesthub.v1.ListADTLinkagesResponse
+	(*StartADTLinkRequest)(nil),              // 87: playtesthub.v1.StartADTLinkRequest
+	(*StartADTLinkResponse)(nil),             // 88: playtesthub.v1.StartADTLinkResponse
+	(*CompleteADTLinkRequest)(nil),           // 89: playtesthub.v1.CompleteADTLinkRequest
+	(*CompleteADTLinkResponse)(nil),          // 90: playtesthub.v1.CompleteADTLinkResponse
+	(*UnlinkADTRequest)(nil),                 // 91: playtesthub.v1.UnlinkADTRequest
+	(*UnlinkADTResponse)(nil),                // 92: playtesthub.v1.UnlinkADTResponse
+	(*ListADTBuildsRequest)(nil),             // 93: playtesthub.v1.ListADTBuildsRequest
+	(*ListADTBuildsResponse)(nil),            // 94: playtesthub.v1.ListADTBuildsResponse
+	(*timestamppb.Timestamp)(nil),            // 95: google.protobuf.Timestamp
 }
 var file_playtesthub_v1_playtesthub_proto_depIdxs = []int32{
 	0,   // 0: playtesthub.v1.Playtest.platforms:type_name -> playtesthub.v1.Platform
-	93,  // 1: playtesthub.v1.Playtest.starts_at:type_name -> google.protobuf.Timestamp
-	93,  // 2: playtesthub.v1.Playtest.ends_at:type_name -> google.protobuf.Timestamp
+	95,  // 1: playtesthub.v1.Playtest.starts_at:type_name -> google.protobuf.Timestamp
+	95,  // 2: playtesthub.v1.Playtest.ends_at:type_name -> google.protobuf.Timestamp
 	1,   // 3: playtesthub.v1.Playtest.status:type_name -> playtesthub.v1.PlaytestStatus
 	2,   // 4: playtesthub.v1.Playtest.distribution_model:type_name -> playtesthub.v1.DistributionModel
-	93,  // 5: playtesthub.v1.Playtest.created_at:type_name -> google.protobuf.Timestamp
-	93,  // 6: playtesthub.v1.Playtest.updated_at:type_name -> google.protobuf.Timestamp
-	93,  // 7: playtesthub.v1.Playtest.deleted_at:type_name -> google.protobuf.Timestamp
+	95,  // 5: playtesthub.v1.Playtest.created_at:type_name -> google.protobuf.Timestamp
+	95,  // 6: playtesthub.v1.Playtest.updated_at:type_name -> google.protobuf.Timestamp
+	95,  // 7: playtesthub.v1.Playtest.deleted_at:type_name -> google.protobuf.Timestamp
 	0,   // 8: playtesthub.v1.PublicPlaytest.platforms:type_name -> playtesthub.v1.Platform
-	93,  // 9: playtesthub.v1.PublicPlaytest.starts_at:type_name -> google.protobuf.Timestamp
-	93,  // 10: playtesthub.v1.PublicPlaytest.ends_at:type_name -> google.protobuf.Timestamp
+	95,  // 9: playtesthub.v1.PublicPlaytest.starts_at:type_name -> google.protobuf.Timestamp
+	95,  // 10: playtesthub.v1.PublicPlaytest.ends_at:type_name -> google.protobuf.Timestamp
 	0,   // 11: playtesthub.v1.PlayerPlaytest.platforms:type_name -> playtesthub.v1.Platform
-	93,  // 12: playtesthub.v1.PlayerPlaytest.starts_at:type_name -> google.protobuf.Timestamp
-	93,  // 13: playtesthub.v1.PlayerPlaytest.ends_at:type_name -> google.protobuf.Timestamp
+	95,  // 12: playtesthub.v1.PlayerPlaytest.starts_at:type_name -> google.protobuf.Timestamp
+	95,  // 13: playtesthub.v1.PlayerPlaytest.ends_at:type_name -> google.protobuf.Timestamp
 	1,   // 14: playtesthub.v1.PlayerPlaytest.status:type_name -> playtesthub.v1.PlaytestStatus
 	2,   // 15: playtesthub.v1.PlayerPlaytest.distribution_model:type_name -> playtesthub.v1.DistributionModel
 	0,   // 16: playtesthub.v1.Applicant.platforms:type_name -> playtesthub.v1.Platform
 	3,   // 17: playtesthub.v1.Applicant.status:type_name -> playtesthub.v1.ApplicantStatus
-	93,  // 18: playtesthub.v1.Applicant.approved_at:type_name -> google.protobuf.Timestamp
+	95,  // 18: playtesthub.v1.Applicant.approved_at:type_name -> google.protobuf.Timestamp
 	4,   // 19: playtesthub.v1.Applicant.last_dm_status:type_name -> playtesthub.v1.DmStatus
-	93,  // 20: playtesthub.v1.Applicant.last_dm_attempt_at:type_name -> google.protobuf.Timestamp
-	93,  // 21: playtesthub.v1.Applicant.created_at:type_name -> google.protobuf.Timestamp
-	93,  // 22: playtesthub.v1.NDAAcceptance.accepted_at:type_name -> google.protobuf.Timestamp
+	95,  // 20: playtesthub.v1.Applicant.last_dm_attempt_at:type_name -> google.protobuf.Timestamp
+	95,  // 21: playtesthub.v1.Applicant.created_at:type_name -> google.protobuf.Timestamp
+	95,  // 22: playtesthub.v1.NDAAcceptance.accepted_at:type_name -> google.protobuf.Timestamp
 	5,   // 23: playtesthub.v1.Code.state:type_name -> playtesthub.v1.CodeState
-	93,  // 24: playtesthub.v1.Code.reserved_at:type_name -> google.protobuf.Timestamp
-	93,  // 25: playtesthub.v1.Code.granted_at:type_name -> google.protobuf.Timestamp
-	93,  // 26: playtesthub.v1.Code.created_at:type_name -> google.protobuf.Timestamp
+	95,  // 24: playtesthub.v1.Code.reserved_at:type_name -> google.protobuf.Timestamp
+	95,  // 25: playtesthub.v1.Code.granted_at:type_name -> google.protobuf.Timestamp
+	95,  // 26: playtesthub.v1.Code.created_at:type_name -> google.protobuf.Timestamp
 	6,   // 27: playtesthub.v1.SurveyQuestion.type:type_name -> playtesthub.v1.SurveyQuestionType
 	14,  // 28: playtesthub.v1.SurveyQuestion.options:type_name -> playtesthub.v1.MultiChoiceOption
 	15,  // 29: playtesthub.v1.Survey.questions:type_name -> playtesthub.v1.SurveyQuestion
-	93,  // 30: playtesthub.v1.Survey.created_at:type_name -> google.protobuf.Timestamp
+	95,  // 30: playtesthub.v1.Survey.created_at:type_name -> google.protobuf.Timestamp
 	17,  // 31: playtesthub.v1.SurveyAnswer.multi_choice:type_name -> playtesthub.v1.SurveyMultiChoiceAnswer
 	18,  // 32: playtesthub.v1.SurveyResponse.answers:type_name -> playtesthub.v1.SurveyAnswer
-	93,  // 33: playtesthub.v1.SurveyResponse.submitted_at:type_name -> google.protobuf.Timestamp
-	93,  // 34: playtesthub.v1.AuditLogEntry.created_at:type_name -> google.protobuf.Timestamp
+	95,  // 33: playtesthub.v1.SurveyResponse.submitted_at:type_name -> google.protobuf.Timestamp
+	95,  // 34: playtesthub.v1.AuditLogEntry.created_at:type_name -> google.protobuf.Timestamp
 	8,   // 35: playtesthub.v1.GetPublicPlaytestResponse.playtest:type_name -> playtesthub.v1.PublicPlaytest
 	9,   // 36: playtesthub.v1.GetPlaytestForPlayerResponse.playtest:type_name -> playtesthub.v1.PlayerPlaytest
 	7,   // 37: playtesthub.v1.AdminGetPlaytestResponse.playtest:type_name -> playtesthub.v1.Playtest
 	7,   // 38: playtesthub.v1.ListPlaytestsResponse.playtests:type_name -> playtesthub.v1.Playtest
 	0,   // 39: playtesthub.v1.CreatePlaytestRequest.platforms:type_name -> playtesthub.v1.Platform
-	93,  // 40: playtesthub.v1.CreatePlaytestRequest.starts_at:type_name -> google.protobuf.Timestamp
-	93,  // 41: playtesthub.v1.CreatePlaytestRequest.ends_at:type_name -> google.protobuf.Timestamp
+	95,  // 40: playtesthub.v1.CreatePlaytestRequest.starts_at:type_name -> google.protobuf.Timestamp
+	95,  // 41: playtesthub.v1.CreatePlaytestRequest.ends_at:type_name -> google.protobuf.Timestamp
 	2,   // 42: playtesthub.v1.CreatePlaytestRequest.distribution_model:type_name -> playtesthub.v1.DistributionModel
 	7,   // 43: playtesthub.v1.CreatePlaytestResponse.playtest:type_name -> playtesthub.v1.Playtest
 	0,   // 44: playtesthub.v1.EditPlaytestRequest.platforms:type_name -> playtesthub.v1.Platform
-	93,  // 45: playtesthub.v1.EditPlaytestRequest.starts_at:type_name -> google.protobuf.Timestamp
-	93,  // 46: playtesthub.v1.EditPlaytestRequest.ends_at:type_name -> google.protobuf.Timestamp
+	95,  // 45: playtesthub.v1.EditPlaytestRequest.starts_at:type_name -> google.protobuf.Timestamp
+	95,  // 46: playtesthub.v1.EditPlaytestRequest.ends_at:type_name -> google.protobuf.Timestamp
 	7,   // 47: playtesthub.v1.EditPlaytestResponse.playtest:type_name -> playtesthub.v1.Playtest
 	1,   // 48: playtesthub.v1.TransitionPlaytestStatusRequest.target_status:type_name -> playtesthub.v1.PlaytestStatus
 	7,   // 49: playtesthub.v1.TransitionPlaytestStatusResponse.playtest:type_name -> playtesthub.v1.Playtest
@@ -6752,108 +6877,111 @@ var file_playtesthub_v1_playtesthub_proto_depIdxs = []int32{
 	10,  // 52: playtesthub.v1.GetApplicantStatusResponse.applicant:type_name -> playtesthub.v1.Applicant
 	11,  // 53: playtesthub.v1.AcceptNDAResponse.acceptance:type_name -> playtesthub.v1.NDAAcceptance
 	2,   // 54: playtesthub.v1.GetGrantedCodeResponse.distribution_model:type_name -> playtesthub.v1.DistributionModel
-	3,   // 55: playtesthub.v1.ListApplicantsRequest.status_filter:type_name -> playtesthub.v1.ApplicantStatus
-	10,  // 56: playtesthub.v1.ListApplicantsResponse.applicants:type_name -> playtesthub.v1.Applicant
-	10,  // 57: playtesthub.v1.ApproveApplicantResponse.applicant:type_name -> playtesthub.v1.Applicant
-	10,  // 58: playtesthub.v1.RejectApplicantResponse.applicant:type_name -> playtesthub.v1.Applicant
-	10,  // 59: playtesthub.v1.RetryDMResponse.applicant:type_name -> playtesthub.v1.Applicant
-	56,  // 60: playtesthub.v1.UploadCodesResponse.rejections:type_name -> playtesthub.v1.UploadCodesRejection
-	13,  // 61: playtesthub.v1.TopUpCodesResponse.pool:type_name -> playtesthub.v1.CodePoolStats
-	13,  // 62: playtesthub.v1.SyncFromAGSResponse.pool:type_name -> playtesthub.v1.CodePoolStats
-	13,  // 63: playtesthub.v1.GetCodePoolResponse.stats:type_name -> playtesthub.v1.CodePoolStats
-	12,  // 64: playtesthub.v1.GetCodePoolResponse.codes:type_name -> playtesthub.v1.Code
-	15,  // 65: playtesthub.v1.CreateSurveyRequest.questions:type_name -> playtesthub.v1.SurveyQuestion
-	16,  // 66: playtesthub.v1.CreateSurveyResponse.survey:type_name -> playtesthub.v1.Survey
-	15,  // 67: playtesthub.v1.EditSurveyRequest.questions:type_name -> playtesthub.v1.SurveyQuestion
-	16,  // 68: playtesthub.v1.EditSurveyResponse.survey:type_name -> playtesthub.v1.Survey
-	16,  // 69: playtesthub.v1.GetSurveyResponse.survey:type_name -> playtesthub.v1.Survey
-	18,  // 70: playtesthub.v1.SubmitSurveyResponseRequest.answers:type_name -> playtesthub.v1.SurveyAnswer
-	19,  // 71: playtesthub.v1.SubmitSurveyResponseResponse.response:type_name -> playtesthub.v1.SurveyResponse
-	19,  // 72: playtesthub.v1.ListSurveyResponsesResponse.responses:type_name -> playtesthub.v1.SurveyResponse
-	20,  // 73: playtesthub.v1.ListAuditLogResponse.entries:type_name -> playtesthub.v1.AuditLogEntry
-	93,  // 74: playtesthub.v1.WorkerHealthEntry.last_tick_at:type_name -> google.protobuf.Timestamp
-	93,  // 75: playtesthub.v1.WorkerHealthEntry.expires_at:type_name -> google.protobuf.Timestamp
-	79,  // 76: playtesthub.v1.GetWorkerHealthResponse.workers:type_name -> playtesthub.v1.WorkerHealthEntry
-	93,  // 77: playtesthub.v1.ADTLinkage.linked_at:type_name -> google.protobuf.Timestamp
-	93,  // 78: playtesthub.v1.ADTLinkage.deleted_at:type_name -> google.protobuf.Timestamp
-	93,  // 79: playtesthub.v1.ADTBuild.uploaded_at:type_name -> google.protobuf.Timestamp
-	81,  // 80: playtesthub.v1.ListADTLinkagesResponse.linkages:type_name -> playtesthub.v1.ADTLinkage
-	93,  // 81: playtesthub.v1.StartADTLinkResponse.expires_at:type_name -> google.protobuf.Timestamp
-	81,  // 82: playtesthub.v1.CompleteADTLinkResponse.linkage:type_name -> playtesthub.v1.ADTLinkage
-	82,  // 83: playtesthub.v1.ListADTBuildsResponse.builds:type_name -> playtesthub.v1.ADTBuild
-	21,  // 84: playtesthub.v1.PlaytesthubService.GetPublicPlaytest:input_type -> playtesthub.v1.GetPublicPlaytestRequest
-	23,  // 85: playtesthub.v1.PlaytesthubService.GetPlaytestForPlayer:input_type -> playtesthub.v1.GetPlaytestForPlayerRequest
-	25,  // 86: playtesthub.v1.PlaytesthubService.AdminGetPlaytest:input_type -> playtesthub.v1.AdminGetPlaytestRequest
-	27,  // 87: playtesthub.v1.PlaytesthubService.ListPlaytests:input_type -> playtesthub.v1.ListPlaytestsRequest
-	29,  // 88: playtesthub.v1.PlaytesthubService.CreatePlaytest:input_type -> playtesthub.v1.CreatePlaytestRequest
-	31,  // 89: playtesthub.v1.PlaytesthubService.EditPlaytest:input_type -> playtesthub.v1.EditPlaytestRequest
-	33,  // 90: playtesthub.v1.PlaytesthubService.SoftDeletePlaytest:input_type -> playtesthub.v1.SoftDeletePlaytestRequest
-	35,  // 91: playtesthub.v1.PlaytesthubService.TransitionPlaytestStatus:input_type -> playtesthub.v1.TransitionPlaytestStatusRequest
-	41,  // 92: playtesthub.v1.PlaytesthubService.ExchangeDiscordCode:input_type -> playtesthub.v1.ExchangeDiscordCodeRequest
-	37,  // 93: playtesthub.v1.PlaytesthubService.Signup:input_type -> playtesthub.v1.SignupRequest
-	39,  // 94: playtesthub.v1.PlaytesthubService.GetApplicantStatus:input_type -> playtesthub.v1.GetApplicantStatusRequest
-	43,  // 95: playtesthub.v1.PlaytesthubService.AcceptNDA:input_type -> playtesthub.v1.AcceptNDARequest
-	45,  // 96: playtesthub.v1.PlaytesthubService.GetGrantedCode:input_type -> playtesthub.v1.GetGrantedCodeRequest
-	47,  // 97: playtesthub.v1.PlaytesthubService.ListApplicants:input_type -> playtesthub.v1.ListApplicantsRequest
-	49,  // 98: playtesthub.v1.PlaytesthubService.ApproveApplicant:input_type -> playtesthub.v1.ApproveApplicantRequest
-	51,  // 99: playtesthub.v1.PlaytesthubService.RejectApplicant:input_type -> playtesthub.v1.RejectApplicantRequest
-	53,  // 100: playtesthub.v1.PlaytesthubService.RetryDM:input_type -> playtesthub.v1.RetryDMRequest
-	55,  // 101: playtesthub.v1.PlaytesthubService.UploadCodes:input_type -> playtesthub.v1.UploadCodesRequest
-	58,  // 102: playtesthub.v1.PlaytesthubService.TopUpCodes:input_type -> playtesthub.v1.TopUpCodesRequest
-	60,  // 103: playtesthub.v1.PlaytesthubService.SyncFromAGS:input_type -> playtesthub.v1.SyncFromAGSRequest
-	62,  // 104: playtesthub.v1.PlaytesthubService.GetCodePool:input_type -> playtesthub.v1.GetCodePoolRequest
-	64,  // 105: playtesthub.v1.PlaytesthubService.CreateSurvey:input_type -> playtesthub.v1.CreateSurveyRequest
-	66,  // 106: playtesthub.v1.PlaytesthubService.EditSurvey:input_type -> playtesthub.v1.EditSurveyRequest
-	68,  // 107: playtesthub.v1.PlaytesthubService.GetSurvey:input_type -> playtesthub.v1.GetSurveyRequest
-	70,  // 108: playtesthub.v1.PlaytesthubService.SubmitSurveyResponse:input_type -> playtesthub.v1.SubmitSurveyResponseRequest
-	72,  // 109: playtesthub.v1.PlaytesthubService.ListSurveyResponses:input_type -> playtesthub.v1.ListSurveyResponsesRequest
-	74,  // 110: playtesthub.v1.PlaytesthubService.ListAuditLog:input_type -> playtesthub.v1.ListAuditLogRequest
-	76,  // 111: playtesthub.v1.PlaytesthubService.RetryFailedDms:input_type -> playtesthub.v1.RetryFailedDmsRequest
-	78,  // 112: playtesthub.v1.PlaytesthubService.GetWorkerHealth:input_type -> playtesthub.v1.GetWorkerHealthRequest
-	83,  // 113: playtesthub.v1.PlaytesthubService.ListADTLinkages:input_type -> playtesthub.v1.ListADTLinkagesRequest
-	85,  // 114: playtesthub.v1.PlaytesthubService.StartADTLink:input_type -> playtesthub.v1.StartADTLinkRequest
-	87,  // 115: playtesthub.v1.PlaytesthubService.CompleteADTLink:input_type -> playtesthub.v1.CompleteADTLinkRequest
-	89,  // 116: playtesthub.v1.PlaytesthubService.UnlinkADT:input_type -> playtesthub.v1.UnlinkADTRequest
-	91,  // 117: playtesthub.v1.PlaytesthubService.ListADTBuilds:input_type -> playtesthub.v1.ListADTBuildsRequest
-	22,  // 118: playtesthub.v1.PlaytesthubService.GetPublicPlaytest:output_type -> playtesthub.v1.GetPublicPlaytestResponse
-	24,  // 119: playtesthub.v1.PlaytesthubService.GetPlaytestForPlayer:output_type -> playtesthub.v1.GetPlaytestForPlayerResponse
-	26,  // 120: playtesthub.v1.PlaytesthubService.AdminGetPlaytest:output_type -> playtesthub.v1.AdminGetPlaytestResponse
-	28,  // 121: playtesthub.v1.PlaytesthubService.ListPlaytests:output_type -> playtesthub.v1.ListPlaytestsResponse
-	30,  // 122: playtesthub.v1.PlaytesthubService.CreatePlaytest:output_type -> playtesthub.v1.CreatePlaytestResponse
-	32,  // 123: playtesthub.v1.PlaytesthubService.EditPlaytest:output_type -> playtesthub.v1.EditPlaytestResponse
-	34,  // 124: playtesthub.v1.PlaytesthubService.SoftDeletePlaytest:output_type -> playtesthub.v1.SoftDeletePlaytestResponse
-	36,  // 125: playtesthub.v1.PlaytesthubService.TransitionPlaytestStatus:output_type -> playtesthub.v1.TransitionPlaytestStatusResponse
-	42,  // 126: playtesthub.v1.PlaytesthubService.ExchangeDiscordCode:output_type -> playtesthub.v1.ExchangeDiscordCodeResponse
-	38,  // 127: playtesthub.v1.PlaytesthubService.Signup:output_type -> playtesthub.v1.SignupResponse
-	40,  // 128: playtesthub.v1.PlaytesthubService.GetApplicantStatus:output_type -> playtesthub.v1.GetApplicantStatusResponse
-	44,  // 129: playtesthub.v1.PlaytesthubService.AcceptNDA:output_type -> playtesthub.v1.AcceptNDAResponse
-	46,  // 130: playtesthub.v1.PlaytesthubService.GetGrantedCode:output_type -> playtesthub.v1.GetGrantedCodeResponse
-	48,  // 131: playtesthub.v1.PlaytesthubService.ListApplicants:output_type -> playtesthub.v1.ListApplicantsResponse
-	50,  // 132: playtesthub.v1.PlaytesthubService.ApproveApplicant:output_type -> playtesthub.v1.ApproveApplicantResponse
-	52,  // 133: playtesthub.v1.PlaytesthubService.RejectApplicant:output_type -> playtesthub.v1.RejectApplicantResponse
-	54,  // 134: playtesthub.v1.PlaytesthubService.RetryDM:output_type -> playtesthub.v1.RetryDMResponse
-	57,  // 135: playtesthub.v1.PlaytesthubService.UploadCodes:output_type -> playtesthub.v1.UploadCodesResponse
-	59,  // 136: playtesthub.v1.PlaytesthubService.TopUpCodes:output_type -> playtesthub.v1.TopUpCodesResponse
-	61,  // 137: playtesthub.v1.PlaytesthubService.SyncFromAGS:output_type -> playtesthub.v1.SyncFromAGSResponse
-	63,  // 138: playtesthub.v1.PlaytesthubService.GetCodePool:output_type -> playtesthub.v1.GetCodePoolResponse
-	65,  // 139: playtesthub.v1.PlaytesthubService.CreateSurvey:output_type -> playtesthub.v1.CreateSurveyResponse
-	67,  // 140: playtesthub.v1.PlaytesthubService.EditSurvey:output_type -> playtesthub.v1.EditSurveyResponse
-	69,  // 141: playtesthub.v1.PlaytesthubService.GetSurvey:output_type -> playtesthub.v1.GetSurveyResponse
-	71,  // 142: playtesthub.v1.PlaytesthubService.SubmitSurveyResponse:output_type -> playtesthub.v1.SubmitSurveyResponseResponse
-	73,  // 143: playtesthub.v1.PlaytesthubService.ListSurveyResponses:output_type -> playtesthub.v1.ListSurveyResponsesResponse
-	75,  // 144: playtesthub.v1.PlaytesthubService.ListAuditLog:output_type -> playtesthub.v1.ListAuditLogResponse
-	77,  // 145: playtesthub.v1.PlaytesthubService.RetryFailedDms:output_type -> playtesthub.v1.RetryFailedDmsResponse
-	80,  // 146: playtesthub.v1.PlaytesthubService.GetWorkerHealth:output_type -> playtesthub.v1.GetWorkerHealthResponse
-	84,  // 147: playtesthub.v1.PlaytesthubService.ListADTLinkages:output_type -> playtesthub.v1.ListADTLinkagesResponse
-	86,  // 148: playtesthub.v1.PlaytesthubService.StartADTLink:output_type -> playtesthub.v1.StartADTLinkResponse
-	88,  // 149: playtesthub.v1.PlaytesthubService.CompleteADTLink:output_type -> playtesthub.v1.CompleteADTLinkResponse
-	90,  // 150: playtesthub.v1.PlaytesthubService.UnlinkADT:output_type -> playtesthub.v1.UnlinkADTResponse
-	92,  // 151: playtesthub.v1.PlaytesthubService.ListADTBuilds:output_type -> playtesthub.v1.ListADTBuildsResponse
-	118, // [118:152] is the sub-list for method output_type
-	84,  // [84:118] is the sub-list for method input_type
-	84,  // [84:84] is the sub-list for extension type_name
-	84,  // [84:84] is the sub-list for extension extendee
-	0,   // [0:84] is the sub-list for field type_name
+	95,  // 55: playtesthub.v1.GetADTDownloadInfoResponse.expires_at:type_name -> google.protobuf.Timestamp
+	3,   // 56: playtesthub.v1.ListApplicantsRequest.status_filter:type_name -> playtesthub.v1.ApplicantStatus
+	10,  // 57: playtesthub.v1.ListApplicantsResponse.applicants:type_name -> playtesthub.v1.Applicant
+	10,  // 58: playtesthub.v1.ApproveApplicantResponse.applicant:type_name -> playtesthub.v1.Applicant
+	10,  // 59: playtesthub.v1.RejectApplicantResponse.applicant:type_name -> playtesthub.v1.Applicant
+	10,  // 60: playtesthub.v1.RetryDMResponse.applicant:type_name -> playtesthub.v1.Applicant
+	58,  // 61: playtesthub.v1.UploadCodesResponse.rejections:type_name -> playtesthub.v1.UploadCodesRejection
+	13,  // 62: playtesthub.v1.TopUpCodesResponse.pool:type_name -> playtesthub.v1.CodePoolStats
+	13,  // 63: playtesthub.v1.SyncFromAGSResponse.pool:type_name -> playtesthub.v1.CodePoolStats
+	13,  // 64: playtesthub.v1.GetCodePoolResponse.stats:type_name -> playtesthub.v1.CodePoolStats
+	12,  // 65: playtesthub.v1.GetCodePoolResponse.codes:type_name -> playtesthub.v1.Code
+	15,  // 66: playtesthub.v1.CreateSurveyRequest.questions:type_name -> playtesthub.v1.SurveyQuestion
+	16,  // 67: playtesthub.v1.CreateSurveyResponse.survey:type_name -> playtesthub.v1.Survey
+	15,  // 68: playtesthub.v1.EditSurveyRequest.questions:type_name -> playtesthub.v1.SurveyQuestion
+	16,  // 69: playtesthub.v1.EditSurveyResponse.survey:type_name -> playtesthub.v1.Survey
+	16,  // 70: playtesthub.v1.GetSurveyResponse.survey:type_name -> playtesthub.v1.Survey
+	18,  // 71: playtesthub.v1.SubmitSurveyResponseRequest.answers:type_name -> playtesthub.v1.SurveyAnswer
+	19,  // 72: playtesthub.v1.SubmitSurveyResponseResponse.response:type_name -> playtesthub.v1.SurveyResponse
+	19,  // 73: playtesthub.v1.ListSurveyResponsesResponse.responses:type_name -> playtesthub.v1.SurveyResponse
+	20,  // 74: playtesthub.v1.ListAuditLogResponse.entries:type_name -> playtesthub.v1.AuditLogEntry
+	95,  // 75: playtesthub.v1.WorkerHealthEntry.last_tick_at:type_name -> google.protobuf.Timestamp
+	95,  // 76: playtesthub.v1.WorkerHealthEntry.expires_at:type_name -> google.protobuf.Timestamp
+	81,  // 77: playtesthub.v1.GetWorkerHealthResponse.workers:type_name -> playtesthub.v1.WorkerHealthEntry
+	95,  // 78: playtesthub.v1.ADTLinkage.linked_at:type_name -> google.protobuf.Timestamp
+	95,  // 79: playtesthub.v1.ADTLinkage.deleted_at:type_name -> google.protobuf.Timestamp
+	95,  // 80: playtesthub.v1.ADTBuild.uploaded_at:type_name -> google.protobuf.Timestamp
+	83,  // 81: playtesthub.v1.ListADTLinkagesResponse.linkages:type_name -> playtesthub.v1.ADTLinkage
+	95,  // 82: playtesthub.v1.StartADTLinkResponse.expires_at:type_name -> google.protobuf.Timestamp
+	83,  // 83: playtesthub.v1.CompleteADTLinkResponse.linkage:type_name -> playtesthub.v1.ADTLinkage
+	84,  // 84: playtesthub.v1.ListADTBuildsResponse.builds:type_name -> playtesthub.v1.ADTBuild
+	21,  // 85: playtesthub.v1.PlaytesthubService.GetPublicPlaytest:input_type -> playtesthub.v1.GetPublicPlaytestRequest
+	23,  // 86: playtesthub.v1.PlaytesthubService.GetPlaytestForPlayer:input_type -> playtesthub.v1.GetPlaytestForPlayerRequest
+	25,  // 87: playtesthub.v1.PlaytesthubService.AdminGetPlaytest:input_type -> playtesthub.v1.AdminGetPlaytestRequest
+	27,  // 88: playtesthub.v1.PlaytesthubService.ListPlaytests:input_type -> playtesthub.v1.ListPlaytestsRequest
+	29,  // 89: playtesthub.v1.PlaytesthubService.CreatePlaytest:input_type -> playtesthub.v1.CreatePlaytestRequest
+	31,  // 90: playtesthub.v1.PlaytesthubService.EditPlaytest:input_type -> playtesthub.v1.EditPlaytestRequest
+	33,  // 91: playtesthub.v1.PlaytesthubService.SoftDeletePlaytest:input_type -> playtesthub.v1.SoftDeletePlaytestRequest
+	35,  // 92: playtesthub.v1.PlaytesthubService.TransitionPlaytestStatus:input_type -> playtesthub.v1.TransitionPlaytestStatusRequest
+	41,  // 93: playtesthub.v1.PlaytesthubService.ExchangeDiscordCode:input_type -> playtesthub.v1.ExchangeDiscordCodeRequest
+	37,  // 94: playtesthub.v1.PlaytesthubService.Signup:input_type -> playtesthub.v1.SignupRequest
+	39,  // 95: playtesthub.v1.PlaytesthubService.GetApplicantStatus:input_type -> playtesthub.v1.GetApplicantStatusRequest
+	43,  // 96: playtesthub.v1.PlaytesthubService.AcceptNDA:input_type -> playtesthub.v1.AcceptNDARequest
+	45,  // 97: playtesthub.v1.PlaytesthubService.GetGrantedCode:input_type -> playtesthub.v1.GetGrantedCodeRequest
+	47,  // 98: playtesthub.v1.PlaytesthubService.GetADTDownloadInfo:input_type -> playtesthub.v1.GetADTDownloadInfoRequest
+	49,  // 99: playtesthub.v1.PlaytesthubService.ListApplicants:input_type -> playtesthub.v1.ListApplicantsRequest
+	51,  // 100: playtesthub.v1.PlaytesthubService.ApproveApplicant:input_type -> playtesthub.v1.ApproveApplicantRequest
+	53,  // 101: playtesthub.v1.PlaytesthubService.RejectApplicant:input_type -> playtesthub.v1.RejectApplicantRequest
+	55,  // 102: playtesthub.v1.PlaytesthubService.RetryDM:input_type -> playtesthub.v1.RetryDMRequest
+	57,  // 103: playtesthub.v1.PlaytesthubService.UploadCodes:input_type -> playtesthub.v1.UploadCodesRequest
+	60,  // 104: playtesthub.v1.PlaytesthubService.TopUpCodes:input_type -> playtesthub.v1.TopUpCodesRequest
+	62,  // 105: playtesthub.v1.PlaytesthubService.SyncFromAGS:input_type -> playtesthub.v1.SyncFromAGSRequest
+	64,  // 106: playtesthub.v1.PlaytesthubService.GetCodePool:input_type -> playtesthub.v1.GetCodePoolRequest
+	66,  // 107: playtesthub.v1.PlaytesthubService.CreateSurvey:input_type -> playtesthub.v1.CreateSurveyRequest
+	68,  // 108: playtesthub.v1.PlaytesthubService.EditSurvey:input_type -> playtesthub.v1.EditSurveyRequest
+	70,  // 109: playtesthub.v1.PlaytesthubService.GetSurvey:input_type -> playtesthub.v1.GetSurveyRequest
+	72,  // 110: playtesthub.v1.PlaytesthubService.SubmitSurveyResponse:input_type -> playtesthub.v1.SubmitSurveyResponseRequest
+	74,  // 111: playtesthub.v1.PlaytesthubService.ListSurveyResponses:input_type -> playtesthub.v1.ListSurveyResponsesRequest
+	76,  // 112: playtesthub.v1.PlaytesthubService.ListAuditLog:input_type -> playtesthub.v1.ListAuditLogRequest
+	78,  // 113: playtesthub.v1.PlaytesthubService.RetryFailedDms:input_type -> playtesthub.v1.RetryFailedDmsRequest
+	80,  // 114: playtesthub.v1.PlaytesthubService.GetWorkerHealth:input_type -> playtesthub.v1.GetWorkerHealthRequest
+	85,  // 115: playtesthub.v1.PlaytesthubService.ListADTLinkages:input_type -> playtesthub.v1.ListADTLinkagesRequest
+	87,  // 116: playtesthub.v1.PlaytesthubService.StartADTLink:input_type -> playtesthub.v1.StartADTLinkRequest
+	89,  // 117: playtesthub.v1.PlaytesthubService.CompleteADTLink:input_type -> playtesthub.v1.CompleteADTLinkRequest
+	91,  // 118: playtesthub.v1.PlaytesthubService.UnlinkADT:input_type -> playtesthub.v1.UnlinkADTRequest
+	93,  // 119: playtesthub.v1.PlaytesthubService.ListADTBuilds:input_type -> playtesthub.v1.ListADTBuildsRequest
+	22,  // 120: playtesthub.v1.PlaytesthubService.GetPublicPlaytest:output_type -> playtesthub.v1.GetPublicPlaytestResponse
+	24,  // 121: playtesthub.v1.PlaytesthubService.GetPlaytestForPlayer:output_type -> playtesthub.v1.GetPlaytestForPlayerResponse
+	26,  // 122: playtesthub.v1.PlaytesthubService.AdminGetPlaytest:output_type -> playtesthub.v1.AdminGetPlaytestResponse
+	28,  // 123: playtesthub.v1.PlaytesthubService.ListPlaytests:output_type -> playtesthub.v1.ListPlaytestsResponse
+	30,  // 124: playtesthub.v1.PlaytesthubService.CreatePlaytest:output_type -> playtesthub.v1.CreatePlaytestResponse
+	32,  // 125: playtesthub.v1.PlaytesthubService.EditPlaytest:output_type -> playtesthub.v1.EditPlaytestResponse
+	34,  // 126: playtesthub.v1.PlaytesthubService.SoftDeletePlaytest:output_type -> playtesthub.v1.SoftDeletePlaytestResponse
+	36,  // 127: playtesthub.v1.PlaytesthubService.TransitionPlaytestStatus:output_type -> playtesthub.v1.TransitionPlaytestStatusResponse
+	42,  // 128: playtesthub.v1.PlaytesthubService.ExchangeDiscordCode:output_type -> playtesthub.v1.ExchangeDiscordCodeResponse
+	38,  // 129: playtesthub.v1.PlaytesthubService.Signup:output_type -> playtesthub.v1.SignupResponse
+	40,  // 130: playtesthub.v1.PlaytesthubService.GetApplicantStatus:output_type -> playtesthub.v1.GetApplicantStatusResponse
+	44,  // 131: playtesthub.v1.PlaytesthubService.AcceptNDA:output_type -> playtesthub.v1.AcceptNDAResponse
+	46,  // 132: playtesthub.v1.PlaytesthubService.GetGrantedCode:output_type -> playtesthub.v1.GetGrantedCodeResponse
+	48,  // 133: playtesthub.v1.PlaytesthubService.GetADTDownloadInfo:output_type -> playtesthub.v1.GetADTDownloadInfoResponse
+	50,  // 134: playtesthub.v1.PlaytesthubService.ListApplicants:output_type -> playtesthub.v1.ListApplicantsResponse
+	52,  // 135: playtesthub.v1.PlaytesthubService.ApproveApplicant:output_type -> playtesthub.v1.ApproveApplicantResponse
+	54,  // 136: playtesthub.v1.PlaytesthubService.RejectApplicant:output_type -> playtesthub.v1.RejectApplicantResponse
+	56,  // 137: playtesthub.v1.PlaytesthubService.RetryDM:output_type -> playtesthub.v1.RetryDMResponse
+	59,  // 138: playtesthub.v1.PlaytesthubService.UploadCodes:output_type -> playtesthub.v1.UploadCodesResponse
+	61,  // 139: playtesthub.v1.PlaytesthubService.TopUpCodes:output_type -> playtesthub.v1.TopUpCodesResponse
+	63,  // 140: playtesthub.v1.PlaytesthubService.SyncFromAGS:output_type -> playtesthub.v1.SyncFromAGSResponse
+	65,  // 141: playtesthub.v1.PlaytesthubService.GetCodePool:output_type -> playtesthub.v1.GetCodePoolResponse
+	67,  // 142: playtesthub.v1.PlaytesthubService.CreateSurvey:output_type -> playtesthub.v1.CreateSurveyResponse
+	69,  // 143: playtesthub.v1.PlaytesthubService.EditSurvey:output_type -> playtesthub.v1.EditSurveyResponse
+	71,  // 144: playtesthub.v1.PlaytesthubService.GetSurvey:output_type -> playtesthub.v1.GetSurveyResponse
+	73,  // 145: playtesthub.v1.PlaytesthubService.SubmitSurveyResponse:output_type -> playtesthub.v1.SubmitSurveyResponseResponse
+	75,  // 146: playtesthub.v1.PlaytesthubService.ListSurveyResponses:output_type -> playtesthub.v1.ListSurveyResponsesResponse
+	77,  // 147: playtesthub.v1.PlaytesthubService.ListAuditLog:output_type -> playtesthub.v1.ListAuditLogResponse
+	79,  // 148: playtesthub.v1.PlaytesthubService.RetryFailedDms:output_type -> playtesthub.v1.RetryFailedDmsResponse
+	82,  // 149: playtesthub.v1.PlaytesthubService.GetWorkerHealth:output_type -> playtesthub.v1.GetWorkerHealthResponse
+	86,  // 150: playtesthub.v1.PlaytesthubService.ListADTLinkages:output_type -> playtesthub.v1.ListADTLinkagesResponse
+	88,  // 151: playtesthub.v1.PlaytesthubService.StartADTLink:output_type -> playtesthub.v1.StartADTLinkResponse
+	90,  // 152: playtesthub.v1.PlaytesthubService.CompleteADTLink:output_type -> playtesthub.v1.CompleteADTLinkResponse
+	92,  // 153: playtesthub.v1.PlaytesthubService.UnlinkADT:output_type -> playtesthub.v1.UnlinkADTResponse
+	94,  // 154: playtesthub.v1.PlaytesthubService.ListADTBuilds:output_type -> playtesthub.v1.ListADTBuildsResponse
+	120, // [120:155] is the sub-list for method output_type
+	85,  // [85:120] is the sub-list for method input_type
+	85,  // [85:85] is the sub-list for extension type_name
+	85,  // [85:85] is the sub-list for extension extendee
+	0,   // [0:85] is the sub-list for field type_name
 }
 
 func init() { file_playtesthub_v1_playtesthub_proto_init() }
@@ -6874,14 +7002,14 @@ func file_playtesthub_v1_playtesthub_proto_init() {
 	file_playtesthub_v1_playtesthub_proto_msgTypes[13].OneofWrappers = []any{}
 	file_playtesthub_v1_playtesthub_proto_msgTypes[22].OneofWrappers = []any{}
 	file_playtesthub_v1_playtesthub_proto_msgTypes[24].OneofWrappers = []any{}
-	file_playtesthub_v1_playtesthub_proto_msgTypes[44].OneofWrappers = []any{}
+	file_playtesthub_v1_playtesthub_proto_msgTypes[46].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_playtesthub_v1_playtesthub_proto_rawDesc), len(file_playtesthub_v1_playtesthub_proto_rawDesc)),
 			NumEnums:      7,
-			NumMessages:   86,
+			NumMessages:   88,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

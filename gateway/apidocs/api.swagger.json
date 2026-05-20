@@ -1286,10 +1286,47 @@
         ]
       }
     },
+    "/v1/player/playtests/{playtestId}/adtDownload": {
+      "get": {
+        "summary": "Get the ADT build download URL for the caller (authenticated player; APPROVED applicants only)",
+        "description": "FailedPrecondition for non-ADT playtests. URL re-minted on every call so the player always sees a fresh (possibly per-applicant) URL.",
+        "operationId": "PlaytesthubService_GetADTDownloadInfo",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetADTDownloadInfoResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "playtestId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "PlaytesthubService"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
     "/v1/player/playtests/{playtestId}/grantedCode": {
       "get": {
         "summary": "Get the granted code for the caller (authenticated player; APPROVED applicants only)",
-        "description": "NotFound for any soft-deleted playtest regardless of applicant state (PRD §5.1 / errors.md).",
+        "description": "NotFound for any soft-deleted playtest regardless of applicant state (PRD §5.1 / errors.md). FailedPrecondition for ADT playtests — use GetADTDownloadInfo.",
         "operationId": "PlaytesthubService_GetGrantedCode",
         "responses": {
           "200": {
@@ -2192,6 +2229,24 @@
         "tokenType": {
           "type": "string",
           "description": "Always \"Bearer\" today; carried verbatim for forward-compat."
+        }
+      }
+    },
+    "v1GetADTDownloadInfoResponse": {
+      "type": "object",
+      "properties": {
+        "url": {
+          "type": "string",
+          "description": "Resolved download URL. Issued via adt.Client.IssueDownloadURL when\nADT can mint a per-applicant URL; falls back to the playtest's\nstatic adtFallbackDownloadUrl when ADT 4xx/5xx but the linkage row\nis still present."
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Optional expiry; zero when ADT does not surface one."
+        },
+        "source": {
+          "type": "string",
+          "description": "\"issued\" (per-applicant ADT URL) or \"fallback\" (static playtest URL)."
         }
       }
     },

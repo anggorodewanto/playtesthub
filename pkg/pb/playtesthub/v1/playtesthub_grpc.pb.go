@@ -32,6 +32,7 @@ const (
 	PlaytesthubService_GetApplicantStatus_FullMethodName       = "/playtesthub.v1.PlaytesthubService/GetApplicantStatus"
 	PlaytesthubService_AcceptNDA_FullMethodName                = "/playtesthub.v1.PlaytesthubService/AcceptNDA"
 	PlaytesthubService_GetGrantedCode_FullMethodName           = "/playtesthub.v1.PlaytesthubService/GetGrantedCode"
+	PlaytesthubService_GetADTDownloadInfo_FullMethodName       = "/playtesthub.v1.PlaytesthubService/GetADTDownloadInfo"
 	PlaytesthubService_ListApplicants_FullMethodName           = "/playtesthub.v1.PlaytesthubService/ListApplicants"
 	PlaytesthubService_ApproveApplicant_FullMethodName         = "/playtesthub.v1.PlaytesthubService/ApproveApplicant"
 	PlaytesthubService_RejectApplicant_FullMethodName          = "/playtesthub.v1.PlaytesthubService/RejectApplicant"
@@ -84,6 +85,9 @@ type PlaytesthubServiceClient interface {
 	GetApplicantStatus(ctx context.Context, in *GetApplicantStatusRequest, opts ...grpc.CallOption) (*GetApplicantStatusResponse, error)
 	AcceptNDA(ctx context.Context, in *AcceptNDARequest, opts ...grpc.CallOption) (*AcceptNDAResponse, error)
 	GetGrantedCode(ctx context.Context, in *GetGrantedCodeRequest, opts ...grpc.CallOption) (*GetGrantedCodeResponse, error)
+	// GetADTDownloadInfo — ADT-distribution equivalent of GetGrantedCode
+	// (PRD §4.8 / M5.B). Player-only; gated on APPROVED applicant row.
+	GetADTDownloadInfo(ctx context.Context, in *GetADTDownloadInfoRequest, opts ...grpc.CallOption) (*GetADTDownloadInfoResponse, error)
 	ListApplicants(ctx context.Context, in *ListApplicantsRequest, opts ...grpc.CallOption) (*ListApplicantsResponse, error)
 	ApproveApplicant(ctx context.Context, in *ApproveApplicantRequest, opts ...grpc.CallOption) (*ApproveApplicantResponse, error)
 	RejectApplicant(ctx context.Context, in *RejectApplicantRequest, opts ...grpc.CallOption) (*RejectApplicantResponse, error)
@@ -239,6 +243,16 @@ func (c *playtesthubServiceClient) GetGrantedCode(ctx context.Context, in *GetGr
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetGrantedCodeResponse)
 	err := c.cc.Invoke(ctx, PlaytesthubService_GetGrantedCode_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *playtesthubServiceClient) GetADTDownloadInfo(ctx context.Context, in *GetADTDownloadInfoRequest, opts ...grpc.CallOption) (*GetADTDownloadInfoResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetADTDownloadInfoResponse)
+	err := c.cc.Invoke(ctx, PlaytesthubService_GetADTDownloadInfo_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -484,6 +498,9 @@ type PlaytesthubServiceServer interface {
 	GetApplicantStatus(context.Context, *GetApplicantStatusRequest) (*GetApplicantStatusResponse, error)
 	AcceptNDA(context.Context, *AcceptNDARequest) (*AcceptNDAResponse, error)
 	GetGrantedCode(context.Context, *GetGrantedCodeRequest) (*GetGrantedCodeResponse, error)
+	// GetADTDownloadInfo — ADT-distribution equivalent of GetGrantedCode
+	// (PRD §4.8 / M5.B). Player-only; gated on APPROVED applicant row.
+	GetADTDownloadInfo(context.Context, *GetADTDownloadInfoRequest) (*GetADTDownloadInfoResponse, error)
 	ListApplicants(context.Context, *ListApplicantsRequest) (*ListApplicantsResponse, error)
 	ApproveApplicant(context.Context, *ApproveApplicantRequest) (*ApproveApplicantResponse, error)
 	RejectApplicant(context.Context, *RejectApplicantRequest) (*RejectApplicantResponse, error)
@@ -552,6 +569,9 @@ func (UnimplementedPlaytesthubServiceServer) AcceptNDA(context.Context, *AcceptN
 }
 func (UnimplementedPlaytesthubServiceServer) GetGrantedCode(context.Context, *GetGrantedCodeRequest) (*GetGrantedCodeResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetGrantedCode not implemented")
+}
+func (UnimplementedPlaytesthubServiceServer) GetADTDownloadInfo(context.Context, *GetADTDownloadInfoRequest) (*GetADTDownloadInfoResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetADTDownloadInfo not implemented")
 }
 func (UnimplementedPlaytesthubServiceServer) ListApplicants(context.Context, *ListApplicantsRequest) (*ListApplicantsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListApplicants not implemented")
@@ -866,6 +886,24 @@ func _PlaytesthubService_GetGrantedCode_Handler(srv interface{}, ctx context.Con
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(PlaytesthubServiceServer).GetGrantedCode(ctx, req.(*GetGrantedCodeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PlaytesthubService_GetADTDownloadInfo_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetADTDownloadInfoRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PlaytesthubServiceServer).GetADTDownloadInfo(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PlaytesthubService_GetADTDownloadInfo_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PlaytesthubServiceServer).GetADTDownloadInfo(ctx, req.(*GetADTDownloadInfoRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1306,6 +1344,10 @@ var PlaytesthubService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetGrantedCode",
 			Handler:    _PlaytesthubService_GetGrantedCode_Handler,
+		},
+		{
+			MethodName: "GetADTDownloadInfo",
+			Handler:    _PlaytesthubService_GetADTDownloadInfo_Handler,
 		},
 		{
 			MethodName: "ListApplicants",

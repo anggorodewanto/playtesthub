@@ -119,9 +119,44 @@ func (s *PlaytesthubServiceServer) Signup(ctx context.Context, req *pb.SignupReq
 // surfaces as PENDING-fallback per PRD §5.4: signup itself is never
 // failed by the auto-approve attempt.
 func (s *PlaytesthubServiceServer) tryAutoApprove(ctx context.Context, pt *repo.Playtest, a *repo.Applicant) *repo.Applicant {
-	if s.txRunner == nil || s.code == nil || pt.AutoApproveLimit == nil {
+	if s.txRunner == nil || pt.AutoApproveLimit == nil {
 		return nil
 	}
+	// STEAM_KEYS / AGS_CAMPAIGN auto-approve still needs the code store
+	// wired; ADT skips it entirely (no code pool — PRD §5.5).
+	if pt.DistributionModel != distModelADT && s.code == nil {
+		return nil
+	}
+	updated, grantedCodeID, txErr := s.runAutoApproveTx(ctx, pt, a)
+	if txErr != nil {
+		// PRD §5.4: silent PENDING fallback — log at info so operators
+		// can see auto-approve attempts that hit the cap or the pool
+		// without polluting the audit timeline.
+		slog.InfoContext(ctx, "auto-approve skipped, applicant stays PENDING",
+			"playtestId", pt.ID.String(),
+			"applicantId", a.ID.String(),
+			"reason", txErr.Error())
+		return nil
+	}
+	if updated == nil {
+		return nil
+	}
+	if s.audit != nil {
+		if auditErr := repo.AppendApplicantAutoApproved(ctx, s.audit, s.namespace, pt.ID, updated.ID, grantedCodeID, *updated.ApprovedAt); auditErr != nil {
+			slog.WarnContext(ctx, "appending applicant.auto_approved audit failed",
+				"playtestId", pt.ID.String(),
+				"applicantId", updated.ID.String(),
+				"error", auditErr.Error())
+		}
+	}
+	s.enqueueAutoApproveDM(ctx, pt, updated)
+	return updated
+}
+
+// runAutoApproveTx executes the lock + count + (ADT no-code OR pool
+// reserve/finalize) + CAS pipeline inside one tx. Returns the updated
+// applicant, the granted code id (zero for ADT), and the tx error.
+func (s *PlaytesthubServiceServer) runAutoApproveTx(ctx context.Context, pt *repo.Playtest, a *repo.Applicant) (*repo.Applicant, uuid.UUID, error) {
 	limit := int(*pt.AutoApproveLimit)
 	var (
 		updated       *repo.Applicant
@@ -148,6 +183,14 @@ func (s *PlaytesthubServiceServer) tryAutoApprove(ctx context.Context, pt *repo.
 		if count >= limit {
 			return errAutoApproveCapHit
 		}
+		if pt.DistributionModel == distModelADT {
+			upd, casErr := s.applicant.ApproveCASNoCode(ctx, q, a.ID, time.Now().UTC(), true)
+			if casErr != nil {
+				return casErr
+			}
+			updated = upd
+			return nil
+		}
 		code, reserveErr := s.code.Reserve(ctx, q, pt.ID, a.UserID)
 		if reserveErr != nil {
 			return reserveErr
@@ -167,32 +210,30 @@ func (s *PlaytesthubServiceServer) tryAutoApprove(ctx context.Context, pt *repo.
 		grantedCodeID = code.ID
 		return nil
 	})
-	if txErr != nil {
-		// PRD §5.4: silent PENDING fallback — log at info so operators
-		// can see auto-approve attempts that hit the cap or the pool
-		// without polluting the audit timeline.
-		slog.InfoContext(ctx, "auto-approve skipped, applicant stays PENDING",
-			"playtestId", pt.ID.String(),
-			"applicantId", a.ID.String(),
-			"reason", txErr.Error())
-		return nil
-	}
+	return updated, grantedCodeID, txErr
+}
 
-	if s.audit != nil && updated != nil {
-		if auditErr := repo.AppendApplicantAutoApproved(ctx, s.audit, s.namespace, pt.ID, updated.ID, grantedCodeID, *updated.ApprovedAt); auditErr != nil {
-			slog.WarnContext(ctx, "appending applicant.auto_approved audit failed",
+// enqueueAutoApproveDM resolves the ADT download URL when needed and
+// enqueues the welcome DM. Failure to resolve the URL skips the DM (the
+// applicant is still APPROVED + auto_approved=true; operator can retry
+// via RetryDM once the ADT side recovers).
+func (s *PlaytesthubServiceServer) enqueueAutoApproveDM(ctx context.Context, pt *repo.Playtest, updated *repo.Applicant) {
+	if s.dmQueue == nil {
+		return
+	}
+	adtURL := ""
+	if pt.DistributionModel == distModelADT {
+		u, _, urlErr := s.resolveADTDownloadURL(ctx, pt, updated)
+		if urlErr != nil {
+			slog.WarnContext(ctx, "auto-approve DM skipped: ADT URL resolution failed",
 				"playtestId", pt.ID.String(),
 				"applicantId", updated.ID.String(),
-				"error", auditErr.Error())
+				"error", urlErr.Error())
+			return
 		}
+		adtURL = u
 	}
-
-	// Welcome DM — same shape as ApproveApplicant (auto-send / manual=false).
-	if s.dmQueue != nil && updated != nil {
-		_ = s.dmQueue.Enqueue(ctx, buildDMJob(updated, pt, false, s.playerBaseURL))
-	}
-
-	return updated
+	_ = s.dmQueue.Enqueue(ctx, buildDMJob(updated, pt, false, s.playerBaseURL, adtURL))
 }
 
 // errAutoApproveCapHit is the in-tx sentinel raised when the

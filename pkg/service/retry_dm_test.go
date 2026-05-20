@@ -374,7 +374,7 @@ func TestApproveApplicant_EnqueuesAutoSendDM(t *testing.T) {
 // running without a public player origin keep the existing behaviour.
 func TestBuildApprovalDMBody_NoBaseURL_FallsBackToLegacyCopy(t *testing.T) {
 	pt := &repo.Playtest{Title: "Acme Closed Beta", Slug: "acme-beta"}
-	got := buildApprovalDMBody(pt, "")
+	got := buildApprovalDMBody(pt, "", "")
 	want := `You're approved for "Acme Closed Beta". Open the playtest to view your code.`
 	if got != want {
 		t.Fatalf("legacy DM body mismatch:\n  got:  %q\n  want: %q", got, want)
@@ -387,7 +387,7 @@ func TestBuildApprovalDMBody_NoBaseURL_FallsBackToLegacyCopy(t *testing.T) {
 // as tappable links so no markdown wrapping is needed.
 func TestBuildApprovalDMBody_WithBaseURL_EmbedsHashRouterDeepLink(t *testing.T) {
 	pt := &repo.Playtest{Title: "Acme Closed Beta", Slug: "acme-beta"}
-	got := buildApprovalDMBody(pt, "https://anggorodewanto.github.io/playtesthub")
+	got := buildApprovalDMBody(pt, "https://anggorodewanto.github.io/playtesthub", "")
 	want := `You're approved for "Acme Closed Beta". View your code: https://anggorodewanto.github.io/playtesthub/#/playtest/acme-beta/pending`
 	if got != want {
 		t.Fatalf("deep-link DM body mismatch:\n  got:  %q\n  want: %q", got, want)
