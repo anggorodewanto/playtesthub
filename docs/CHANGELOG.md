@@ -1,5 +1,9 @@
 # playtesthub — Full Version History
 
+## v2.5.1 — 2026-05-20
+
+**Correction to v2.5 ADT linkage prose**: `studio_namespace` is derived from the playtesthub backend's own AGS service IAM JWT (`union_namespace ?? namespace`), NOT from the calling admin's request token. The v2.5 freeze prose at §4.8.1 / D1 / D2 / Resolved §1 / `schema.md` §"adt_linkage table" / `errors.md` `StartADTLink` row all read "calling admin's token" — that was wrong. Rationale for the fix: every downstream ADT API call from playtesthub carries the backend service JWT, so ADT's `(adt_namespace, studio_namespace) linked = true` flag is keyed on the *service token's* studio identity; keying the playtesthub-side `adt_linkage` row on the admin's request-token claims would cause a flag mismatch any time the two tokens disagree (e.g. an admin token at game-namespace scope vs a service token at studio scope), surfacing as `IssueDownloadURL` 401s post-link. PRD §4.8.1, `schema.md`, `errors.md`, and `STATUS_M5.md` (D1 / D2 / B1 / B4 / B11 / Resolved §1 + new §9) updated to read "backend's service IAM JWT". No code change required — the M5.B-phase-4 commit (`38b20fc`) shipped the correct implementation. No backwards-compatibility concern because no ADT linkage rows exist in any live deployment yet (Track B has not shipped end-to-end).
+
 ## v2.5 — 2026-05-20
 
 **ADT distribution model (M5 Track B scope freeze)** — adds a third `distributionModel` value (`ADT`) covering AccelByte Development Toolkit build distribution; the deliverable is a download URL (preferred per-applicant from ADT, fallback static URL on the playtest row), not a redemption code. **No new credential storage** — auth from playtesthub to ADT on every call is the existing AGS service IAM JWT (`AGS_IAM_CLIENT_*` env vars); ADT validates against AGS IAM JWKS and derives studio identity from `iss` / `union_namespace` claims.

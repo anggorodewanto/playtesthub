@@ -136,8 +136,8 @@ Applies only to playtests with `distributionModel = AGS_CAMPAIGN`.
 | SubmitSurveyResponse | player | `playtestId`, `surveyId`, answers | SurveyResponse | natural key (`playtestId`, `userId` — one-shot; second submit returns gRPC `AlreadyExists` with empty body) | M3 |
 | ListSurveyResponses | admin | `playtestId`, `surveyId?`, cursor | paginated `[]SurveyResponse` | read-only | M3 |
 | ListAuditLog | admin | `playtestId`, `actorFilter?` (`'system'` maps to `actorUserId IS NULL`), `actionFilter?`, cursor | paginated `[]AuditLog` | read-only | M3 |
-| ListADTLinkages | admin | (none — studio derived from token) | `[]ADTLinkage` (identity columns only — no credential) | read-only | M5.B |
-| StartADTLink | admin | (none — studio derived from token) | `{linkUrl, state}` (state is a single-use 32-byte nonce; `linkUrl` carries `state` + `studio_namespace` query params) | not idempotent (each call mints a new `state`) | M5.B |
+| ListADTLinkages | admin | (none — studio derived from the backend's service IAM token) | `[]ADTLinkage` (identity columns only — no credential) | read-only | M5.B |
+| StartADTLink | admin | (none — studio derived from the backend's service IAM token) | `{linkUrl, state}` (state is a single-use 32-byte nonce; `linkUrl` carries `state` + `studio_namespace` query params) | not idempotent (each call mints a new `state`) | M5.B |
 | CompleteADTLink | admin | `state`, `adt_namespace` | `ADTLinkage` | natural key (`state` — single-use; replay returns `InvalidArgument`) | M5.B |
 | UnlinkADT | admin | `adtLinkageId` | success/empty | idempotent (re-unlink is no-op) | M5.B |
 | ListADTBuilds | admin | `adtLinkageId`, `adtGameId` | `[]Build` (proxied through `adt.Client`) | read-only | M5.B |
@@ -152,7 +152,7 @@ ADT (AccelByte Development Toolkit) playtests distribute an in-development build
 #### 4.8.1 Linkage scope and identity derivation
 
 - **Per-studio linkage, not per-playtest, not per-game-namespace.** One `adt_linkage` row covers every game namespace and every playtest under a studio. Keyed `(studio_namespace, adt_namespace)`.
-- **`studio_namespace` is derived server-side from the calling admin's AGS IAM token** as `token.union_namespace ?? token.namespace`. The admin UI never composes it; the backend embeds it in the `linkUrl` returned from `StartADTLink`. Studio-namespace tokens carry `namespace` equal to the studio namespace; game-namespace tokens always carry `union_namespace`. A token with neither claim is rejected at `StartADTLink` with `FailedPrecondition` per [`errors.md`](errors.md).
+- **`studio_namespace` is derived server-side from the playtesthub backend's own AGS service IAM JWT** as `token.union_namespace ?? token.namespace`, NOT from the calling admin's request token. The backend mints the service JWT via the existing client-credentials grant (`AGS_IAM_CLIENT_ID` / `AGS_IAM_CLIENT_SECRET` against `${AGS_BASE_URL}/iam/v3/oauth/token`) and decodes the claims; this is the same token ADT sees on every downstream API call, so keying linkage rows on the service token's claims is the only way for the playtesthub-side `adt_linkage` row to match ADT's `(adt_namespace, studio_namespace) linked = true` flag in all cases. The admin UI never composes the value; the backend embeds it in the `linkUrl` returned from `StartADTLink`. Studio-namespace service tokens carry `namespace` equal to the studio namespace; game-namespace service tokens always carry `union_namespace`. A service token with neither claim is rejected at `StartADTLink` with `FailedPrecondition` per [`errors.md`](errors.md).
 
 #### 4.8.2 Linking signal — state-bearing redirect, no `grantCode` exchange
 

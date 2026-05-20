@@ -156,7 +156,7 @@ Identity row for a successful studio ↔ ADT-namespace link. See PRD §4.8 for t
 ```
 adt_linkage {
   id                 UUID PK
-  studio_namespace   TEXT NOT NULL    // derived server-side from the admin's AGS token (union_namespace ?? namespace)
+  studio_namespace   TEXT NOT NULL    // derived server-side from the backend's AGS service IAM JWT (union_namespace ?? namespace) — NOT the calling admin's request token; see PRD §4.8.1
   adt_namespace      TEXT NOT NULL    // echoed by ADT on the redirect-back URL; validated indirectly via subsequent ADT API calls
   linked_by_user_id  UUID NOT NULL    // AGS user id of the admin who completed the link
   linked_at          TIMESTAMP NOT NULL
