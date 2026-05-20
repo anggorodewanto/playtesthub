@@ -1172,6 +1172,31 @@ func TestListPlaytests_ExcludesSoftDeleted(t *testing.T) {
 	}
 }
 
+// ---------------- GetPublicConfig -------------------------------------------
+
+func TestGetPublicConfig_ReturnsConfiguredPlayerBaseURL(t *testing.T) {
+	svr, _, _ := newTestServer()
+	svr.WithPlayerBaseURL("https://play.example.com")
+	resp, err := svr.GetPublicConfig(context.Background(), &pb.GetPublicConfigRequest{})
+	if err != nil {
+		t.Fatalf("unexpected: %v", err)
+	}
+	if got, want := resp.GetPlayerBaseUrl(), "https://play.example.com"; got != want {
+		t.Errorf("player_base_url = %q, want %q", got, want)
+	}
+}
+
+func TestGetPublicConfig_UnsetPlayerBaseURL_ReturnsEmpty(t *testing.T) {
+	svr, _, _ := newTestServer()
+	resp, err := svr.GetPublicConfig(context.Background(), &pb.GetPublicConfigRequest{})
+	if err != nil {
+		t.Fatalf("unexpected: %v", err)
+	}
+	if resp.GetPlayerBaseUrl() != "" {
+		t.Errorf("player_base_url = %q, want empty", resp.GetPlayerBaseUrl())
+	}
+}
+
 // ---------------- GetPublicPlaytest -----------------------------------------
 
 func TestGetPublicPlaytest_OpenPlaytest_ReturnsPublicSubset(t *testing.T) {

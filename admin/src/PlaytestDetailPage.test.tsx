@@ -17,6 +17,11 @@ const mockCreateAnnouncement = vi.fn()
 const mockGetCodes = vi.fn()
 const mockApprove = vi.fn()
 const mockReject = vi.fn()
+const mockGetPublicConfig = vi.fn()
+
+vi.mock('./playtesthubapi/generated-public/queries/PlaytesthubService.query', () => ({
+  usePlaytesthubServiceApi_GetConfig: (...a: unknown[]) => mockGetPublicConfig(...a)
+}))
 
 vi.mock('./playtesthubapi/generated-admin/queries/PlaytesthubServiceAdmin.query', () => ({
   Key_PlaytesthubServiceAdmin: {
@@ -84,6 +89,7 @@ beforeEach(() => {
   mockGetCodes.mockReturnValue({ data: { stats: { total: 0, unused: 0, granted: 0 } }, isLoading: false })
   mockApprove.mockReturnValue({ mutate: vi.fn() })
   mockReject.mockReturnValue({ mutate: vi.fn() })
+  mockGetPublicConfig.mockReturnValue({ data: { playerBaseUrl: 'https://play.example.com' } })
 })
 
 describe('PlaytestDetailPage shell', () => {
@@ -226,6 +232,26 @@ describe('PlaytestDetailPage shell', () => {
     const user = userEvent.setup()
     await user.click(screen.getByRole('tab', { name: 'Distribution' }))
     expect(await screen.findByText('🔗 ADT Namespace Not Linked')).toBeInTheDocument()
+  })
+
+  it('Copy share link uses the backend-supplied player_base_url, not the admin host', async () => {
+    mockGetPublicConfig.mockReturnValue({ data: { playerBaseUrl: 'https://play.example.com/' } })
+    const user = userEvent.setup()
+    renderDetail('autumn-draft')
+    await user.click(screen.getByRole('button', { name: 'Copy share link' }))
+    await waitFor(async () => {
+      const text = await navigator.clipboard.readText()
+      expect(text).toBe('https://play.example.com/#/playtest/autumn-draft')
+    })
+  })
+
+  it('Copy share link shows an error when player_base_url is unset (no clipboard write)', async () => {
+    mockGetPublicConfig.mockReturnValue({ data: { playerBaseUrl: '' } })
+    const user = userEvent.setup()
+    renderDetail('autumn-draft')
+    await user.click(screen.getByRole('button', { name: 'Copy share link' }))
+    expect(await screen.findByText(/PLAYER_BASE_URL/)).toBeInTheDocument()
+    expect(await navigator.clipboard.readText()).toBe('')
   })
 
   it('Publish click triggers the transition mutation via confirm modal', async () => {

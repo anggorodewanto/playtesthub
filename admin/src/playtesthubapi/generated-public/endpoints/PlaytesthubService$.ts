@@ -19,6 +19,7 @@ import { V1GetAdtDownloadInfoResponse } from '../../generated-definitions/V1GetA
 import { V1GetApplicantStatusResponse } from '../../generated-definitions/V1GetApplicantStatusResponse.js'
 import { V1GetGrantedCodeResponse } from '../../generated-definitions/V1GetGrantedCodeResponse.js'
 import { V1GetPlaytestForPlayerResponse } from '../../generated-definitions/V1GetPlaytestForPlayerResponse.js'
+import { V1GetPublicConfigResponse } from '../../generated-definitions/V1GetPublicConfigResponse.js'
 import { V1GetPublicPlaytestResponse } from '../../generated-definitions/V1GetPublicPlaytestResponse.js'
 import { V1GetSurveyResponse } from '../../generated-definitions/V1GetSurveyResponse.js'
 import { V1SignupResponse } from '../../generated-definitions/V1SignupResponse.js'
@@ -33,6 +34,21 @@ export class PlaytesthubService$ {
     this.useSchemaValidation = useSchemaValidation
   }
 
+  /**
+   * Returns environment-derived client config that both the admin and player frontends need to construct cross-app URLs. player_base_url is the public origin of the player Svelte bundle (from backend env PLAYER_BASE_URL); empty string when unset.
+   */
+  getConfig(): Promise<Response<V1GetPublicConfigResponse>> {
+    const params = {} as AxiosRequestConfig
+    const url = '/v1/public/config'
+    const resultPromise = this.axiosInstance.get(url, { params })
+
+    return Validate.validateOrReturnResponse(
+      this.useSchemaValidation,
+      () => resultPromise,
+      V1GetPublicConfigResponse,
+      'V1GetPublicConfigResponse'
+    )
+  }
   /**
    * Player runs Discord OAuth directly (Discord developer portal owns the redirect-URI allowlist). The resulting Discord authorization code is POSTed here; the backend authenticates with confidential AGS IAM credentials and calls /iam/v3/oauth/platforms/discord/token (platform-token grant). AGS auto-creates the Justice platform account on first call and returns AGS access + refresh tokens, which we forward verbatim. Replaces the auth-code federation flow attempted in STATUS.md M1 phase 9.2 — that flow's /iam/v3/oauth/token step always failed with invalid_grant in game namespaces because the auth-code path skips Justice-platform-account creation.
    */

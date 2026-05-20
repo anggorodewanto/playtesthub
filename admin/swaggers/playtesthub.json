@@ -1753,6 +1753,30 @@
         ]
       }
     },
+    "/v1/public/config": {
+      "get": {
+        "summary": "Get the public client config (unauthenticated)",
+        "description": "Returns environment-derived client config that both the admin and player frontends need to construct cross-app URLs. player_base_url is the public origin of the player Svelte bundle (from backend env PLAYER_BASE_URL); empty string when unset.",
+        "operationId": "PlaytesthubService_GetPublicConfig",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetPublicConfigResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "PlaytesthubService"
+        ]
+      }
+    },
     "/v1/public/playtests/{slug}": {
       "get": {
         "summary": "Get a playtest by slug (unauthenticated)",
@@ -2540,6 +2564,15 @@
             "type": "object",
             "$ref": "#/definitions/v1ParticipantRow"
           }
+        }
+      }
+    },
+    "v1GetPublicConfigResponse": {
+      "type": "object",
+      "properties": {
+        "playerBaseUrl": {
+          "type": "string",
+          "description": "Public origin of the player Svelte bundle (from backend env\nPLAYER_BASE_URL). Empty string when unset — callers SHOULD treat\nempty as \"player URL not configured\" and surface that to the user\nrather than falling back silently."
         }
       }
     },

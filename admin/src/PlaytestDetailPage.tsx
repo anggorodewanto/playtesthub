@@ -21,6 +21,7 @@ import {
   usePlaytesthubServiceAdminApi_CreatePlaytest_ByPlaytestIdTransitionStatuMutation,
   usePlaytesthubServiceAdminApi_GetPlaytests
 } from './playtesthubapi/generated-admin/queries/PlaytesthubServiceAdmin.query'
+import { usePlaytesthubServiceApi_GetConfig } from './playtesthubapi/generated-public/queries/PlaytesthubService.query'
 import { PlaytestStatus } from './shared/playtesthub-enums'
 import { toastError } from './shared/api-error'
 import { DistributionTab } from './tabs/DistributionTab'
@@ -52,6 +53,12 @@ export function PlaytestDetailPage() {
 
   const { data, isLoading, error, refetch } = usePlaytesthubServiceAdminApi_GetPlaytests(sdk, {})
   const playtest = ((data?.playtests ?? []) as V1Playtest[]).find(p => p.slug === slug)
+
+  // Player-app origin is owned by the backend (PLAYER_BASE_URL env). Read it
+  // via the unauth GetPublicConfig RPC so the admin AppUI never has to guess
+  // — window.location.origin would point at the AGS Admin Portal host.
+  const publicConfigQuery = usePlaytesthubServiceApi_GetConfig(sdk, {})
+  const playerBaseUrl = publicConfigQuery.data?.playerBaseUrl ?? ''
 
   const transitionMutation = usePlaytesthubServiceAdminApi_CreatePlaytest_ByPlaytestIdTransitionStatuMutation(sdk, {
     onSuccess: () => {
@@ -133,7 +140,11 @@ export function PlaytestDetailPage() {
   }
 
   const copyShareLink = () => {
-    const link = `${window.location.origin}/#/playtest/${playtest.slug ?? ''}`
+    if (!playerBaseUrl) {
+      message.error('Player app URL not configured — set PLAYER_BASE_URL on the backend')
+      return
+    }
+    const link = `${playerBaseUrl.replace(/\/$/, '')}/#/playtest/${playtest.slug ?? ''}`
     void navigator.clipboard?.writeText(link).then(
       () => message.success('Playtest link copied'),
       () => message.error('Clipboard unavailable')

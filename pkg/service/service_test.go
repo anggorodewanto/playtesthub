@@ -17,6 +17,7 @@ func TestServiceDescriptorMethods(t *testing.T) {
 	want := map[string]bool{
 		// M1
 		"GetPublicPlaytest":        true,
+		"GetPublicConfig":          true,
 		"GetPlaytestForPlayer":     true,
 		"AdminGetPlaytest":         true,
 		"ListPlaytests":            true,

@@ -20,6 +20,7 @@ const _ = grpc.SupportPackageIsVersion9
 
 const (
 	PlaytesthubService_GetPublicPlaytest_FullMethodName        = "/playtesthub.v1.PlaytesthubService/GetPublicPlaytest"
+	PlaytesthubService_GetPublicConfig_FullMethodName          = "/playtesthub.v1.PlaytesthubService/GetPublicConfig"
 	PlaytesthubService_GetPlaytestForPlayer_FullMethodName     = "/playtesthub.v1.PlaytesthubService/GetPlaytestForPlayer"
 	PlaytesthubService_AdminGetPlaytest_FullMethodName         = "/playtesthub.v1.PlaytesthubService/AdminGetPlaytest"
 	PlaytesthubService_ListPlaytests_FullMethodName            = "/playtesthub.v1.PlaytesthubService/ListPlaytests"
@@ -76,6 +77,7 @@ const (
 //     so future RBAC can plug in without a proto change.
 type PlaytesthubServiceClient interface {
 	GetPublicPlaytest(ctx context.Context, in *GetPublicPlaytestRequest, opts ...grpc.CallOption) (*GetPublicPlaytestResponse, error)
+	GetPublicConfig(ctx context.Context, in *GetPublicConfigRequest, opts ...grpc.CallOption) (*GetPublicConfigResponse, error)
 	GetPlaytestForPlayer(ctx context.Context, in *GetPlaytestForPlayerRequest, opts ...grpc.CallOption) (*GetPlaytestForPlayerResponse, error)
 	AdminGetPlaytest(ctx context.Context, in *AdminGetPlaytestRequest, opts ...grpc.CallOption) (*AdminGetPlaytestResponse, error)
 	ListPlaytests(ctx context.Context, in *ListPlaytestsRequest, opts ...grpc.CallOption) (*ListPlaytestsResponse, error)
@@ -135,6 +137,16 @@ func (c *playtesthubServiceClient) GetPublicPlaytest(ctx context.Context, in *Ge
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetPublicPlaytestResponse)
 	err := c.cc.Invoke(ctx, PlaytesthubService_GetPublicPlaytest_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *playtesthubServiceClient) GetPublicConfig(ctx context.Context, in *GetPublicConfigRequest, opts ...grpc.CallOption) (*GetPublicConfigResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetPublicConfigResponse)
+	err := c.cc.Invoke(ctx, PlaytesthubService_GetPublicConfig_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -528,6 +540,7 @@ func (c *playtesthubServiceClient) ListAnnouncements(ctx context.Context, in *Li
 //     so future RBAC can plug in without a proto change.
 type PlaytesthubServiceServer interface {
 	GetPublicPlaytest(context.Context, *GetPublicPlaytestRequest) (*GetPublicPlaytestResponse, error)
+	GetPublicConfig(context.Context, *GetPublicConfigRequest) (*GetPublicConfigResponse, error)
 	GetPlaytestForPlayer(context.Context, *GetPlaytestForPlayerRequest) (*GetPlaytestForPlayerResponse, error)
 	AdminGetPlaytest(context.Context, *AdminGetPlaytestRequest) (*AdminGetPlaytestResponse, error)
 	ListPlaytests(context.Context, *ListPlaytestsRequest) (*ListPlaytestsResponse, error)
@@ -584,6 +597,9 @@ type UnimplementedPlaytesthubServiceServer struct{}
 
 func (UnimplementedPlaytesthubServiceServer) GetPublicPlaytest(context.Context, *GetPublicPlaytestRequest) (*GetPublicPlaytestResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetPublicPlaytest not implemented")
+}
+func (UnimplementedPlaytesthubServiceServer) GetPublicConfig(context.Context, *GetPublicConfigRequest) (*GetPublicConfigResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetPublicConfig not implemented")
 }
 func (UnimplementedPlaytesthubServiceServer) GetPlaytestForPlayer(context.Context, *GetPlaytestForPlayerRequest) (*GetPlaytestForPlayerResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetPlaytestForPlayer not implemented")
@@ -730,6 +746,24 @@ func _PlaytesthubService_GetPublicPlaytest_Handler(srv interface{}, ctx context.
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(PlaytesthubServiceServer).GetPublicPlaytest(ctx, req.(*GetPublicPlaytestRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PlaytesthubService_GetPublicConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetPublicConfigRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PlaytesthubServiceServer).GetPublicConfig(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PlaytesthubService_GetPublicConfig_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PlaytesthubServiceServer).GetPublicConfig(ctx, req.(*GetPublicConfigRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1410,6 +1444,10 @@ var PlaytesthubService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetPublicPlaytest",
 			Handler:    _PlaytesthubService_GetPublicPlaytest_Handler,
+		},
+		{
+			MethodName: "GetPublicConfig",
+			Handler:    _PlaytesthubService_GetPublicConfig_Handler,
 		},
 		{
 			MethodName: "GetPlaytestForPlayer",

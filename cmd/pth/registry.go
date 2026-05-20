@@ -486,6 +486,13 @@ var catalogue = []commandSpec{
 		Example:       "pth --namespace mygame --profile admin playtest transition --id 01J0... --to OPEN",
 	},
 	{
+		Name:          "public-config",
+		Milestone:     "M5.B",
+		Description:   "Fetch the public client config (unauth). Returns player_base_url so the admin AppUI can build cross-app share links.",
+		OptionalFlags: []flagSpec{dryRunFlag()},
+		Example:       "pth --addr localhost:6565 public-config",
+	},
+	{
 		Name:        "survey create",
 		Milestone:   "M3",
 		Description: "Admin: create the first-version survey for a playtest. Server mints question + option UUIDs (cli.md §6.3).",

@@ -31,6 +31,14 @@ service PlaytesthubService {
     };
   }
 
+  rpc GetPublicConfig(GetPublicConfigRequest) returns (GetPublicConfigResponse) {
+    option (google.api.http) = {get: "/v1/public/config"};
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Get the public client config (unauthenticated)"
+      description: "Returns environment-derived client config that both the admin and player frontends need to construct cross-app URLs. player_base_url is the public origin of the player Svelte bundle (from backend env PLAYER_BASE_URL); empty string when unset."
+    };
+  }
+
   rpc GetPlaytestForPlayer(GetPlaytestForPlayerRequest) returns (GetPlaytestForPlayerResponse) {
     option (google.api.http) = {get: "/v1/player/playtests/{slug}"};
     option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
@@ -989,6 +997,15 @@ message GetPublicPlaytestRequest {
 }
 message GetPublicPlaytestResponse {
   PublicPlaytest playtest = 1;
+}
+
+message GetPublicConfigRequest {}
+message GetPublicConfigResponse {
+  // Public origin of the player Svelte bundle (from backend env
+  // PLAYER_BASE_URL). Empty string when unset — callers SHOULD treat
+  // empty as "player URL not configured" and surface that to the user
+  // rather than falling back silently.
+  string player_base_url = 1;
 }
 
 message GetPlaytestForPlayerRequest {

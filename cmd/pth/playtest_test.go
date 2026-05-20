@@ -56,8 +56,14 @@ type stubPlaytestClient struct {
 	submitSurveyFunc    func(ctx context.Context, in *pb.SubmitSurveyResponseRequest, opts ...grpc.CallOption) (*pb.SubmitSurveyResponseResponse, error)
 	listSurveyRespFunc  func(ctx context.Context, in *pb.ListSurveyResponsesRequest, opts ...grpc.CallOption) (*pb.ListSurveyResponsesResponse, error)
 	retryFailedDmsFunc  func(ctx context.Context, in *pb.RetryFailedDmsRequest, opts ...grpc.CallOption) (*pb.RetryFailedDmsResponse, error)
+	publicConfigFunc    func(ctx context.Context, in *pb.GetPublicConfigRequest, opts ...grpc.CallOption) (*pb.GetPublicConfigResponse, error)
 
 	calls int
+}
+
+func (s *stubPlaytestClient) GetPublicConfig(ctx context.Context, in *pb.GetPublicConfigRequest, opts ...grpc.CallOption) (*pb.GetPublicConfigResponse, error) {
+	s.calls++
+	return s.publicConfigFunc(ctx, in, opts...)
 }
 
 func (s *stubPlaytestClient) GetPublicPlaytest(ctx context.Context, in *pb.GetPublicPlaytestRequest, opts ...grpc.CallOption) (*pb.GetPublicPlaytestResponse, error) {

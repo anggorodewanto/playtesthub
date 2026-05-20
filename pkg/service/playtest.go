@@ -509,6 +509,16 @@ func (s *PlaytesthubServiceServer) ListPlaytests(ctx context.Context, req *pb.Li
 	return &pb.ListPlaytestsResponse{Playtests: out}, nil
 }
 
+// GetPublicConfig returns environment-derived client config the admin
+// and player frontends need to construct cross-app URLs. Unauth — the
+// values are non-sensitive (a public URL) and both fronts read them.
+// player_base_url is empty when PLAYER_BASE_URL is unset on the
+// backend; callers SHOULD surface that to the user rather than fall
+// back silently to their own origin.
+func (s *PlaytesthubServiceServer) GetPublicConfig(_ context.Context, _ *pb.GetPublicConfigRequest) (*pb.GetPublicConfigResponse, error) {
+	return &pb.GetPublicConfigResponse{PlayerBaseUrl: s.playerBaseURL}, nil
+}
+
 // GetPublicPlaytest returns the unauthenticated field subset. DRAFT,
 // CLOSED, and soft-deleted rows are indistinguishable from missing per
 // PRD §5.1 visibility — all return NotFound.

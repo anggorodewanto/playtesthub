@@ -107,6 +107,7 @@ AGS_IAM_CLIENT_ID="smoke-client-id" \
 AGS_IAM_CLIENT_SECRET="smoke-client-secret" \
 AGS_BASE_URL="https://ags.smoke.invalid" \
 AGS_NAMESPACE="smoke" \
+PLAYER_BASE_URL="https://player.smoke.invalid" \
 PLUGIN_GRPC_SERVER_AUTH_ENABLED=false \
     setsid go run . >/tmp/playtesthub-pth-smoke.log 2>&1 &
 APP_PID=$!
@@ -149,6 +150,20 @@ log "pth playtest get-public --dry-run prints the request without dialling"
 dry_out=$("$PTH_BIN" --addr "doesnotresolve.invalid:9" playtest get-public --slug demo --dry-run)
 [[ "$(jq -r '.slug' <<<"$dry_out")" == "demo" ]] \
     || fail "dry-run output missing slug: $dry_out"
+
+# --- pth public-config ------------------------------------------------
+# Asserts the env→service wiring for PLAYER_BASE_URL: boot sets
+# https://player.smoke.invalid, the unauth RPC must surface that value
+# verbatim so the admin AppUI can build cross-app share links.
+log "pth public-config returns the booted PLAYER_BASE_URL"
+set +e
+cfg_out=$("$PTH_BIN" --addr "$TARGET_ADDR" --insecure public-config 2>/tmp/pth-stderr)
+cfg_exit=$?
+set -e
+[[ $cfg_exit -eq 0 ]] \
+    || { cat /tmp/pth-stderr >&2; fail "public-config exit=$cfg_exit, want 0 (out: $cfg_out)"; }
+[[ "$(jq -r '.player_base_url' <<<"$cfg_out")" == "https://player.smoke.invalid" ]] \
+    || fail "public-config player_base_url mismatch: $cfg_out"
 
 # --- pth auth login --discord --no-browser --dry-run -----------------
 # Phase 10.3 (docs/STATUS.md): asserts CLI URL construction + env-var

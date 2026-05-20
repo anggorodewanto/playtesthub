@@ -1158,6 +1158,20 @@
       "example": "pth --namespace mygame --profile admin playtest transition --id 01J0... --to OPEN"
     },
     {
+      "name": "public-config",
+      "milestone": "M5.B",
+      "description": "Fetch the public client config (unauth). Returns player_base_url so the admin AppUI can build cross-app share links.",
+      "requiredFlags": null,
+      "optionalFlags": [
+        {
+          "name": "--dry-run",
+          "description": "print the request JSON and exit without dialling",
+          "valueType": "bool"
+        }
+      ],
+      "example": "pth --addr localhost:6565 public-config"
+    },
+    {
       "name": "survey create",
       "milestone": "M3",
       "description": "Admin: create the first-version survey for a playtest. Server mints question + option UUIDs (cli.md §6.3).",

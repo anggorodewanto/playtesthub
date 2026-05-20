@@ -74,6 +74,27 @@ func local_request_PlaytesthubService_GetPublicPlaytest_0(ctx context.Context, m
 	return msg, metadata, err
 }
 
+func request_PlaytesthubService_GetPublicConfig_0(ctx context.Context, marshaler runtime.Marshaler, client PlaytesthubServiceClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var (
+		protoReq GetPublicConfigRequest
+		metadata runtime.ServerMetadata
+	)
+	if req.Body != nil {
+		_, _ = io.Copy(io.Discard, req.Body)
+	}
+	msg, err := client.GetPublicConfig(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
+	return msg, metadata, err
+}
+
+func local_request_PlaytesthubService_GetPublicConfig_0(ctx context.Context, marshaler runtime.Marshaler, server PlaytesthubServiceServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var (
+		protoReq GetPublicConfigRequest
+		metadata runtime.ServerMetadata
+	)
+	msg, err := server.GetPublicConfig(ctx, &protoReq)
+	return msg, metadata, err
+}
+
 func request_PlaytesthubService_GetPlaytestForPlayer_0(ctx context.Context, marshaler runtime.Marshaler, client PlaytesthubServiceClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
 	var (
 		protoReq GetPlaytestForPlayerRequest
@@ -2061,6 +2082,26 @@ func RegisterPlaytesthubServiceHandlerServer(ctx context.Context, mux *runtime.S
 		}
 		forward_PlaytesthubService_GetPublicPlaytest_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
 	})
+	mux.Handle(http.MethodGet, pattern_PlaytesthubService_GetPublicConfig_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		var stream runtime.ServerTransportStream
+		ctx = grpc.NewContextWithServerTransportStream(ctx, &stream)
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		annotatedContext, err := runtime.AnnotateIncomingContext(ctx, mux, req, "/playtesthub.v1.PlaytesthubService/GetPublicConfig", runtime.WithHTTPPathPattern("/v1/public/config"))
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := local_request_PlaytesthubService_GetPublicConfig_0(annotatedContext, inboundMarshaler, server, req, pathParams)
+		md.HeaderMD, md.TrailerMD = metadata.Join(md.HeaderMD, stream.Header()), metadata.Join(md.TrailerMD, stream.Trailer())
+		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
+		if err != nil {
+			runtime.HTTPError(annotatedContext, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		forward_PlaytesthubService_GetPublicConfig_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+	})
 	mux.Handle(http.MethodGet, pattern_PlaytesthubService_GetPlaytestForPlayer_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
@@ -2858,6 +2899,23 @@ func RegisterPlaytesthubServiceHandlerClient(ctx context.Context, mux *runtime.S
 		}
 		forward_PlaytesthubService_GetPublicPlaytest_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
 	})
+	mux.Handle(http.MethodGet, pattern_PlaytesthubService_GetPublicConfig_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		annotatedContext, err := runtime.AnnotateContext(ctx, mux, req, "/playtesthub.v1.PlaytesthubService/GetPublicConfig", runtime.WithHTTPPathPattern("/v1/public/config"))
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := request_PlaytesthubService_GetPublicConfig_0(annotatedContext, inboundMarshaler, client, req, pathParams)
+		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
+		if err != nil {
+			runtime.HTTPError(annotatedContext, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		forward_PlaytesthubService_GetPublicConfig_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+	})
 	mux.Handle(http.MethodGet, pattern_PlaytesthubService_GetPlaytestForPlayer_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
@@ -3492,6 +3550,7 @@ func RegisterPlaytesthubServiceHandlerClient(ctx context.Context, mux *runtime.S
 
 var (
 	pattern_PlaytesthubService_GetPublicPlaytest_0        = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 1, 0, 4, 1, 5, 3}, []string{"v1", "public", "playtests", "slug"}, ""))
+	pattern_PlaytesthubService_GetPublicConfig_0          = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "public", "config"}, ""))
 	pattern_PlaytesthubService_GetPlaytestForPlayer_0     = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 1, 0, 4, 1, 5, 3}, []string{"v1", "player", "playtests", "slug"}, ""))
 	pattern_PlaytesthubService_AdminGetPlaytest_0         = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 1, 0, 4, 1, 5, 3, 2, 4, 1, 0, 4, 1, 5, 5}, []string{"v1", "admin", "namespaces", "namespace", "playtests", "playtest_id"}, ""))
 	pattern_PlaytesthubService_ListPlaytests_0            = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 1, 0, 4, 1, 5, 3, 2, 4}, []string{"v1", "admin", "namespaces", "namespace", "playtests"}, ""))
@@ -3533,6 +3592,7 @@ var (
 
 var (
 	forward_PlaytesthubService_GetPublicPlaytest_0        = runtime.ForwardResponseMessage
+	forward_PlaytesthubService_GetPublicConfig_0          = runtime.ForwardResponseMessage
 	forward_PlaytesthubService_GetPlaytestForPlayer_0     = runtime.ForwardResponseMessage
 	forward_PlaytesthubService_AdminGetPlaytest_0         = runtime.ForwardResponseMessage
 	forward_PlaytesthubService_ListPlaytests_0            = runtime.ForwardResponseMessage
