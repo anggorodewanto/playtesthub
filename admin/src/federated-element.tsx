@@ -434,6 +434,26 @@ const AUTO_APPROVE_LIMIT_MAX = 100000
 const AUTO_APPROVE_LIMIT_ERROR =
   'auto_approve_limit must be between 1 and 100000 when auto_approve is true'
 
+// Mirrors the errors.md row for CreatePlaytest / EditPlaytest banner URL —
+// the backend rejects http with the byte-exact "banner_image_url must be
+// an https URL" string; the client validator surfaces the same string so
+// the form behaves the same whether the server is in the loop or not.
+const bannerImageUrlRule = {
+  validator(_: unknown, value: unknown) {
+    if (value == null || value === '') return Promise.resolve()
+    if (typeof value !== 'string') return Promise.reject(new Error('banner_image_url must be an https URL'))
+    try {
+      const parsed = new URL(value)
+      if (parsed.protocol !== 'https:') {
+        return Promise.reject(new Error('banner_image_url must be an https URL'))
+      }
+      return Promise.resolve()
+    } catch {
+      return Promise.reject(new Error('banner_image_url must be an https URL'))
+    }
+  }
+}
+
 const autoApproveLimitRule = ({ getFieldValue }: { getFieldValue: (name: string) => unknown }) => ({
   validator(_: unknown, value: unknown) {
     if (!getFieldValue('autoApprove')) return Promise.resolve()
@@ -667,12 +687,15 @@ function PlaytestCreatePage() {
         <Form.Item
           label="Banner image URL"
           name="bannerImageUrl"
-          rules={[{ type: 'url', message: 'Must be a URL' }]}
+          rules={[bannerImageUrlRule]}
           extra="https only — backend rejects http.">
-          <Input placeholder="https://..." />
+          <Input placeholder="https://..." data-testid="banner-image-url" />
         </Form.Item>
-        <Form.Item label="Platforms" name="platforms" rules={[{ required: true, message: 'Pick at least one' }]}>
-          <Select mode="multiple" options={PLATFORMS.map(p => ({ value: p.value, label: p.label }))} />
+        <Form.Item
+          label="Platforms"
+          name="platforms"
+          rules={[{ required: true, message: 'platforms must include at least one platform' }]}>
+          <Select mode="multiple" options={PLATFORMS.map(p => ({ value: p.value, label: p.label }))} data-testid="platforms-select" />
         </Form.Item>
         <Form.Item
           label={DATE_RANGE_LABEL}
