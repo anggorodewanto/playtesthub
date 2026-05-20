@@ -36,6 +36,7 @@ import (
 
 	"github.com/anggorodewanto/playtesthub/internal/reclaim"
 	"github.com/anggorodewanto/playtesthub/internal/window"
+	"github.com/anggorodewanto/playtesthub/pkg/adt"
 	"github.com/anggorodewanto/playtesthub/pkg/ags"
 	"github.com/anggorodewanto/playtesthub/pkg/common"
 	"github.com/anggorodewanto/playtesthub/pkg/config"
@@ -346,6 +347,18 @@ func buildPlaytesthubServer(cfg *config.Config, dbPool *pgxpool.Pool, httpClient
 		agsClient = ags.NewMemClient()
 		logger.Info("ags client: in-memory (enable auth to use the live SDK adapter)")
 	}
+
+	// ADT distribution model (M5.B / STATUS_M5.md Track B). The live
+	// SDK-backed adapter is gated on ADT-eng publishing endpoint URLs
+	// + the per-applicant URL surface (STATUS_M5.md Open Questions
+	// §1–2); B3 ships the in-memory MemClient only so the full ADT
+	// code path is exercised by tests + the smoke harness without an
+	// outbound ADT round-trip. MemClient is unconditional today —
+	// once the SDK adapter lands, the gate mirrors the AGS branch
+	// above (AuthEnabled + ADT_BASE_URL present → SDK; else mem).
+	adtClient := adt.NewMemClient()
+	logger.Info("adt client: in-memory (live adapter pending ADT-eng endpoint shapes)")
+	_ = adtClient // wired into svcServer when the ADT branches land (B4+).
 
 	leaderStore := repo.NewPgLeaderStore(dbPool)
 	workers := []service.WorkerInfo{{

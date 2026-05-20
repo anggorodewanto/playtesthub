@@ -126,6 +126,15 @@ log "AGS client wiring branch logged (M2 phase 8.1)"
 grep -q '"msg":"ags client: in-memory' /tmp/playtesthub-smoke.log \
     || { tail -40 /tmp/playtesthub-smoke.log >&2; fail "expected MemClient branch log line"; }
 
+log "ADT client wiring branch logged (M5.B phase 3)"
+# pkg/adt is wired unconditionally as MemClient in B3 (live adapter
+# pending ADT-eng endpoint shapes — STATUS_M5.md Open Questions §1–2).
+# A regression that forgets to wire pkg/adt drops this line; a future
+# regression that wires the SDK adapter unconditionally drops
+# "in-memory" and fails here.
+grep -q '"msg":"adt client: in-memory' /tmp/playtesthub-smoke.log \
+    || { tail -40 /tmp/playtesthub-smoke.log >&2; fail "expected ADT MemClient branch log line"; }
+
 log "gRPC reflection lists playtesthub.v1.PlaytesthubService"
 grpcurl -plaintext "localhost:$APP_PORT_GRPC" list \
     | grep -q '^playtesthub\.v1\.PlaytesthubService$' \
