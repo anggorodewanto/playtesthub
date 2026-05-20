@@ -36,7 +36,7 @@ func defaultFlowProfileFactory(getenv envSnapshot) flowProfileFactory {
 	}
 }
 
-const flowUsage = `flow: action required (one of: golden-m1, golden-m2, golden-m3, golden-m4)`
+const flowUsage = `flow: action required (one of: golden-m1, golden-m2, golden-m3, golden-m4, golden-m5)`
 
 func runFlow(ctx context.Context, stdout, stderr io.Writer, g *Globals, args []string, mk flowProfileFactory) int {
 	if len(args) == 0 {
@@ -53,6 +53,8 @@ func runFlow(ctx context.Context, stdout, stderr io.Writer, g *Globals, args []s
 		return runFlowGoldenM3(ctx, stdout, stderr, g, rest, mk)
 	case "golden-m4":
 		return runFlowGoldenM4(ctx, stdout, stderr, g, rest, mk)
+	case "golden-m5":
+		return runFlowGoldenM5(ctx, stdout, stderr, g, rest, mk)
 	default:
 		fmt.Fprintf(stderr, "flow: unknown action %q\n", action)
 		return exitLocalError
@@ -1100,6 +1102,86 @@ func flowGoldenM4AssertSystemTransitions(ctx context.Context, stdout, stderr io.
 		return exitClientError
 	}
 	return exitOK
+}
+
+// runFlowGoldenM5 exercises the ADT distribution path end-to-end
+// (PRD §4.8 / STATUS_M5.md B9). Currently dry-run only — emits the 11
+// NDJSON request lines the live flow will issue once the e2e harness
+// in B10 wires the MemClient simulation. The live path is intentionally
+// gated so the CLI dry-run probe (smoke harness) can pin the request
+// shapes before the cross-process orchestration lands.
+//
+// Eleven steps:
+//  1. adt linkage start                — mint linkUrl + state
+//  2. adt linkage complete             — finalize against state + adt_namespace
+//  3. adt build list                   — confirm the build picker resolves
+//  4. create-playtest                  — ADT + --auto-approve --auto-approve-limit 5
+//  5. transition-open                  — DRAFT → OPEN
+//  6. signup                           — player signs up (auto-approve fires)
+//  7. assert-applicant-auto-approved   — applicant row is APPROVED + auto_approved=true
+//  8. get-adt-download-info            — player resolves the per-build URL
+//  9. assert-adt-download-non-empty    — sanity-check URL string
+//
+// 10. audit list (applicant.auto_approved) — exactly one system-emitted row
+// 11. audit list (adt_linkage.create)  — exactly one admin-emitted row
+func runFlowGoldenM5(_ context.Context, stdout, stderr io.Writer, g *Globals, args []string, _ flowProfileFactory) int {
+	fs := flag.NewFlagSet("flow golden-m5", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	slug := fs.String("slug", "", "playtest slug (required)")
+	title := fs.String("title", "", "playtest title (default: 'Playtest <slug>')")
+	adtNamespace := fs.String("adt-namespace", "adt-ns-1", "ADT namespace to link + use on the playtest")
+	adtGameID := fs.String("adt-game-id", "game-x", "ADT-side game id")
+	adtBuildID := fs.String("adt-build-id", "build-001", "ADT-side build id")
+	autoApproveLimit := fs.Int("auto-approve-limit", 5, "auto-approve cap for golden-m5 (default 5)")
+	dryRun := fs.Bool("dry-run", false, "print every step's request JSON and exit without dialling")
+	if err := fs.Parse(args); err != nil {
+		return exitLocalError
+	}
+	if *slug == "" {
+		fmt.Fprintln(stderr, "flow golden-m5: --slug is required")
+		return exitLocalError
+	}
+	if g.Namespace == "" {
+		fmt.Fprintln(stderr, "flow golden-m5: --namespace (or PTH_NAMESPACE) is required")
+		return exitLocalError
+	}
+	if !*dryRun {
+		fmt.Fprintln(stderr, "flow golden-m5: live path lands in M5.B-phase-10; pass --dry-run for the request-shape catalogue")
+		return exitLocalError
+	}
+	resolvedTitle := *title
+	if resolvedTitle == "" {
+		resolvedTitle = "Playtest " + *slug
+	}
+	const placeholder = "<resolved-after-create>"
+	const statePlaceholder = "<resolved-after-link-start>"
+	const linkagePlaceholder = "<resolved-after-link-complete>"
+	limit := int32(*autoApproveLimit)
+	createReq := &pb.CreatePlaytestRequest{
+		Namespace:         g.Namespace,
+		Slug:              *slug,
+		Title:             resolvedTitle,
+		Platforms:         []pb.Platform{pb.Platform_PLATFORM_STEAM},
+		DistributionModel: pb.DistributionModel_DISTRIBUTION_MODEL_ADT,
+		AutoApprove:       true,
+		AutoApproveLimit:  &limit,
+		AdtNamespace:      adtNamespace,
+		AdtGameId:         adtGameID,
+		AdtBuildId:        adtBuildID,
+	}
+	return emitDryRunSteps(stdout, stderr, []dryRunStep{
+		{"adt-link-start", &pb.StartADTLinkRequest{Namespace: g.Namespace}},
+		{"adt-link-complete", &pb.CompleteADTLinkRequest{Namespace: g.Namespace, State: statePlaceholder, AdtNamespace: *adtNamespace}},
+		{"adt-build-list", &pb.ListADTBuildsRequest{Namespace: g.Namespace, AdtLinkageId: linkagePlaceholder, AdtGameId: *adtGameID}},
+		{"create-playtest", createReq},
+		{"transition-open", &pb.TransitionPlaytestStatusRequest{Namespace: g.Namespace, PlaytestId: placeholder, TargetStatus: pb.PlaytestStatus_PLAYTEST_STATUS_OPEN}},
+		{"signup", &pb.SignupRequest{Slug: *slug, Platforms: []pb.Platform{pb.Platform_PLATFORM_STEAM}}},
+		{"assert-applicant-auto-approved", &pb.ListApplicantsRequest{Namespace: g.Namespace, PlaytestId: placeholder}},
+		{"get-adt-download-info", &pb.GetADTDownloadInfoRequest{PlaytestId: placeholder}},
+		{"assert-adt-download-non-empty", &pb.GetADTDownloadInfoRequest{PlaytestId: placeholder}},
+		{"audit-list-auto-approved", &pb.ListAuditLogRequest{Namespace: g.Namespace, PlaytestId: placeholder, ActionFilter: "applicant.auto_approved"}},
+		{"audit-list-adt-linkage", &pb.ListAuditLogRequest{Namespace: g.Namespace, PlaytestId: "", ActionFilter: "adt_linkage.create"}},
+	})
 }
 
 func writeJSONLine(w io.Writer, v any) error {

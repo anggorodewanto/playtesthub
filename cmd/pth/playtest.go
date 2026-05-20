@@ -187,10 +187,14 @@ func runPlaytestCreate(ctx context.Context, stdout, stderr io.Writer, g *Globals
 	endsAt := fs.String("ends-at", "", "RFC3339 timestamp")
 	ndaRequired := fs.Bool("nda-required", false, "set if the playtest requires NDA acceptance")
 	ndaText := fs.String("nda-text", "", "NDA prose; prefix with @ to read from a file (e.g. --nda-text @nda.md)")
-	distModel := fs.String("distribution-model", "STEAM_KEYS", "STEAM_KEYS | AGS_CAMPAIGN")
+	distModel := fs.String("distribution-model", "STEAM_KEYS", "STEAM_KEYS | AGS_CAMPAIGN | ADT")
 	initialQuantity := fs.String("initial-code-quantity", "", "initial code quantity (AGS_CAMPAIGN only)")
 	autoApprove := fs.Bool("auto-approve", false, "enable auto-approve in Signup (PRD §5.4 / M5.A)")
 	autoApproveLimit := fs.Int("auto-approve-limit", 0, "auto-approve cap (1..100,000; required when --auto-approve)")
+	adtNamespace := fs.String("adt-namespace", "", "ADT namespace (ADT only; required when --distribution-model=ADT)")
+	adtGameID := fs.String("adt-game-id", "", "ADT game id (ADT only)")
+	adtBuildID := fs.String("adt-build-id", "", "ADT build id (ADT only)")
+	adtFallbackURL := fs.String("adt-fallback-url", "", "Static https fallback download URL (ADT only)")
 	dryRun := fs.Bool("dry-run", false, "print the request JSON and exit without dialling")
 	if err := fs.Parse(args); err != nil {
 		return exitLocalError
@@ -257,6 +261,22 @@ func runPlaytestCreate(ctx context.Context, stdout, stderr io.Writer, g *Globals
 	if *autoApproveLimit != 0 {
 		v := int32(*autoApproveLimit)
 		req.AutoApproveLimit = &v
+	}
+	if *adtNamespace != "" {
+		v := *adtNamespace
+		req.AdtNamespace = &v
+	}
+	if *adtGameID != "" {
+		v := *adtGameID
+		req.AdtGameId = &v
+	}
+	if *adtBuildID != "" {
+		v := *adtBuildID
+		req.AdtBuildId = &v
+	}
+	if *adtFallbackURL != "" {
+		v := *adtFallbackURL
+		req.AdtFallbackDownloadUrl = &v
 	}
 	return invokePlaytest(ctx, stdout, stderr, g, factory, "CreatePlaytest", req, *dryRun,
 		func(c pb.PlaytesthubServiceClient, cctx context.Context) (proto.Message, error) {
@@ -587,7 +607,7 @@ func parseDistributionModel(s string) (pb.DistributionModel, error) {
 	}
 	v, ok := pb.DistributionModel_value[full]
 	if !ok || pb.DistributionModel(v) == pb.DistributionModel_DISTRIBUTION_MODEL_UNSPECIFIED {
-		return 0, fmt.Errorf("--distribution-model: unknown value %q (valid: STEAM_KEYS, AGS_CAMPAIGN)", s)
+		return 0, fmt.Errorf("--distribution-model: unknown value %q (valid: STEAM_KEYS, AGS_CAMPAIGN, ADT)", s)
 	}
 	return pb.DistributionModel(v), nil
 }

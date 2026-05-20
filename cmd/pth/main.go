@@ -58,6 +58,8 @@ func run(ctx context.Context, stdout, stderr io.Writer, args []string, getenv en
 		return runSurvey(ctx, stdout, stderr, g, cmdArgs, factory)
 	case "audit":
 		return runAudit(ctx, stdout, stderr, g, cmdArgs, factory)
+	case "adt":
+		return runADT(ctx, stdout, stderr, g, cmdArgs, factory)
 	case "flow":
 		return runFlow(ctx, stdout, stderr, g, cmdArgs, defaultFlowProfileFactory(getenv))
 	case "help", "-h", "--help":

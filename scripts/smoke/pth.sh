@@ -584,6 +584,58 @@ while IFS= read -r line; do
     i=$((i+1))
 done <<<"$flow_dry_m4"
 
+# --- pth flow golden-m5 --dry-run (unconditional) ---------------------
+# STATUS_M5.md B9: eleven NDJSON steps with status=DRY_RUN. ADT flow
+# drives link-adt-start → link-adt-complete → adt-build-list →
+# create-playtest (ADT + auto-approve) → transition OPEN → signup →
+# assert-applicant-auto-approved → get-adt-download-info ×2 → audit
+# list ×2.
+log "pth flow golden-m5 --dry-run emits 11 NDJSON steps without dialling"
+flow_dry_m5=$("$PTH_BIN" --namespace smoke flow golden-m5 --slug demo-flow-m5 --dry-run)
+flow_dry_m5_lines=$(printf '%s\n' "$flow_dry_m5" | wc -l | tr -d ' ')
+[[ "$flow_dry_m5_lines" -eq 11 ]] \
+    || { printf '%s\n' "$flow_dry_m5" >&2; fail "flow golden-m5 dry-run lines=$flow_dry_m5_lines, want 11"; }
+expected_steps_m5=(
+    "adt-link-start"
+    "adt-link-complete"
+    "adt-build-list"
+    "create-playtest"
+    "transition-open"
+    "signup"
+    "assert-applicant-auto-approved"
+    "get-adt-download-info"
+    "assert-adt-download-non-empty"
+    "audit-list-auto-approved"
+    "audit-list-adt-linkage"
+)
+i=0
+while IFS= read -r line; do
+    step=$(jq -r '.step' <<<"$line")
+    status=$(jq -r '.status' <<<"$line")
+    [[ "$step" == "${expected_steps_m5[$i]}" ]] \
+        || fail "flow golden-m5 dry-run line $((i+1)) step=$step, want ${expected_steps_m5[$i]}"
+    [[ "$status" == "DRY_RUN" ]] \
+        || fail "flow golden-m5 dry-run line $((i+1)) status=$status, want DRY_RUN"
+    i=$((i+1))
+done <<<"$flow_dry_m5"
+
+# --- pth adt linkage / build dry-run probes ---------------------------
+log "pth adt linkage list --dry-run prints the request body"
+"$PTH_BIN" --namespace smoke adt linkage list --dry-run >/dev/null \
+    || fail "adt linkage list --dry-run exited non-zero"
+log "pth adt linkage start --dry-run prints the request body"
+"$PTH_BIN" --namespace smoke adt linkage start --dry-run >/dev/null \
+    || fail "adt linkage start --dry-run exited non-zero"
+log "pth adt linkage complete --dry-run prints the request body"
+"$PTH_BIN" --namespace smoke adt linkage complete --state s --adt-namespace adt-ns-1 --dry-run >/dev/null \
+    || fail "adt linkage complete --dry-run exited non-zero"
+log "pth adt linkage unlink --dry-run prints the request body"
+"$PTH_BIN" --namespace smoke adt linkage unlink --id 01234567-89ab-cdef-0123-456789abcdef --dry-run >/dev/null \
+    || fail "adt linkage unlink --dry-run exited non-zero"
+log "pth adt build list --dry-run prints the request body"
+"$PTH_BIN" --namespace smoke adt build list --linkage-id 01234567-89ab-cdef-0123-456789abcdef --game-id game-x --dry-run >/dev/null \
+    || fail "adt build list --dry-run exited non-zero"
+
 # --- pth M2 subcommand catalogue presence -----------------------------
 # Phase 12 commits the §6.2 surface to the catalogue. The byte-exact
 # diff lives in cmd/pth/testdata/describe.golden.json — this probe is a

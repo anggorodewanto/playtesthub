@@ -2,6 +2,104 @@
   "schema": "cli-schema.v1",
   "commands": [
     {
+      "name": "adt build list",
+      "milestone": "M5.B",
+      "description": "Admin: list ADT builds under a linkage's game (cli.md §6.4, PRD §4.8).",
+      "requiredFlags": [
+        {
+          "name": "--linkage-id",
+          "description": "adt_linkage_id (from `adt linkage list`)",
+          "valueType": "uuid"
+        },
+        {
+          "name": "--game-id",
+          "description": "ADT-side game id",
+          "valueType": "string"
+        }
+      ],
+      "optionalFlags": [
+        {
+          "name": "--dry-run",
+          "description": "print the request JSON and exit without dialling",
+          "valueType": "bool"
+        }
+      ],
+      "example": "pth --namespace mygame --profile admin adt build list --linkage-id 01J0... --game-id mygame"
+    },
+    {
+      "name": "adt linkage complete",
+      "milestone": "M5.B",
+      "description": "Admin: finalize an ADT link by consuming the state nonce + adt_namespace echoed on the callback URL (PRD §4.8.2).",
+      "requiredFlags": [
+        {
+          "name": "--state",
+          "description": "linking state nonce returned from `adt linkage start`",
+          "valueType": "string"
+        },
+        {
+          "name": "--adt-namespace",
+          "description": "ADT namespace echoed by the redirect-back URL",
+          "valueType": "string"
+        }
+      ],
+      "optionalFlags": [
+        {
+          "name": "--dry-run",
+          "description": "print the request JSON and exit without dialling",
+          "valueType": "bool"
+        }
+      ],
+      "example": "pth --namespace mygame --profile admin adt linkage complete --state EXAMPLE --adt-namespace adt-ns"
+    },
+    {
+      "name": "adt linkage list",
+      "milestone": "M5.B",
+      "description": "Admin: list every ADT linkage scoped to the caller's studio (cli.md §6.4, PRD §4.8).",
+      "requiredFlags": null,
+      "optionalFlags": [
+        {
+          "name": "--dry-run",
+          "description": "print the request JSON and exit without dialling",
+          "valueType": "bool"
+        }
+      ],
+      "example": "pth --namespace mygame --profile admin adt linkage list"
+    },
+    {
+      "name": "adt linkage start",
+      "milestone": "M5.B",
+      "description": "Admin: mint a linkUrl + state nonce for the ADT linking redirect (PRD §4.8.2).",
+      "requiredFlags": null,
+      "optionalFlags": [
+        {
+          "name": "--dry-run",
+          "description": "print the request JSON and exit without dialling",
+          "valueType": "bool"
+        }
+      ],
+      "example": "pth --namespace mygame --profile admin adt linkage start"
+    },
+    {
+      "name": "adt linkage unlink",
+      "milestone": "M5.B",
+      "description": "Admin: soft-delete an ADT linkage row + best-effort DELETE on the ADT side (PRD §4.8).",
+      "requiredFlags": [
+        {
+          "name": "--id",
+          "description": "ULID identifier",
+          "valueType": "string"
+        }
+      ],
+      "optionalFlags": [
+        {
+          "name": "--dry-run",
+          "description": "print the request JSON and exit without dialling",
+          "valueType": "bool"
+        }
+      ],
+      "example": "pth --namespace mygame --profile admin adt linkage unlink --id 01J0..."
+    },
+    {
       "name": "applicant accept-nda",
       "milestone": "M2",
       "description": "Persist a versioned NDA acceptance for the calling player (cli.md §6.2).",
@@ -651,6 +749,51 @@
       "example": "pth --namespace mygame flow golden-m4 --slug e2e-m4 --admin-profile admin"
     },
     {
+      "name": "flow golden-m5",
+      "milestone": "M5.B",
+      "description": "Composite ADT flow: link-adt-start → link-adt-complete → adt-build-list → create-playtest (ADT + --auto-approve) → transition OPEN → signup → assert-applicant-auto-approved → get-adt-download-info → audit assertions. Eleven NDJSON lines. Dry-run-only until B10 wires the live MemClient harness (cli.md §6.5, PRD §4.8).",
+      "requiredFlags": [
+        {
+          "name": "--slug",
+          "description": "playtest slug (PRD §5.1 regex ^[a-z0-9-]{3,50}$)",
+          "valueType": "string"
+        }
+      ],
+      "optionalFlags": [
+        {
+          "name": "--title",
+          "description": "playtest title (default 'Playtest \u003cslug\u003e')",
+          "valueType": "string"
+        },
+        {
+          "name": "--adt-namespace",
+          "description": "ADT namespace to link + use (default adt-ns-1)",
+          "valueType": "string"
+        },
+        {
+          "name": "--adt-game-id",
+          "description": "ADT-side game id (default game-x)",
+          "valueType": "string"
+        },
+        {
+          "name": "--adt-build-id",
+          "description": "ADT-side build id (default build-001)",
+          "valueType": "string"
+        },
+        {
+          "name": "--auto-approve-limit",
+          "description": "auto-approve cap (default 5)",
+          "valueType": "int"
+        },
+        {
+          "name": "--dry-run",
+          "description": "print the request JSON and exit without dialling",
+          "valueType": "bool"
+        }
+      ],
+      "example": "pth --namespace mygame --profile admin flow golden-m5 --slug adt-flow --dry-run"
+    },
+    {
       "name": "playtest create",
       "milestone": "M1",
       "description": "Create a playtest. Admin token required. Mutable fields are PRD-whitelisted (cli.md §6.1, PRD §5.1).",
@@ -704,7 +847,7 @@
         },
         {
           "name": "--distribution-model",
-          "description": "STEAM_KEYS | AGS_CAMPAIGN (M1: AGS_CAMPAIGN returns Unimplemented)",
+          "description": "STEAM_KEYS | AGS_CAMPAIGN | ADT",
           "valueType": "enum"
         },
         {
@@ -721,6 +864,26 @@
           "name": "--auto-approve-limit",
           "description": "auto-approve cap (1..100,000; required when --auto-approve)",
           "valueType": "int"
+        },
+        {
+          "name": "--adt-namespace",
+          "description": "ADT namespace (ADT only; required when --distribution-model=ADT)",
+          "valueType": "string"
+        },
+        {
+          "name": "--adt-game-id",
+          "description": "ADT game id (ADT only)",
+          "valueType": "string"
+        },
+        {
+          "name": "--adt-build-id",
+          "description": "ADT build id (ADT only)",
+          "valueType": "string"
+        },
+        {
+          "name": "--adt-fallback-url",
+          "description": "Static https fallback download URL (ADT only)",
+          "valueType": "string"
         },
         {
           "name": "--dry-run",
