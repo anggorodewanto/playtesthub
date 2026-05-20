@@ -11,6 +11,7 @@ import { Validate } from '@accelbyte/sdk'
 import type { AxiosInstance, AxiosRequestConfig } from 'axios'
 import { PlaytesthubServiceApproveApplicantBody } from '../../generated-definitions/PlaytesthubServiceApproveApplicantBody.js'
 import { PlaytesthubServiceCompleteAdtLinkBody } from '../../generated-definitions/PlaytesthubServiceCompleteAdtLinkBody.js'
+import { PlaytesthubServiceCreateAnnouncementBody } from '../../generated-definitions/PlaytesthubServiceCreateAnnouncementBody.js'
 import { PlaytesthubServiceCreatePlaytestBody } from '../../generated-definitions/PlaytesthubServiceCreatePlaytestBody.js'
 import { PlaytesthubServiceCreateSurveyBody } from '../../generated-definitions/PlaytesthubServiceCreateSurveyBody.js'
 import { PlaytesthubServiceEditPlaytestBody } from '../../generated-definitions/PlaytesthubServiceEditPlaytestBody.js'
@@ -26,14 +27,17 @@ import { PlaytesthubServiceUploadCodesBody } from '../../generated-definitions/P
 import { V1AdminGetPlaytestResponse } from '../../generated-definitions/V1AdminGetPlaytestResponse.js'
 import { V1ApproveApplicantResponse } from '../../generated-definitions/V1ApproveApplicantResponse.js'
 import { V1CompleteAdtLinkResponse } from '../../generated-definitions/V1CompleteAdtLinkResponse.js'
+import { V1CreateAnnouncementResponse } from '../../generated-definitions/V1CreateAnnouncementResponse.js'
 import { V1CreatePlaytestResponse } from '../../generated-definitions/V1CreatePlaytestResponse.js'
 import { V1CreateSurveyResponse } from '../../generated-definitions/V1CreateSurveyResponse.js'
 import { V1EditPlaytestResponse } from '../../generated-definitions/V1EditPlaytestResponse.js'
 import { V1EditSurveyResponse } from '../../generated-definitions/V1EditSurveyResponse.js'
 import { V1GetCodePoolResponse } from '../../generated-definitions/V1GetCodePoolResponse.js'
+import { V1GetPlaytestParticipantsResponse } from '../../generated-definitions/V1GetPlaytestParticipantsResponse.js'
 import { V1GetWorkerHealthResponse } from '../../generated-definitions/V1GetWorkerHealthResponse.js'
 import { V1ListAdtBuildsResponse } from '../../generated-definitions/V1ListAdtBuildsResponse.js'
 import { V1ListAdtLinkagesResponse } from '../../generated-definitions/V1ListAdtLinkagesResponse.js'
+import { V1ListAnnouncementsResponse } from '../../generated-definitions/V1ListAnnouncementsResponse.js'
 import { V1ListApplicantsResponse } from '../../generated-definitions/V1ListApplicantsResponse.js'
 import { V1ListAuditLogResponse } from '../../generated-definitions/V1ListAuditLogResponse.js'
 import { V1ListPlaytestsResponse } from '../../generated-definitions/V1ListPlaytestsResponse.js'
@@ -387,6 +391,65 @@ export class PlaytesthubServiceAdmin$ {
     const resultPromise = this.axiosInstance.post(url, data, { params })
 
     return Validate.validateOrReturnResponse(this.useSchemaValidation, () => resultPromise, V1UploadCodesResponse, 'V1UploadCodesResponse')
+  }
+  /**
+   * Read joins applicant + the latest dm.sent audit row to derive code_sent_at for STEAM_KEYS / AGS_CAMPAIGN rows; ADT rows return NULL code_sent_at. Four ADT telemetry cache fields ship in the response shape but stay NULL/zero across M5.C.
+   */
+  getParticipants_ByPlaytestId(
+    playtestId: string,
+    queryParams?: {
+      statusFilter?: 'APPLICANT_STATUS_UNSPECIFIED' | 'APPLICANT_STATUS_PENDING' | 'APPLICANT_STATUS_APPROVED' | 'APPLICANT_STATUS_REJECTED'
+    }
+  ): Promise<Response<V1GetPlaytestParticipantsResponse>> {
+    const params = { statusFilter: 'APPLICANT_STATUS_UNSPECIFIED', ...queryParams } as AxiosRequestConfig
+    const url = '/v1/admin/namespaces/{namespace}/playtests/{playtestId}/participants'
+      .replace('{namespace}', this.namespace)
+      .replace('{playtestId}', playtestId)
+    const resultPromise = this.axiosInstance.get(url, { params })
+
+    return Validate.validateOrReturnResponse(
+      this.useSchemaValidation,
+      () => resultPromise,
+      V1GetPlaytestParticipantsResponse,
+      'V1GetPlaytestParticipantsResponse'
+    )
+  }
+  /**
+   * Per-row status aggregated from announcement_recipient.dm_status: SENT (all sent), SENDING (any queued), PARTIAL (mix sent + failed), FAILED (all failed).
+   */
+  getAnnouncements_ByPlaytestId(playtestId: string): Promise<Response<V1ListAnnouncementsResponse>> {
+    const params = {} as AxiosRequestConfig
+    const url = '/v1/admin/namespaces/{namespace}/playtests/{playtestId}/announcements'
+      .replace('{namespace}', this.namespace)
+      .replace('{playtestId}', playtestId)
+    const resultPromise = this.axiosInstance.get(url, { params })
+
+    return Validate.validateOrReturnResponse(
+      this.useSchemaValidation,
+      () => resultPromise,
+      V1ListAnnouncementsResponse,
+      'V1ListAnnouncementsResponse'
+    )
+  }
+  /**
+   * Resolves recipients at call time (NOT a stored snapshot). Subject + message are PII-sensitive and are never written to audit JSONB or structured logs.
+   */
+  createAnnouncement_ByPlaytestId(
+    playtestId: string,
+    data: PlaytesthubServiceCreateAnnouncementBody
+  ): Promise<Response<V1CreateAnnouncementResponse>> {
+    const params = {} as AxiosRequestConfig
+    const url = '/v1/admin/namespaces/{namespace}/playtests/{playtestId}/announcements'
+      .replace('{namespace}', this.namespace)
+      .replace('{playtestId}', playtestId)
+    const resultPromise = this.axiosInstance.post(url, data, { params })
+
+    return Validate.validateOrReturnResponse(
+      this.useSchemaValidation,
+      () => resultPromise,
+      V1CreateAnnouncementResponse,
+      'V1CreateAnnouncementResponse'
+    )
   }
 
   createPlaytest_ByPlaytestIdTransitionStatu(

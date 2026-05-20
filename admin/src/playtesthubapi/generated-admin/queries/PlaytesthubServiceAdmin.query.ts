@@ -14,6 +14,7 @@ import { PlaytesthubServiceAdminApi } from '../PlaytesthubServiceAdminApi.js'
 
 import { PlaytesthubServiceApproveApplicantBody } from '../../generated-definitions/PlaytesthubServiceApproveApplicantBody.js'
 import { PlaytesthubServiceCompleteAdtLinkBody } from '../../generated-definitions/PlaytesthubServiceCompleteAdtLinkBody.js'
+import { PlaytesthubServiceCreateAnnouncementBody } from '../../generated-definitions/PlaytesthubServiceCreateAnnouncementBody.js'
 import { PlaytesthubServiceCreatePlaytestBody } from '../../generated-definitions/PlaytesthubServiceCreatePlaytestBody.js'
 import { PlaytesthubServiceCreateSurveyBody } from '../../generated-definitions/PlaytesthubServiceCreateSurveyBody.js'
 import { PlaytesthubServiceEditPlaytestBody } from '../../generated-definitions/PlaytesthubServiceEditPlaytestBody.js'
@@ -29,14 +30,17 @@ import { PlaytesthubServiceUploadCodesBody } from '../../generated-definitions/P
 import { V1AdminGetPlaytestResponse } from '../../generated-definitions/V1AdminGetPlaytestResponse.js'
 import { V1ApproveApplicantResponse } from '../../generated-definitions/V1ApproveApplicantResponse.js'
 import { V1CompleteAdtLinkResponse } from '../../generated-definitions/V1CompleteAdtLinkResponse.js'
+import { V1CreateAnnouncementResponse } from '../../generated-definitions/V1CreateAnnouncementResponse.js'
 import { V1CreatePlaytestResponse } from '../../generated-definitions/V1CreatePlaytestResponse.js'
 import { V1CreateSurveyResponse } from '../../generated-definitions/V1CreateSurveyResponse.js'
 import { V1EditPlaytestResponse } from '../../generated-definitions/V1EditPlaytestResponse.js'
 import { V1EditSurveyResponse } from '../../generated-definitions/V1EditSurveyResponse.js'
 import { V1GetCodePoolResponse } from '../../generated-definitions/V1GetCodePoolResponse.js'
+import { V1GetPlaytestParticipantsResponse } from '../../generated-definitions/V1GetPlaytestParticipantsResponse.js'
 import { V1GetWorkerHealthResponse } from '../../generated-definitions/V1GetWorkerHealthResponse.js'
 import { V1ListAdtBuildsResponse } from '../../generated-definitions/V1ListAdtBuildsResponse.js'
 import { V1ListAdtLinkagesResponse } from '../../generated-definitions/V1ListAdtLinkagesResponse.js'
+import { V1ListAnnouncementsResponse } from '../../generated-definitions/V1ListAnnouncementsResponse.js'
 import { V1ListApplicantsResponse } from '../../generated-definitions/V1ListApplicantsResponse.js'
 import { V1ListAuditLogResponse } from '../../generated-definitions/V1ListAuditLogResponse.js'
 import { V1ListPlaytestsResponse } from '../../generated-definitions/V1ListPlaytestsResponse.js'
@@ -71,6 +75,9 @@ export const Key_PlaytesthubServiceAdmin = {
   BuildsAdt_ByAdtLinkageId: 'Playtesthubapi.PlaytesthubServiceAdmin.BuildsAdt_ByAdtLinkageId',
   CodesTopUp_ByPlaytestId: 'Playtesthubapi.PlaytesthubServiceAdmin.CodesTopUp_ByPlaytestId',
   CodesUpload_ByPlaytestId: 'Playtesthubapi.PlaytesthubServiceAdmin.CodesUpload_ByPlaytestId',
+  Participants_ByPlaytestId: 'Playtesthubapi.PlaytesthubServiceAdmin.Participants_ByPlaytestId',
+  Announcements_ByPlaytestId: 'Playtesthubapi.PlaytesthubServiceAdmin.Announcements_ByPlaytestId',
+  Announcement_ByPlaytestId: 'Playtesthubapi.PlaytesthubServiceAdmin.Announcement_ByPlaytestId',
   Playtest_ByPlaytestIdTransitionStatu: 'Playtesthubapi.PlaytesthubServiceAdmin.Playtest_ByPlaytestIdTransitionStatu',
   SurveyResponses_ByPlaytestId: 'Playtesthubapi.PlaytesthubServiceAdmin.SurveyResponses_ByPlaytestId',
   CodesSyncFromAg_ByPlaytestId: 'Playtesthubapi.PlaytesthubServiceAdmin.CodesSyncFromAg_ByPlaytestId',
@@ -843,6 +850,122 @@ export const usePlaytesthubServiceAdminApi_CreateCodesUpload_ByPlaytestIdMutatio
 
   return useMutation({
     mutationKey: [Key_PlaytesthubServiceAdmin.CodesUpload_ByPlaytestId],
+    mutationFn,
+    ...options
+  })
+}
+
+/**
+ * Read joins applicant + the latest dm.sent audit row to derive code_sent_at for STEAM_KEYS / AGS_CAMPAIGN rows; ADT rows return NULL code_sent_at. Four ADT telemetry cache fields ship in the response shape but stay NULL/zero across M5.C.
+ *
+ * #### Default Query Options
+ * The default options include:
+ * ```
+ * {
+ *    queryKey: [Key_PlaytesthubServiceAdmin.Participants_ByPlaytestId, input]
+ * }
+ * ```
+ */
+export const usePlaytesthubServiceAdminApi_GetParticipants_ByPlaytestId = (
+  sdk: AccelByteSDK,
+  input: SdkSetConfigParam & {
+    playtestId: string
+    queryParams?: {
+      statusFilter?: 'APPLICANT_STATUS_UNSPECIFIED' | 'APPLICANT_STATUS_PENDING' | 'APPLICANT_STATUS_APPROVED' | 'APPLICANT_STATUS_REJECTED'
+    }
+  },
+  options?: Omit<UseQueryOptions<V1GetPlaytestParticipantsResponse, AxiosError<ApiError>>, 'queryKey'>,
+  callback?: (data: AxiosResponse<V1GetPlaytestParticipantsResponse>) => void
+): UseQueryResult<V1GetPlaytestParticipantsResponse, AxiosError<ApiError>> => {
+  const queryFn =
+    (sdk: AccelByteSDK, input: Parameters<typeof usePlaytesthubServiceAdminApi_GetParticipants_ByPlaytestId>[1]) => async () => {
+      const response = await PlaytesthubServiceAdminApi(sdk, {
+        coreConfig: input.coreConfig,
+        axiosConfig: input.axiosConfig
+      }).getParticipants_ByPlaytestId(input.playtestId, input.queryParams)
+      callback?.(response)
+      return response.data
+    }
+
+  return useQuery<V1GetPlaytestParticipantsResponse, AxiosError<ApiError>>({
+    queryKey: [Key_PlaytesthubServiceAdmin.Participants_ByPlaytestId, input],
+    queryFn: queryFn(sdk, input),
+    ...options
+  })
+}
+
+/**
+ * Per-row status aggregated from announcement_recipient.dm_status: SENT (all sent), SENDING (any queued), PARTIAL (mix sent + failed), FAILED (all failed).
+ *
+ * #### Default Query Options
+ * The default options include:
+ * ```
+ * {
+ *    queryKey: [Key_PlaytesthubServiceAdmin.Announcements_ByPlaytestId, input]
+ * }
+ * ```
+ */
+export const usePlaytesthubServiceAdminApi_GetAnnouncements_ByPlaytestId = (
+  sdk: AccelByteSDK,
+  input: SdkSetConfigParam & { playtestId: string },
+  options?: Omit<UseQueryOptions<V1ListAnnouncementsResponse, AxiosError<ApiError>>, 'queryKey'>,
+  callback?: (data: AxiosResponse<V1ListAnnouncementsResponse>) => void
+): UseQueryResult<V1ListAnnouncementsResponse, AxiosError<ApiError>> => {
+  const queryFn =
+    (sdk: AccelByteSDK, input: Parameters<typeof usePlaytesthubServiceAdminApi_GetAnnouncements_ByPlaytestId>[1]) => async () => {
+      const response = await PlaytesthubServiceAdminApi(sdk, {
+        coreConfig: input.coreConfig,
+        axiosConfig: input.axiosConfig
+      }).getAnnouncements_ByPlaytestId(input.playtestId)
+      callback?.(response)
+      return response.data
+    }
+
+  return useQuery<V1ListAnnouncementsResponse, AxiosError<ApiError>>({
+    queryKey: [Key_PlaytesthubServiceAdmin.Announcements_ByPlaytestId, input],
+    queryFn: queryFn(sdk, input),
+    ...options
+  })
+}
+
+/**
+ * Resolves recipients at call time (NOT a stored snapshot). Subject + message are PII-sensitive and are never written to audit JSONB or structured logs.
+ *
+ * #### Default Query Options
+ * The default options include:
+ * ```
+ * {
+ *    queryKey: [Key_PlaytesthubServiceAdmin.Announcement_ByPlaytestId, input]
+ * }
+ * ```
+ */
+export const usePlaytesthubServiceAdminApi_CreateAnnouncement_ByPlaytestIdMutation = (
+  sdk: AccelByteSDK,
+  options?: Omit<
+    UseMutationOptions<
+      V1CreateAnnouncementResponse,
+      AxiosError<ApiError>,
+      SdkSetConfigParam & { playtestId: string; data: PlaytesthubServiceCreateAnnouncementBody }
+    >,
+    'mutationKey'
+  >,
+  callback?: (data: V1CreateAnnouncementResponse) => void
+): UseMutationResult<
+  V1CreateAnnouncementResponse,
+  AxiosError<ApiError>,
+  SdkSetConfigParam & { playtestId: string; data: PlaytesthubServiceCreateAnnouncementBody }
+> => {
+  const mutationFn = async (input: SdkSetConfigParam & { playtestId: string; data: PlaytesthubServiceCreateAnnouncementBody }) => {
+    const response = await PlaytesthubServiceAdminApi(sdk, {
+      coreConfig: input.coreConfig,
+      axiosConfig: input.axiosConfig
+    }).createAnnouncement_ByPlaytestId(input.playtestId, input.data)
+    callback?.(response.data)
+    return response.data
+  }
+
+  return useMutation({
+    mutationKey: [Key_PlaytesthubServiceAdmin.Announcement_ByPlaytestId],
     mutationFn,
     ...options
   })

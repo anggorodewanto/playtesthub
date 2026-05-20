@@ -601,6 +601,98 @@
         ]
       }
     },
+    "/v1/admin/namespaces/{namespace}/playtests/{playtestId}/announcements": {
+      "get": {
+        "summary": "List announcement history for a playtest (admin)",
+        "description": "Per-row status aggregated from announcement_recipient.dm_status: SENT (all sent), SENDING (any queued), PARTIAL (mix sent + failed), FAILED (all failed).",
+        "operationId": "PlaytesthubService_ListAnnouncements",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListAnnouncementsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "playtestId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "PlaytesthubService"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "post": {
+        "summary": "Create a bulk DM broadcast for a playtest (admin)",
+        "description": "Resolves recipients at call time (NOT a stored snapshot). Subject + message are PII-sensitive and are never written to audit JSONB or structured logs.",
+        "operationId": "PlaytesthubService_CreateAnnouncement",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1CreateAnnouncementResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "playtestId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/PlaytesthubServiceCreateAnnouncementBody"
+            }
+          }
+        ],
+        "tags": [
+          "PlaytesthubService"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
     "/v1/admin/namespaces/{namespace}/playtests/{playtestId}/applicants": {
       "get": {
         "summary": "List applicants for a playtest (admin; cursor pagination, page 50)",
@@ -987,6 +1079,63 @@
             "schema": {
               "$ref": "#/definitions/PlaytesthubServiceUploadCodesBody"
             }
+          }
+        ],
+        "tags": [
+          "PlaytesthubService"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v1/admin/namespaces/{namespace}/playtests/{playtestId}/participants": {
+      "get": {
+        "summary": "List participants with derived code-sent timestamps (admin; M5.C detail page)",
+        "description": "Read joins applicant + the latest dm.sent audit row to derive code_sent_at for STEAM_KEYS / AGS_CAMPAIGN rows; ADT rows return NULL code_sent_at. Four ADT telemetry cache fields ship in the response shape but stay NULL/zero across M5.C.",
+        "operationId": "PlaytesthubService_GetPlaytestParticipants",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetPlaytestParticipantsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "playtestId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "statusFilter",
+            "description": "Optional status filter; UNSPECIFIED → no filter.",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "enum": [
+              "APPLICANT_STATUS_UNSPECIFIED",
+              "APPLICANT_STATUS_PENDING",
+              "APPLICANT_STATUS_APPROVED",
+              "APPLICANT_STATUS_REJECTED"
+            ],
+            "default": "APPLICANT_STATUS_UNSPECIFIED"
           }
         ],
         "tags": [
@@ -1657,6 +1806,20 @@
         }
       }
     },
+    "PlaytesthubServiceCreateAnnouncementBody": {
+      "type": "object",
+      "properties": {
+        "sendToFilter": {
+          "$ref": "#/definitions/v1AnnouncementSendToFilter"
+        },
+        "subject": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        }
+      }
+    },
     "PlaytesthubServiceCreatePlaytestBody": {
       "type": "object",
       "properties": {
@@ -1917,6 +2080,10 @@
         "uploadedAt": {
           "type": "string",
           "format": "date-time"
+        },
+        "platform": {
+          "type": "string",
+          "description": "Platform — the ADT-reported target (\"windows\", \"linux\", ...). Empty\nwhen ADT does not surface it. Wire-added 2026-05-20 alongside the\nADT-eng API spec resolution."
         }
       },
       "description": "ADTBuild is the minimum build row the admin UI / pth CLI needs to\ndrive the build picker. Mirrors pkg/adt.Build but rendered as proto."
@@ -1962,6 +2129,68 @@
           "$ref": "#/definitions/v1Playtest"
         }
       }
+    },
+    "v1Announcement": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "playtestId": {
+          "type": "string"
+        },
+        "sendToFilter": {
+          "$ref": "#/definitions/v1AnnouncementSendToFilter"
+        },
+        "subject": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/definitions/v1AnnouncementStatus"
+        },
+        "recipientsTotal": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "recipientsSent": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "createdByUserId": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "description": "Announcement — one row per admin-authored broadcast. Subject + message\nare PII-sensitive (never logged / audited)."
+    },
+    "v1AnnouncementSendToFilter": {
+      "type": "string",
+      "enum": [
+        "ANNOUNCEMENT_SEND_TO_FILTER_UNSPECIFIED",
+        "ANNOUNCEMENT_SEND_TO_FILTER_ALL",
+        "ANNOUNCEMENT_SEND_TO_FILTER_APPROVED_ONLY",
+        "ANNOUNCEMENT_SEND_TO_FILTER_PENDING_ONLY"
+      ],
+      "default": "ANNOUNCEMENT_SEND_TO_FILTER_UNSPECIFIED",
+      "description": "M5.C — announcement send-to filter (PRD §5.4 \"Bulk announcements\").\nResolved at call time, NOT a stored snapshot."
+    },
+    "v1AnnouncementStatus": {
+      "type": "string",
+      "enum": [
+        "ANNOUNCEMENT_STATUS_UNSPECIFIED",
+        "ANNOUNCEMENT_STATUS_SENDING",
+        "ANNOUNCEMENT_STATUS_SENT",
+        "ANNOUNCEMENT_STATUS_PARTIAL",
+        "ANNOUNCEMENT_STATUS_FAILED"
+      ],
+      "default": "ANNOUNCEMENT_STATUS_UNSPECIFIED",
+      "description": "M5.C — announcement aggregate status computed at read time from\nannouncement_recipient.dm_status (PRD §5.4 \"Bulk announcements\" + schema.md)."
     },
     "v1Applicant": {
       "type": "object",
@@ -2144,6 +2373,14 @@
         }
       }
     },
+    "v1CreateAnnouncementResponse": {
+      "type": "object",
+      "properties": {
+        "announcement": {
+          "$ref": "#/definitions/v1Announcement"
+        }
+      }
+    },
     "v1CreatePlaytestResponse": {
       "type": "object",
       "properties": {
@@ -2294,6 +2531,18 @@
         }
       }
     },
+    "v1GetPlaytestParticipantsResponse": {
+      "type": "object",
+      "properties": {
+        "participants": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1ParticipantRow"
+          }
+        }
+      }
+    },
     "v1GetPublicPlaytestResponse": {
       "type": "object",
       "properties": {
@@ -2342,6 +2591,18 @@
           "items": {
             "type": "object",
             "$ref": "#/definitions/v1ADTLinkage"
+          }
+        }
+      }
+    },
+    "v1ListAnnouncementsResponse": {
+      "type": "object",
+      "properties": {
+        "announcements": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1Announcement"
           }
         }
       }
@@ -2433,6 +2694,56 @@
         }
       },
       "description": "NDAAcceptance — append-only acceptance row (schema.md §\"NDA\"). PK is\n(user_id, playtest_id, nda_version_hash); a re-accept on the same\ntuple is a no-op that returns the existing row."
+    },
+    "v1ParticipantRow": {
+      "type": "object",
+      "properties": {
+        "applicantId": {
+          "type": "string"
+        },
+        "userId": {
+          "type": "string"
+        },
+        "discordHandle": {
+          "type": "string"
+        },
+        "signupAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "ndaAcceptedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "codeSentAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "STEAM_KEYS / AGS_CAMPAIGN only — derived at read time from the\nlatest dm.sent audit row (PRD §5.4 \"Code Sent Date — derived field\").\nADT rows leave this NULL; the analogue (Download Date) is deferred to M6."
+        },
+        "status": {
+          "$ref": "#/definitions/v1ApplicantStatus"
+        },
+        "autoApproved": {
+          "type": "boolean"
+        },
+        "adtDownloadAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Four dormant ADT telemetry cache fields (M5.C → M6 forward-compat).\nAll are NULL / 0 across M5.C."
+        },
+        "adtTotalPlaytimeSeconds": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "adtHardwareSpecsJson": {
+          "type": "string"
+        },
+        "adtCrashCount": {
+          "type": "integer",
+          "format": "int32"
+        }
+      },
+      "description": "ParticipantRow — one row per applicant for the M5.C Participants tab.\nCache-only read; the four ADT telemetry fields ship dormant across\nM5.C (always NULL / 0 — M6 fills them)."
     },
     "v1Platform": {
       "type": "string",

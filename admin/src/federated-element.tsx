@@ -33,6 +33,7 @@ import {
 } from './window'
 import { useEffect, useMemo, useState } from 'react'
 import { Route, Routes, useNavigate, useParams, useSearchParams } from 'react-router'
+import { PlaytestDetailPage } from './PlaytestDetailPage'
 import type { V1Applicant } from './playtesthubapi/generated-definitions/V1Applicant'
 import type { V1AuditLogEntry } from './playtesthubapi/generated-definitions/V1AuditLogEntry'
 import type { V1Code } from './playtesthubapi/generated-definitions/V1Code'
@@ -179,6 +180,7 @@ export function FederatedElement() {
         <Route path=":playtestId/survey" element={<SurveyBuilderPage />} />
         <Route path=":playtestId/survey/responses" element={<SurveyResponsesPage />} />
         <Route path=":playtestId/audit" element={<AuditLogPage />} />
+        <Route path="playtest/:slug" element={<PlaytestDetailPage />} />
         <Route path="adt-link-callback" element={<ADTLinkCallbackPage />} />
       </Routes>
     </div>
@@ -293,6 +295,9 @@ function PlaytestsListPage() {
         const isOpen = row.status === PlaytestStatus.OPEN
         return (
           <Space wrap>
+            <Button size="small" type="primary" onClick={() => navigate(`playtest/${row.slug ?? ''}`)}>
+              View
+            </Button>
             <Button size="small" onClick={() => navigate(`${row.id}/edit`)}>
               Edit
             </Button>

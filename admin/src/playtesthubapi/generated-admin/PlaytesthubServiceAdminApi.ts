@@ -11,6 +11,7 @@ import { ApiUtils, Network } from '@accelbyte/sdk'
 import type { AxiosRequestConfig, AxiosResponse } from 'axios'
 import { PlaytesthubServiceApproveApplicantBody } from '../generated-definitions/PlaytesthubServiceApproveApplicantBody.js'
 import { PlaytesthubServiceCompleteAdtLinkBody } from '../generated-definitions/PlaytesthubServiceCompleteAdtLinkBody.js'
+import { PlaytesthubServiceCreateAnnouncementBody } from '../generated-definitions/PlaytesthubServiceCreateAnnouncementBody.js'
 import { PlaytesthubServiceCreatePlaytestBody } from '../generated-definitions/PlaytesthubServiceCreatePlaytestBody.js'
 import { PlaytesthubServiceCreateSurveyBody } from '../generated-definitions/PlaytesthubServiceCreateSurveyBody.js'
 import { PlaytesthubServiceEditPlaytestBody } from '../generated-definitions/PlaytesthubServiceEditPlaytestBody.js'
@@ -26,14 +27,17 @@ import { PlaytesthubServiceUploadCodesBody } from '../generated-definitions/Play
 import { V1AdminGetPlaytestResponse } from '../generated-definitions/V1AdminGetPlaytestResponse.js'
 import { V1ApproveApplicantResponse } from '../generated-definitions/V1ApproveApplicantResponse.js'
 import { V1CompleteAdtLinkResponse } from '../generated-definitions/V1CompleteAdtLinkResponse.js'
+import { V1CreateAnnouncementResponse } from '../generated-definitions/V1CreateAnnouncementResponse.js'
 import { V1CreatePlaytestResponse } from '../generated-definitions/V1CreatePlaytestResponse.js'
 import { V1CreateSurveyResponse } from '../generated-definitions/V1CreateSurveyResponse.js'
 import { V1EditPlaytestResponse } from '../generated-definitions/V1EditPlaytestResponse.js'
 import { V1EditSurveyResponse } from '../generated-definitions/V1EditSurveyResponse.js'
 import { V1GetCodePoolResponse } from '../generated-definitions/V1GetCodePoolResponse.js'
+import { V1GetPlaytestParticipantsResponse } from '../generated-definitions/V1GetPlaytestParticipantsResponse.js'
 import { V1GetWorkerHealthResponse } from '../generated-definitions/V1GetWorkerHealthResponse.js'
 import { V1ListAdtBuildsResponse } from '../generated-definitions/V1ListAdtBuildsResponse.js'
 import { V1ListAdtLinkagesResponse } from '../generated-definitions/V1ListAdtLinkagesResponse.js'
+import { V1ListAnnouncementsResponse } from '../generated-definitions/V1ListAnnouncementsResponse.js'
 import { V1ListApplicantsResponse } from '../generated-definitions/V1ListApplicantsResponse.js'
 import { V1ListAuditLogResponse } from '../generated-definitions/V1ListAuditLogResponse.js'
 import { V1ListPlaytestsResponse } from '../generated-definitions/V1ListPlaytestsResponse.js'
@@ -268,6 +272,35 @@ export function PlaytesthubServiceAdminApi(sdk: AccelByteSDK, args?: SdkSetConfi
     return resp.response
   }
 
+  async function getParticipants_ByPlaytestId(
+    playtestId: string,
+    queryParams?: {
+      statusFilter?: 'APPLICANT_STATUS_UNSPECIFIED' | 'APPLICANT_STATUS_PENDING' | 'APPLICANT_STATUS_APPROVED' | 'APPLICANT_STATUS_REJECTED'
+    }
+  ): Promise<AxiosResponse<V1GetPlaytestParticipantsResponse>> {
+    const $ = new PlaytesthubServiceAdmin$(axiosInstance, namespace, useSchemaValidation)
+    const resp = await $.getParticipants_ByPlaytestId(playtestId, queryParams)
+    if (resp.error) throw resp.error
+    return resp.response
+  }
+
+  async function getAnnouncements_ByPlaytestId(playtestId: string): Promise<AxiosResponse<V1ListAnnouncementsResponse>> {
+    const $ = new PlaytesthubServiceAdmin$(axiosInstance, namespace, useSchemaValidation)
+    const resp = await $.getAnnouncements_ByPlaytestId(playtestId)
+    if (resp.error) throw resp.error
+    return resp.response
+  }
+
+  async function createAnnouncement_ByPlaytestId(
+    playtestId: string,
+    data: PlaytesthubServiceCreateAnnouncementBody
+  ): Promise<AxiosResponse<V1CreateAnnouncementResponse>> {
+    const $ = new PlaytesthubServiceAdmin$(axiosInstance, namespace, useSchemaValidation)
+    const resp = await $.createAnnouncement_ByPlaytestId(playtestId, data)
+    if (resp.error) throw resp.error
+    return resp.response
+  }
+
   async function createPlaytest_ByPlaytestIdTransitionStatu(
     playtestId: string,
     data: PlaytesthubServiceTransitionPlaytestStatusBody
@@ -386,6 +419,18 @@ export function PlaytesthubServiceAdminApi(sdk: AccelByteSDK, args?: SdkSetConfi
      * PRD §4.3: UTF-8, charset [A-Za-z0-9._-], 1–128 chars/code, file ≤10 MB, ≤50,000 codes, file-level + cross-row dedup. On any violation the response carries per-line rejection details and 0 codes are inserted.
      */
     createCodesUpload_ByPlaytestId,
+    /**
+     * Read joins applicant + the latest dm.sent audit row to derive code_sent_at for STEAM_KEYS / AGS_CAMPAIGN rows; ADT rows return NULL code_sent_at. Four ADT telemetry cache fields ship in the response shape but stay NULL/zero across M5.C.
+     */
+    getParticipants_ByPlaytestId,
+    /**
+     * Per-row status aggregated from announcement_recipient.dm_status: SENT (all sent), SENDING (any queued), PARTIAL (mix sent + failed), FAILED (all failed).
+     */
+    getAnnouncements_ByPlaytestId,
+    /**
+     * Resolves recipients at call time (NOT a stored snapshot). Subject + message are PII-sensitive and are never written to audit JSONB or structured logs.
+     */
+    createAnnouncement_ByPlaytestId,
 
     createPlaytest_ByPlaytestIdTransitionStatu,
     /**
