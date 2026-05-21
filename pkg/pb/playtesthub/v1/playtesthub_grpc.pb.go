@@ -55,6 +55,7 @@ const (
 	PlaytesthubService_StartADTLink_FullMethodName             = "/playtesthub.v1.PlaytesthubService/StartADTLink"
 	PlaytesthubService_CompleteADTLink_FullMethodName          = "/playtesthub.v1.PlaytesthubService/CompleteADTLink"
 	PlaytesthubService_UnlinkADT_FullMethodName                = "/playtesthub.v1.PlaytesthubService/UnlinkADT"
+	PlaytesthubService_RecoverADTLinkage_FullMethodName        = "/playtesthub.v1.PlaytesthubService/RecoverADTLinkage"
 	PlaytesthubService_ListADTBuilds_FullMethodName            = "/playtesthub.v1.PlaytesthubService/ListADTBuilds"
 	PlaytesthubService_ListADTGames_FullMethodName             = "/playtesthub.v1.PlaytesthubService/ListADTGames"
 	PlaytesthubService_GetPlaytestParticipants_FullMethodName  = "/playtesthub.v1.PlaytesthubService/GetPlaytestParticipants"
@@ -116,6 +117,7 @@ type PlaytesthubServiceClient interface {
 	StartADTLink(ctx context.Context, in *StartADTLinkRequest, opts ...grpc.CallOption) (*StartADTLinkResponse, error)
 	CompleteADTLink(ctx context.Context, in *CompleteADTLinkRequest, opts ...grpc.CallOption) (*CompleteADTLinkResponse, error)
 	UnlinkADT(ctx context.Context, in *UnlinkADTRequest, opts ...grpc.CallOption) (*UnlinkADTResponse, error)
+	RecoverADTLinkage(ctx context.Context, in *RecoverADTLinkageRequest, opts ...grpc.CallOption) (*RecoverADTLinkageResponse, error)
 	ListADTBuilds(ctx context.Context, in *ListADTBuildsRequest, opts ...grpc.CallOption) (*ListADTBuildsResponse, error)
 	ListADTGames(ctx context.Context, in *ListADTGamesRequest, opts ...grpc.CallOption) (*ListADTGamesResponse, error)
 	// M5.C — participants surface backing the detail page Participants tab.
@@ -497,6 +499,16 @@ func (c *playtesthubServiceClient) UnlinkADT(ctx context.Context, in *UnlinkADTR
 	return out, nil
 }
 
+func (c *playtesthubServiceClient) RecoverADTLinkage(ctx context.Context, in *RecoverADTLinkageRequest, opts ...grpc.CallOption) (*RecoverADTLinkageResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RecoverADTLinkageResponse)
+	err := c.cc.Invoke(ctx, PlaytesthubService_RecoverADTLinkage_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *playtesthubServiceClient) ListADTBuilds(ctx context.Context, in *ListADTBuildsRequest, opts ...grpc.CallOption) (*ListADTBuildsResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListADTBuildsResponse)
@@ -601,6 +613,7 @@ type PlaytesthubServiceServer interface {
 	StartADTLink(context.Context, *StartADTLinkRequest) (*StartADTLinkResponse, error)
 	CompleteADTLink(context.Context, *CompleteADTLinkRequest) (*CompleteADTLinkResponse, error)
 	UnlinkADT(context.Context, *UnlinkADTRequest) (*UnlinkADTResponse, error)
+	RecoverADTLinkage(context.Context, *RecoverADTLinkageRequest) (*RecoverADTLinkageResponse, error)
 	ListADTBuilds(context.Context, *ListADTBuildsRequest) (*ListADTBuildsResponse, error)
 	ListADTGames(context.Context, *ListADTGamesRequest) (*ListADTGamesResponse, error)
 	// M5.C — participants surface backing the detail page Participants tab.
@@ -728,6 +741,9 @@ func (UnimplementedPlaytesthubServiceServer) CompleteADTLink(context.Context, *C
 }
 func (UnimplementedPlaytesthubServiceServer) UnlinkADT(context.Context, *UnlinkADTRequest) (*UnlinkADTResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method UnlinkADT not implemented")
+}
+func (UnimplementedPlaytesthubServiceServer) RecoverADTLinkage(context.Context, *RecoverADTLinkageRequest) (*RecoverADTLinkageResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RecoverADTLinkage not implemented")
 }
 func (UnimplementedPlaytesthubServiceServer) ListADTBuilds(context.Context, *ListADTBuildsRequest) (*ListADTBuildsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListADTBuilds not implemented")
@@ -1412,6 +1428,24 @@ func _PlaytesthubService_UnlinkADT_Handler(srv interface{}, ctx context.Context,
 	return interceptor(ctx, in, info, handler)
 }
 
+func _PlaytesthubService_RecoverADTLinkage_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RecoverADTLinkageRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PlaytesthubServiceServer).RecoverADTLinkage(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PlaytesthubService_RecoverADTLinkage_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PlaytesthubServiceServer).RecoverADTLinkage(ctx, req.(*RecoverADTLinkageRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _PlaytesthubService_ListADTBuilds_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListADTBuildsRequest)
 	if err := dec(in); err != nil {
@@ -1652,6 +1686,10 @@ var PlaytesthubService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UnlinkADT",
 			Handler:    _PlaytesthubService_UnlinkADT_Handler,
+		},
+		{
+			MethodName: "RecoverADTLinkage",
+			Handler:    _PlaytesthubService_RecoverADTLinkage_Handler,
 		},
 		{
 			MethodName: "ListADTBuilds",

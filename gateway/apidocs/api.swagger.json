@@ -58,7 +58,7 @@
     "/v1/admin/namespaces/{namespace}/adt/linkages/{adtLinkageId}": {
       "delete": {
         "summary": "Soft-delete an ADT linkage (admin; idempotent)",
-        "description": "Idempotent re-unlink against an already soft-deleted row is a no-op success. Linkage absent for the caller's studio → NotFound (PRD §4.8).",
+        "description": "Idempotent re-unlink against an already soft-deleted row is a no-op success. Linkage absent for the caller's studio → NotFound (PRD §4.8). Best-effort calls ADT's DELETE /linkage in the same flow so the ADT-side flag and the local row drop together.",
         "operationId": "PlaytesthubService_UnlinkADT",
         "responses": {
           "200": {
@@ -223,6 +223,51 @@
             "required": true,
             "schema": {
               "$ref": "#/definitions/PlaytesthubServiceCompleteADTLinkBody"
+            }
+          }
+        ],
+        "tags": [
+          "PlaytesthubService"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v1/admin/namespaces/{namespace}/adt/linkages:recover": {
+      "post": {
+        "summary": "Adopt an ADT-side linkage that has no local row (admin)",
+        "description": "Operator-recovery surface for the 2026-05-21 orphan-flag bug: when ADT still carries a linkage flag but no local adt_linkage row exists, StartADTLink + the redirect dance fail with 409 / already_linked. RecoverADTLinkage probes ADT (ListGames) to confirm the orphan flag, then inserts the local row directly. No OAuth round-trip. AlreadyExists when a live row for (studio, adtNamespace) is already present; FailedPrecondition when ADT reports no flag for the pair; Unavailable on ADT transient errors.",
+        "operationId": "PlaytesthubService_RecoverADTLinkage",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1RecoverADTLinkageResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/PlaytesthubServiceRecoverADTLinkageBody"
             }
           }
         ],
@@ -2054,6 +2099,15 @@
         }
       }
     },
+    "PlaytesthubServiceRecoverADTLinkageBody": {
+      "type": "object",
+      "properties": {
+        "adtNamespace": {
+          "type": "string",
+          "description": "ADT namespace whose orphan flag (present on ADT's side, absent\nlocally) the caller wants to adopt. Required."
+        }
+      }
+    },
     "PlaytesthubServiceRejectApplicantBody": {
       "type": "object",
       "properties": {
@@ -3080,6 +3134,14 @@
         }
       },
       "description": "PublicPlaytest is the restricted field set exposed to unauthenticated\ncallers on GetPublicPlaytest (PRD §5.2)."
+    },
+    "v1RecoverADTLinkageResponse": {
+      "type": "object",
+      "properties": {
+        "linkage": {
+          "$ref": "#/definitions/v1ADTLinkage"
+        }
+      }
     },
     "v1RejectApplicantResponse": {
       "type": "object",

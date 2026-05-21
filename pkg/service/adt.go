@@ -336,6 +336,81 @@ func (s *PlaytesthubServiceServer) recordUnlinkADTSideFailure(adtNamespace strin
 	)
 }
 
+// RecoverADTLinkage is the operator-recovery surface for the 2026-05-21
+// orphan-flag bug: an ADT-side linkage flag with no matching local row
+// makes StartADTLink fail with 409 / already_linked, leaving the
+// operator stuck. RecoverADTLinkage probes ADT to confirm the orphan
+// flag (via ListGames — the cheapest call that exercises the same
+// linkage-flag check ADT enforces on every other endpoint) and inserts
+// the local row directly. No OAuth round-trip required.
+//
+// PRD §4.8 / errors.md rows for "adt linkage already exists for that
+// namespace" + "no ADT-side linkage found for that namespace; use
+// StartADTLink to create one".
+func (s *PlaytesthubServiceServer) RecoverADTLinkage(ctx context.Context, req *pb.RecoverADTLinkageRequest) (*pb.RecoverADTLinkageResponse, error) {
+	actor, err := requireActor(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.checkNamespace(req.GetNamespace()); err != nil {
+		return nil, err
+	}
+	if req.GetAdtNamespace() == "" {
+		return nil, status.Error(codes.InvalidArgument, "adt_namespace is required")
+	}
+	store, err := s.requireADTLinkageStore()
+	if err != nil {
+		return nil, err
+	}
+	if s.adtClient == nil {
+		return nil, status.Error(codes.Internal, "ADT client not configured")
+	}
+	studio, err := s.resolveStudioNamespace(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	existing, err := store.GetLive(ctx, studio, req.GetAdtNamespace())
+	if err != nil && !errors.Is(err, repo.ErrNotFound) {
+		return nil, status.Errorf(codes.Internal, "loading adt_linkage: %v", err)
+	}
+	if existing != nil {
+		return nil, status.Error(codes.AlreadyExists, "adt linkage already exists for that namespace")
+	}
+
+	if _, err := s.adtClient.ListGames(ctx, studio, req.GetAdtNamespace()); err != nil {
+		if errors.Is(err, adt.ErrLinkageMissing) {
+			return nil, status.Error(codes.FailedPrecondition, "no ADT-side linkage found for that namespace; use StartADTLink to create one")
+		}
+		return nil, status.Errorf(codes.Unavailable, "ADT temporarily unavailable while probing linkage: %v", err)
+	}
+
+	row := &repo.ADTLinkage{
+		StudioNamespace: studio,
+		ADTNamespace:    req.GetAdtNamespace(),
+		LinkedByUserID:  actor,
+	}
+	got, err := store.Insert(ctx, row)
+	if errors.Is(err, repo.ErrUniqueViolation) {
+		// Race: another admin concurrently called Recover (or
+		// CompleteADTLink finished the redirect dance) between our
+		// GetLive and Insert. Surface AlreadyExists with the same
+		// byte-exact message so the operator-recovery contract is
+		// uniform regardless of which side won.
+		return nil, status.Error(codes.AlreadyExists, "adt linkage already exists for that namespace")
+	}
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "inserting adt_linkage: %v", err)
+	}
+
+	if s.audit != nil {
+		if auditErr := repo.AppendADTLinkageRecover(ctx, s.audit, s.namespace, actor, got.ID, got.StudioNamespace, got.ADTNamespace); auditErr != nil {
+			s.loggerOrDefault().Warn("audit append failed", "action", repo.ActionADTLinkageRecover, "err", auditErr)
+		}
+	}
+	return &pb.RecoverADTLinkageResponse{Linkage: adtLinkageToProto(got)}, nil
+}
+
 // ListADTBuilds proxies adt.Client.ListBuilds for the linkage. The
 // build picker on the create form uses this; CreatePlaytest's ADT
 // branch (B5) calls the same path to verify adt_build_id belongs to

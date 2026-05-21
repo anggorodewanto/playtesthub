@@ -15,6 +15,7 @@ const (
 	ActionApplicantAutoApproved = "applicant.auto_approved"
 	ActionADTLinkageCreate      = "adt_linkage.create"
 	ActionADTLinkageDelete      = "adt_linkage.delete"
+	ActionADTLinkageRecover     = "adt_linkage.recover"
 	ActionAnnouncementCreate    = "announcement.create"
 )
 
@@ -78,5 +79,20 @@ func AppendADTLinkageDelete(ctx context.Context, store AuditLogStore, namespace 
 		"adtLinkageId":    linkageID.String(),
 		"studioNamespace": studioNamespace,
 		"adtNamespace":    adtNamespace,
+	})
+}
+
+// AppendADTLinkageRecover records the adoption of an orphan ADT-side
+// linkage flag via RecoverADTLinkage (PRD §4.8). Admin-attributed:
+// actorUserID = the admin who called the recovery RPC. Payload mirrors
+// adt_linkage.create — the only material difference is the action
+// string (an audit-log filter on action separates orphan-recovery from
+// the regular create flow).
+func AppendADTLinkageRecover(ctx context.Context, store AuditLogStore, namespace string, actor uuid.UUID, linkageID uuid.UUID, studioNamespace, adtNamespace string) error {
+	return appendAction(ctx, store, namespace, nil, &actor, ActionADTLinkageRecover, map[string]any{
+		"adtLinkageId":    linkageID.String(),
+		"studioNamespace": studioNamespace,
+		"adtNamespace":    adtNamespace,
+		"linkedBy":        agsid.Format(actor),
 	})
 }

@@ -55,6 +55,7 @@ func TestServiceDescriptorMethods(t *testing.T) {
 		"StartADTLink":       true,
 		"CompleteADTLink":    true,
 		"UnlinkADT":          true,
+		"RecoverADTLinkage":  true,
 		"ListADTBuilds":      true,
 		"ListADTGames":       true,
 		"GetADTDownloadInfo": true,
