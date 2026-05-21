@@ -36,6 +36,7 @@ import { V1GetCodePoolResponse } from '../../generated-definitions/V1GetCodePool
 import { V1GetPlaytestParticipantsResponse } from '../../generated-definitions/V1GetPlaytestParticipantsResponse.js'
 import { V1GetWorkerHealthResponse } from '../../generated-definitions/V1GetWorkerHealthResponse.js'
 import { V1ListAdtBuildsResponse } from '../../generated-definitions/V1ListAdtBuildsResponse.js'
+import { V1ListAdtGamesResponse } from '../../generated-definitions/V1ListAdtGamesResponse.js'
 import { V1ListAdtLinkagesResponse } from '../../generated-definitions/V1ListAdtLinkagesResponse.js'
 import { V1ListAnnouncementsResponse } from '../../generated-definitions/V1ListAnnouncementsResponse.js'
 import { V1ListApplicantsResponse } from '../../generated-definitions/V1ListApplicantsResponse.js'
@@ -322,6 +323,23 @@ export class PlaytesthubServiceAdmin$ {
     const resultPromise = this.axiosInstance.post(url, data, { params })
 
     return Validate.validateOrReturnResponse(this.useSchemaValidation, () => resultPromise, V1RetryDmResponse, 'V1RetryDmResponse')
+  }
+  /**
+   * Proxies adt.Client.ListGames keyed on the studio derived from the caller's token. Drives the create-playtest build-picker's top-level dropdown (STATUS_M5.md B12 + Addendum 2026-05-21). Returns FailedPrecondition when ADT reports the linkage flag missing.
+   */
+  getGamesAdt_ByAdtLinkageId(adtLinkageId: string): Promise<Response<V1ListAdtGamesResponse>> {
+    const params = {} as AxiosRequestConfig
+    const url = '/v1/admin/namespaces/{namespace}/adt/linkages/{adtLinkageId}/games'
+      .replace('{namespace}', this.namespace)
+      .replace('{adtLinkageId}', adtLinkageId)
+    const resultPromise = this.axiosInstance.get(url, { params })
+
+    return Validate.validateOrReturnResponse(
+      this.useSchemaValidation,
+      () => resultPromise,
+      V1ListAdtGamesResponse,
+      'V1ListAdtGamesResponse'
+    )
   }
   /**
    * Order: createdAt DESC. Filters: status_filter (UNSPECIFIED → no filter), dm_failed_filter (true → only lastDmStatus='failed'). page_token is opaque; absent → start of stream. page_size 0 → server default (50).

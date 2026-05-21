@@ -36,6 +36,7 @@ import { V1GetCodePoolResponse } from '../generated-definitions/V1GetCodePoolRes
 import { V1GetPlaytestParticipantsResponse } from '../generated-definitions/V1GetPlaytestParticipantsResponse.js'
 import { V1GetWorkerHealthResponse } from '../generated-definitions/V1GetWorkerHealthResponse.js'
 import { V1ListAdtBuildsResponse } from '../generated-definitions/V1ListAdtBuildsResponse.js'
+import { V1ListAdtGamesResponse } from '../generated-definitions/V1ListAdtGamesResponse.js'
 import { V1ListAdtLinkagesResponse } from '../generated-definitions/V1ListAdtLinkagesResponse.js'
 import { V1ListAnnouncementsResponse } from '../generated-definitions/V1ListAnnouncementsResponse.js'
 import { V1ListApplicantsResponse } from '../generated-definitions/V1ListApplicantsResponse.js'
@@ -227,6 +228,13 @@ export function PlaytesthubServiceAdminApi(sdk: AccelByteSDK, args?: SdkSetConfi
     return resp.response
   }
 
+  async function getGamesAdt_ByAdtLinkageId(adtLinkageId: string): Promise<AxiosResponse<V1ListAdtGamesResponse>> {
+    const $ = new PlaytesthubServiceAdmin$(axiosInstance, namespace, useSchemaValidation)
+    const resp = await $.getGamesAdt_ByAdtLinkageId(adtLinkageId)
+    if (resp.error) throw resp.error
+    return resp.response
+  }
+
   async function getApplicants_ByPlaytestId(
     playtestId: string,
     queryParams?: {
@@ -403,6 +411,10 @@ export function PlaytesthubServiceAdminApi(sdk: AccelByteSDK, args?: SdkSetConfi
      * No cooldown — double-click sends two DMs (PRD §5.4). Returns the updated Applicant row with refreshed DM fields.
      */
     createApplicant_ByApplicantIdRetryDm,
+    /**
+     * Proxies adt.Client.ListGames keyed on the studio derived from the caller's token. Drives the create-playtest build-picker's top-level dropdown (STATUS_M5.md B12 + Addendum 2026-05-21). Returns FailedPrecondition when ADT reports the linkage flag missing.
+     */
+    getGamesAdt_ByAdtLinkageId,
     /**
      * Order: createdAt DESC. Filters: status_filter (UNSPECIFIED → no filter), dm_failed_filter (true → only lastDmStatus='failed'). page_token is opaque; absent → start of stream. page_size 0 → server default (50).
      */

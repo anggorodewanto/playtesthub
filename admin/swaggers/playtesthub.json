@@ -148,6 +148,49 @@
         ]
       }
     },
+    "/v1/admin/namespaces/{namespace}/adt/linkages/{adtLinkageId}/games": {
+      "get": {
+        "summary": "List games registered under an ADT linkage's namespace (admin)",
+        "description": "Proxies adt.Client.ListGames keyed on the studio derived from the caller's token. Drives the create-playtest build-picker's top-level dropdown (STATUS_M5.md B12 + Addendum 2026-05-21). Returns FailedPrecondition when ADT reports the linkage flag missing.",
+        "operationId": "PlaytesthubService_ListADTGames",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListADTGamesResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "adtLinkageId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "PlaytesthubService"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
     "/v1/admin/namespaces/{namespace}/adt/linkages:complete": {
       "post": {
         "summary": "Finalize an ADT linking round-trip (admin)",
@@ -2112,6 +2155,22 @@
       },
       "description": "ADTBuild is the minimum build row the admin UI / pth CLI needs to\ndrive the build picker. Mirrors pkg/adt.Build but rendered as proto."
     },
+    "v1ADTGame": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "description": "ADTGame is the minimum game row the admin UI / pth CLI needs to drive\nthe create-playtest build-picker's top-level dropdown. Mirrors\npkg/adt.Game (STATUS_M5.md \"Addendum 2026-05-21 — games-list endpoint\")."
+    },
     "v1ADTLinkage": {
       "type": "object",
       "properties": {
@@ -2612,6 +2671,18 @@
           "items": {
             "type": "object",
             "$ref": "#/definitions/v1ADTBuild"
+          }
+        }
+      }
+    },
+    "v1ListADTGamesResponse": {
+      "type": "object",
+      "properties": {
+        "games": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1ADTGame"
           }
         }
       }

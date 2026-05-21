@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event'
 import dayjs, { type Dayjs } from 'dayjs'
 import utc from 'dayjs/plugin/utc'
 import { MemoryRouter } from 'react-router'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 dayjs.extend(utc)
 
@@ -34,6 +34,7 @@ const mockGetWorkersHealth = vi.fn()
 const mockCompleteAdtLinkMutation = vi.fn()
 const mockGetAdtLinkages = vi.fn()
 const mockGetAdtBuilds = vi.fn()
+const mockGetAdtGames = vi.fn()
 const mockStartAdtLinkMutation = vi.fn()
 const mockUnlinkAdtMutation = vi.fn()
 const mockGetPublicConfig = vi.fn()
@@ -51,7 +52,8 @@ vi.mock('./playtesthubapi/generated-admin/queries/PlaytesthubServiceAdmin.query'
     Codes_ByPlaytestId: 'codes-by-playtest-id',
     Applicants_ByPlaytestId: 'applicants-by-playtest-id',
     AdtLinkages: 'adt-linkages',
-    BuildsAdt_ByAdtLinkageId: 'adt-builds-by-linkage-id'
+    BuildsAdt_ByAdtLinkageId: 'adt-builds-by-linkage-id',
+    GamesAdt_ByAdtLinkageId: 'adt-games-by-linkage-id'
   },
   usePlaytesthubServiceAdminApi_GetPlaytests: (...args: unknown[]) => mockGetPlaytests(...args),
   usePlaytesthubServiceAdminApi_GetPlaytest_ByPlaytestId: (...args: unknown[]) => mockGetPlaytest(...args),
@@ -71,6 +73,7 @@ vi.mock('./playtesthubapi/generated-admin/queries/PlaytesthubServiceAdmin.query'
   usePlaytesthubServiceAdminApi_CreateAdtLinkagesCompleteMutation: (...args: unknown[]) => mockCompleteAdtLinkMutation(...args),
   usePlaytesthubServiceAdminApi_GetAdtLinkages: (...args: unknown[]) => mockGetAdtLinkages(...args),
   usePlaytesthubServiceAdminApi_GetBuildsAdt_ByAdtLinkageId: (...args: unknown[]) => mockGetAdtBuilds(...args),
+  usePlaytesthubServiceAdminApi_GetGamesAdt_ByAdtLinkageId: (...args: unknown[]) => mockGetAdtGames(...args),
   usePlaytesthubServiceAdminApi_CreateAdtLinkagesStartMutation: (...args: unknown[]) => mockStartAdtLinkMutation(...args),
   usePlaytesthubServiceAdminApi_DeleteAdtLinkage_ByAdtLinkageIdMutation: (...args: unknown[]) => mockUnlinkAdtMutation(...args)
 }))
@@ -108,6 +111,7 @@ beforeEach(() => {
   mockCompleteAdtLinkMutation.mockReset()
   mockGetAdtLinkages.mockReset()
   mockGetAdtBuilds.mockReset()
+  mockGetAdtGames.mockReset()
   mockStartAdtLinkMutation.mockReset()
   mockUnlinkAdtMutation.mockReset()
   mockGetPublicConfig.mockReset()
@@ -131,9 +135,24 @@ beforeEach(() => {
   mockCompleteAdtLinkMutation.mockReturnValue({ mutate: vi.fn(), isPending: false, isError: false, error: null })
   mockGetAdtLinkages.mockReturnValue({ data: { linkages: [] }, isLoading: false, error: null })
   mockGetAdtBuilds.mockReturnValue({ data: { builds: [] }, isLoading: false, error: null })
+  mockGetAdtGames.mockReturnValue({ data: { games: [] }, isLoading: false, error: null })
   mockStartAdtLinkMutation.mockReturnValue({ mutate: vi.fn(), isPending: false, isError: false, error: null })
   mockUnlinkAdtMutation.mockReturnValue({ mutate: vi.fn(), isPending: false, isError: false, error: null })
   mockGetPublicConfig.mockReturnValue({ data: { playerBaseUrl: 'https://play.example.com' } })
+})
+
+// Antd renders Popconfirm + Modal.confirm via a portal on document.body.
+// Auto-cleanup detaches the rendered React tree but the leftover modal
+// mask + confirm dialog stays mounted on document.body and intercepts
+// click events in later tests' portal-mounted Modals (e.g. the B13
+// build-picker). Drop only stale confirm dialogs (the ant-modal-confirm
+// variant) — leaving regular ant-modal-root nodes intact so that
+// onUnmount cleanups inside antd's portal logic don't double-remove.
+afterEach(() => {
+  document.querySelectorAll('.ant-modal-confirm').forEach(node => {
+    const root = node.closest('.ant-modal-root')
+    if (root && root.parentNode) root.parentNode.removeChild(root)
+  })
 })
 
 async function openRowMenu() {
@@ -378,9 +397,202 @@ describe('PlaytestCreatePage', () => {
     const user = userEvent.setup()
     await user.click(screen.getByRole('radio', { name: /^ADT$/i }))
     expect(await screen.findByLabelText(/adt linkage/i)).toBeInTheDocument()
-    expect(screen.getByLabelText(/adt game id/i)).toBeInTheDocument()
-    expect(screen.getByLabelText(/adt build id/i)).toBeInTheDocument()
+    // The build picker modal (B13) is the canonical UX; the typed adt game
+    // id Input only renders in the fallback path. Confirm the picker button
+    // is offered alongside the static fallback URL.
+    expect(screen.getByRole('button', { name: /select game build/i })).toBeInTheDocument()
     expect(screen.getByLabelText(/static fallback download url/i)).toBeInTheDocument()
+  })
+
+  describe('Build picker modal (M5.B-13)', () => {
+    function setLinkages() {
+      mockGetAdtLinkages.mockReturnValue({
+        data: { linkages: [{ id: 'lnk-1', adtNamespace: 'adt-ns-1', studioNamespace: 'studio-A' }] },
+        isLoading: false,
+        error: null
+      })
+    }
+
+    it('disables the Select Game Build button until an ADT linkage is picked, then opens the modal with a games dropdown', async () => {
+      setLinkages()
+      mockGetAdtGames.mockReturnValue({
+        data: { games: [{ id: 'game-1', name: 'Starfield Dev', createdAt: '2026-05-01T00:00:00Z' }] },
+        isLoading: false,
+        error: null
+      })
+      renderAt('/new')
+      const user = userEvent.setup()
+      await user.click(screen.getByRole('radio', { name: /^ADT$/i }))
+
+      const openButton = await screen.findByRole('button', { name: /select game build/i })
+      expect(openButton).toBeDisabled()
+
+      await user.click(screen.getByLabelText(/adt linkage/i))
+      await user.click(await screen.findByText(/adt-ns-1/i))
+
+      await waitFor(() => expect(screen.getByRole('button', { name: /select game build/i })).toBeEnabled())
+      await user.click(screen.getByRole('button', { name: /select game build/i }))
+
+      const dialog = await screen.findByRole('dialog', { name: /select game build/i })
+      expect(within(dialog).getByText(/starfield dev/i)).toBeInTheDocument()
+    })
+
+    it('groups builds by game_version_name in the left rail with per-version build counts', async () => {
+      setLinkages()
+      mockGetAdtGames.mockReturnValue({
+        data: { games: [{ id: 'game-1', name: 'Starfield Dev' }] },
+        isLoading: false,
+        error: null
+      })
+      mockGetAdtBuilds.mockReturnValue({
+        data: {
+          builds: [
+            { id: 'b1', name: 'v1.3 — Performance Pass', version: 'v1.3', platform: 'windows', uploadedAt: '2026-05-10T00:00:00Z' },
+            { id: 'b2', name: 'v1.3 — Performance Pass', version: 'v1.3', platform: 'macos', uploadedAt: '2026-05-11T00:00:00Z' },
+            { id: 'b3', name: 'v1.2 — Combat Update', version: 'v1.2', platform: 'windows', uploadedAt: '2026-04-15T00:00:00Z' }
+          ]
+        },
+        isLoading: false,
+        error: null
+      })
+      renderAt('/new')
+      const user = userEvent.setup()
+      await user.click(screen.getByRole('radio', { name: /^ADT$/i }))
+      await user.click(screen.getByLabelText(/adt linkage/i))
+      await user.click(await screen.findByText(/adt-ns-1/i))
+      await user.click(await screen.findByRole('button', { name: /select game build/i }))
+
+      const dialog = await screen.findByRole('dialog', { name: /select game build/i })
+      expect(within(dialog).getByText('v1.3 — Performance Pass')).toBeInTheDocument()
+      expect(within(dialog).getByText('v1.2 — Combat Update')).toBeInTheDocument()
+      expect(within(dialog).getByText(/2 builds/i)).toBeInTheDocument()
+      expect(within(dialog).getByText(/1 build$/i)).toBeInTheDocument()
+    })
+
+    it('renders one card per platform when a version is selected in the left rail', async () => {
+      setLinkages()
+      mockGetAdtGames.mockReturnValue({
+        data: { games: [{ id: 'game-1', name: 'Starfield Dev' }] },
+        isLoading: false,
+        error: null
+      })
+      mockGetAdtBuilds.mockReturnValue({
+        data: {
+          builds: [
+            { id: 'b1', name: 'v1.3 — Performance Pass', version: 'v1.3', platform: 'windows', uploadedAt: '2026-05-10T00:00:00Z' },
+            { id: 'b2', name: 'v1.3 — Performance Pass', version: 'v1.3', platform: 'macos', uploadedAt: '2026-05-11T00:00:00Z' }
+          ]
+        },
+        isLoading: false,
+        error: null
+      })
+      renderAt('/new')
+      const user = userEvent.setup()
+      await user.click(screen.getByRole('radio', { name: /^ADT$/i }))
+      await user.click(screen.getByLabelText(/adt linkage/i))
+      await user.click(await screen.findByText(/adt-ns-1/i))
+      await user.click(await screen.findByRole('button', { name: /select game build/i }))
+
+      const dialog = await screen.findByRole('dialog', { name: /select game build/i })
+      await user.click(within(dialog).getByText('v1.3 — Performance Pass'))
+
+      expect(within(dialog).getByText(/windows/i)).toBeInTheDocument()
+      expect(within(dialog).getByText(/macos/i)).toBeInTheDocument()
+      expect(within(dialog).getByText('b1')).toBeInTheDocument()
+      expect(within(dialog).getByText('b2')).toBeInTheDocument()
+    })
+
+    it('falls back to typed game id + flat build select when ListADTGames returns 5xx', async () => {
+      setLinkages()
+      mockGetAdtGames.mockReturnValue({
+        data: undefined,
+        isLoading: false,
+        error: { response: { status: 503 } }
+      })
+      mockGetAdtBuilds.mockReturnValue({
+        data: { builds: [{ id: 'b1', name: 'v1.0', version: 'v1.0', platform: 'windows', uploadedAt: '2026-04-01T00:00:00Z' }] },
+        isLoading: false,
+        error: null
+      })
+      renderAt('/new')
+      const user = userEvent.setup()
+      await user.click(screen.getByRole('radio', { name: /^ADT$/i }))
+      // Picking the linkage is what triggers the games-list lookup; the 5xx
+      // response (mocked) is what flips us into fallback mode.
+      await user.click(screen.getByLabelText(/adt linkage/i))
+      await user.click(await screen.findByText(/adt-ns-1/i))
+      // Fallback retains the typed Input for adt game id + a flat build select.
+      expect(await screen.findByLabelText(/adt game id/i)).toBeInTheDocument()
+      expect(screen.getByLabelText(/adt build id/i)).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /select game build/i })).not.toBeInTheDocument()
+      // ADT outage banner must surface so operators know why the picker is unavailable.
+      expect(screen.getByText(/adt games list unavailable/i)).toBeInTheDocument()
+    })
+
+    it('wires both adtGameId and adtBuildId on the parent form when Use This Build is clicked', async () => {
+      setLinkages()
+      const mutate = vi.fn()
+      mockCreateMutation.mockReturnValue({ mutate, isPending: false, isError: false, error: null })
+      mockGetAdtGames.mockReturnValue({
+        data: { games: [{ id: 'game-1', name: 'Starfield Dev' }] },
+        isLoading: false,
+        error: null
+      })
+      mockGetAdtBuilds.mockReturnValue({
+        data: {
+          builds: [{ id: 'b1', name: 'v1.3 — Performance Pass', version: 'v1.3', platform: 'windows', uploadedAt: '2026-05-10T00:00:00Z' }]
+        },
+        isLoading: false,
+        error: null
+      })
+      renderAt('/new')
+      const user = userEvent.setup()
+      // Fill enough of the form to reach submit; the build picker drives the
+      // adtGameId + adtBuildId fields which we then assert end up on the parent
+      // form's submit payload.
+      await user.type(screen.getByLabelText(/slug/i), 'demo-slug')
+      await user.type(screen.getByLabelText(/^title$/i), 'Demo')
+      await user.click(screen.getByRole('radio', { name: /^ADT$/i }))
+      await user.click(screen.getByLabelText(/adt linkage/i))
+      await user.click(await screen.findByText(/adt-ns-1/i))
+      await user.click(await screen.findByRole('button', { name: /select game build/i }))
+
+      const dialog = await screen.findByRole('dialog', { name: /select game build/i })
+      // Default selected game = the only one. Pick the version, then pick the
+      // build card, then Use This Build.
+      await user.click(within(dialog).getByText('v1.3 — Performance Pass'))
+      await user.click(within(dialog).getByTestId('adt-picker-build-b1'))
+      await user.click(within(dialog).getByRole('button', { name: /use this build/i }))
+
+      await waitFor(() => expect(screen.queryByRole('dialog', { name: /select game build/i })).not.toBeInTheDocument())
+      // Picked summary surfaces in the parent form so operators see what they picked.
+      expect(screen.getByText(/starfield dev/i)).toBeInTheDocument()
+      expect(screen.getByText('b1')).toBeInTheDocument()
+    })
+
+    it('preserves typed slug + title when the modal is cancelled', async () => {
+      setLinkages()
+      mockGetAdtGames.mockReturnValue({
+        data: { games: [{ id: 'game-1', name: 'Starfield Dev' }] },
+        isLoading: false,
+        error: null
+      })
+      renderAt('/new')
+      const user = userEvent.setup()
+      await user.type(screen.getByLabelText(/slug/i), 'demo-slug')
+      await user.type(screen.getByLabelText(/^title$/i), 'My Title')
+      await user.click(screen.getByRole('radio', { name: /^ADT$/i }))
+      await user.click(screen.getByLabelText(/adt linkage/i))
+      await user.click(await screen.findByText(/adt-ns-1/i))
+      await user.click(await screen.findByRole('button', { name: /select game build/i }))
+
+      const dialog = await screen.findByRole('dialog', { name: /select game build/i })
+      await user.click(within(dialog).getByRole('button', { name: /cancel/i }))
+
+      await waitFor(() => expect(screen.queryByRole('dialog', { name: /select game build/i })).not.toBeInTheDocument())
+      expect(screen.getByLabelText(/slug/i)).toHaveValue('demo-slug')
+      expect(screen.getByLabelText(/^title$/i)).toHaveValue('My Title')
+    })
   })
 })
 

@@ -39,6 +39,7 @@ import { V1GetCodePoolResponse } from '../../generated-definitions/V1GetCodePool
 import { V1GetPlaytestParticipantsResponse } from '../../generated-definitions/V1GetPlaytestParticipantsResponse.js'
 import { V1GetWorkerHealthResponse } from '../../generated-definitions/V1GetWorkerHealthResponse.js'
 import { V1ListAdtBuildsResponse } from '../../generated-definitions/V1ListAdtBuildsResponse.js'
+import { V1ListAdtGamesResponse } from '../../generated-definitions/V1ListAdtGamesResponse.js'
 import { V1ListAdtLinkagesResponse } from '../../generated-definitions/V1ListAdtLinkagesResponse.js'
 import { V1ListAnnouncementsResponse } from '../../generated-definitions/V1ListAnnouncementsResponse.js'
 import { V1ListApplicantsResponse } from '../../generated-definitions/V1ListApplicantsResponse.js'
@@ -71,6 +72,7 @@ export const Key_PlaytesthubServiceAdmin = {
   AuditLog_ByPlaytestId: 'Playtesthubapi.PlaytesthubServiceAdmin.AuditLog_ByPlaytestId',
   Applicant_ByApplicantIdApprove: 'Playtesthubapi.PlaytesthubServiceAdmin.Applicant_ByApplicantIdApprove',
   Applicant_ByApplicantIdRetryDm: 'Playtesthubapi.PlaytesthubServiceAdmin.Applicant_ByApplicantIdRetryDm',
+  GamesAdt_ByAdtLinkageId: 'Playtesthubapi.PlaytesthubServiceAdmin.GamesAdt_ByAdtLinkageId',
   Applicants_ByPlaytestId: 'Playtesthubapi.PlaytesthubServiceAdmin.Applicants_ByPlaytestId',
   BuildsAdt_ByAdtLinkageId: 'Playtesthubapi.PlaytesthubServiceAdmin.BuildsAdt_ByAdtLinkageId',
   CodesTopUp_ByPlaytestId: 'Playtesthubapi.PlaytesthubServiceAdmin.CodesTopUp_ByPlaytestId',
@@ -689,6 +691,40 @@ export const usePlaytesthubServiceAdminApi_CreateApplicant_ByApplicantIdRetryDmM
   return useMutation({
     mutationKey: [Key_PlaytesthubServiceAdmin.Applicant_ByApplicantIdRetryDm],
     mutationFn,
+    ...options
+  })
+}
+
+/**
+ * Proxies adt.Client.ListGames keyed on the studio derived from the caller's token. Drives the create-playtest build-picker's top-level dropdown (STATUS_M5.md B12 + Addendum 2026-05-21). Returns FailedPrecondition when ADT reports the linkage flag missing.
+ *
+ * #### Default Query Options
+ * The default options include:
+ * ```
+ * {
+ *    queryKey: [Key_PlaytesthubServiceAdmin.GamesAdt_ByAdtLinkageId, input]
+ * }
+ * ```
+ */
+export const usePlaytesthubServiceAdminApi_GetGamesAdt_ByAdtLinkageId = (
+  sdk: AccelByteSDK,
+  input: SdkSetConfigParam & { adtLinkageId: string },
+  options?: Omit<UseQueryOptions<V1ListAdtGamesResponse, AxiosError<ApiError>>, 'queryKey'>,
+  callback?: (data: AxiosResponse<V1ListAdtGamesResponse>) => void
+): UseQueryResult<V1ListAdtGamesResponse, AxiosError<ApiError>> => {
+  const queryFn =
+    (sdk: AccelByteSDK, input: Parameters<typeof usePlaytesthubServiceAdminApi_GetGamesAdt_ByAdtLinkageId>[1]) => async () => {
+      const response = await PlaytesthubServiceAdminApi(sdk, {
+        coreConfig: input.coreConfig,
+        axiosConfig: input.axiosConfig
+      }).getGamesAdt_ByAdtLinkageId(input.adtLinkageId)
+      callback?.(response)
+      return response.data
+    }
+
+  return useQuery<V1ListAdtGamesResponse, AxiosError<ApiError>>({
+    queryKey: [Key_PlaytesthubServiceAdmin.GamesAdt_ByAdtLinkageId, input],
+    queryFn: queryFn(sdk, input),
     ...options
   })
 }
