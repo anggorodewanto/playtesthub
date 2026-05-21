@@ -33,10 +33,35 @@ var ADTLinkFailures = prometheus.NewCounterVec(
 	[]string{"phase", "reason"},
 )
 
+// ADTUnlinkADTSideFailures counts UnlinkADT's best-effort ADT-side
+// DELETE failures so an alert can fire when a real ADT outage starts
+// stranding operators (today's 2026-05-21 bug — an unlinked local row
+// + a still-flagged ADT side blocks every subsequent re-link with 409
+// `already_linked`). UnlinkADT swallows the error and finishes the
+// local soft-delete; the metric is the only signal that the orphan
+// case is accumulating.
+//
+// Labels:
+//
+//	reason — narrow vocabulary mirroring ADTLinkFailures:
+//	         "linkage_missing" — ADT returned 401/403 (flag already absent on ADT's side; benign)
+//	         "transient"       — ErrUnavailable / ErrRateLimited (5xx-retry exhausted or 429)
+//	         "unknown"         — any other error class (logged + counted but otherwise opaque)
+var ADTUnlinkADTSideFailures = prometheus.NewCounterVec(
+	prometheus.CounterOpts{
+		Namespace: "playtesthub",
+		Subsystem: "adt",
+		Name:      "unlink_adt_side_failures_total",
+		Help:      "UnlinkADT best-effort ADT-side DELETE failures partitioned by reason. See pkg/service/adt_metrics.go for the reason vocabulary.",
+	},
+	[]string{"reason"},
+)
+
 // RegisterADTMetrics attaches the ADT-linking counters to the supplied
 // Prometheus registry. Idempotent within a process — calling twice
 // against the same registry panics, so main.go calls it exactly once
 // alongside the other collector registrations.
 func RegisterADTMetrics(r prometheus.Registerer) {
 	r.MustRegister(ADTLinkFailures)
+	r.MustRegister(ADTUnlinkADTSideFailures)
 }

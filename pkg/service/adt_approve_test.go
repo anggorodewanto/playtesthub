@@ -168,6 +168,9 @@ func (erroringADTClient) ListGames(context.Context, string, string) ([]adt.Game,
 func (erroringADTClient) IssueDownloadURL(context.Context, adt.IssueDownloadURLParams) (adt.IssuedDownloadURL, error) {
 	return adt.IssuedDownloadURL{}, &adtTestError{}
 }
+func (erroringADTClient) DeleteLinkage(context.Context, string, string) error {
+	return nil
+}
 
 type adtTestError struct{}
 

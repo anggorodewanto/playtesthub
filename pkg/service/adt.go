@@ -247,7 +247,19 @@ func (s *PlaytesthubServiceServer) CompleteADTLink(ctx context.Context, req *pb.
 	return &pb.CompleteADTLinkResponse{Linkage: adtLinkageToProto(got)}, nil
 }
 
-// UnlinkADT soft-deletes the linkage row. PRD §4.8. Idempotent.
+// UnlinkADT soft-deletes the local linkage row AND best-effort tells
+// ADT to drop its side of the flag. PRD §4.8. Idempotent.
+//
+// Best-effort propagation: a failed ADT-side DELETE is logged + counted
+// (ADTUnlinkADTSideFailures) but does NOT block the local soft-delete.
+// Rationale: an ADT outage must never strand an operator who wants to
+// drop their own row, and the 2026-05-21 orphan-flag bug proves the
+// inverse — soft-deleting locally without propagating leaves the
+// operator unable to re-link until the orphan flag is cleaned up
+// out-of-band. ErrLinkageMissing from ADT is the desired post-state
+// (flag already absent) so it's swallowed alongside the transient
+// errors; the metric still fires so we can see "operator-driven
+// unlinks that hit a noisy ADT" trends.
 func (s *PlaytesthubServiceServer) UnlinkADT(ctx context.Context, req *pb.UnlinkADTRequest) (*pb.UnlinkADTResponse, error) {
 	actor, err := requireActor(ctx)
 	if err != nil {
@@ -276,11 +288,17 @@ func (s *PlaytesthubServiceServer) UnlinkADT(ctx context.Context, req *pb.Unlink
 		return nil, status.Errorf(codes.Internal, "loading adt_linkage: %v", err)
 	}
 	// Idempotent re-unlink against an already soft-deleted row: no-op
-	// success, no audit row (schema.md §"adt_linkage.delete" — only
-	// rows whose underlying SoftDelete affected a row emit the audit
-	// event).
+	// success, no audit row, no ADT call (schema.md §"adt_linkage.delete"
+	// — only rows whose underlying SoftDelete affected a row emit the
+	// audit event; mirror the same shape for the ADT-side call so a
+	// no-op locally is a no-op everywhere).
 	if existing.DeletedAt != nil {
 		return &pb.UnlinkADTResponse{}, nil
+	}
+	if s.adtClient != nil {
+		if adtErr := s.adtClient.DeleteLinkage(ctx, studio, existing.ADTNamespace); adtErr != nil {
+			s.recordUnlinkADTSideFailure(existing.ADTNamespace, adtErr)
+		}
 	}
 	if err := store.SoftDelete(ctx, studio, id); err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
@@ -294,6 +312,28 @@ func (s *PlaytesthubServiceServer) UnlinkADT(ctx context.Context, req *pb.Unlink
 		}
 	}
 	return &pb.UnlinkADTResponse{}, nil
+}
+
+// recordUnlinkADTSideFailure classifies the best-effort ADT-side
+// DELETE error, logs at warn level (structured, no PII — adt_namespace
+// is operator-supplied identifier; PRD §6 redacts NDA/survey/code, not
+// linkage identifiers), and increments ADTUnlinkADTSideFailures.
+func (s *PlaytesthubServiceServer) recordUnlinkADTSideFailure(adtNamespace string, err error) {
+	reason := "unknown"
+	switch {
+	case adt.IsLinkageMissing(err):
+		reason = "linkage_missing"
+	case adt.IsUnavailable(err), adt.IsRateLimited(err):
+		reason = "transient"
+	}
+	ADTUnlinkADTSideFailures.WithLabelValues(reason).Inc()
+	s.loggerOrDefault().Warn(
+		"UnlinkADT: ADT-side DELETE failed; proceeding with local soft-delete",
+		"action", repo.ActionADTLinkageDelete,
+		"adt_namespace", adtNamespace,
+		"reason", reason,
+		"err", err,
+	)
 }
 
 // ListADTBuilds proxies adt.Client.ListBuilds for the linkage. The

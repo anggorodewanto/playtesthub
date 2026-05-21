@@ -23,6 +23,12 @@ import (
 // unimplemented because CreatePlaytest does not call them.
 type fakeADTLinkageStore struct {
 	live map[string]*repo.ADTLinkage // key = studio + "|" + adtNs
+
+	// Test hooks used by adt_unlink_test.go.
+	insertErr       error
+	insertedRows    []*repo.ADTLinkage
+	softDeleteErr   error
+	softDeletedKeys []string
 }
 
 func newFakeADTLinkageStore() *fakeADTLinkageStore {
@@ -35,8 +41,20 @@ func (f *fakeADTLinkageStore) InsertPending(context.Context, *repo.ADTLinkPendin
 func (f *fakeADTLinkageStore) ConsumePending(context.Context, string, time.Time) (*repo.ADTLinkPending, error) {
 	return nil, errors.New("ConsumePending unimplemented in fakeADTLinkageStore")
 }
-func (f *fakeADTLinkageStore) Insert(context.Context, *repo.ADTLinkage) (*repo.ADTLinkage, error) {
-	return nil, errors.New("Insert unimplemented in fakeADTLinkageStore")
+func (f *fakeADTLinkageStore) Insert(_ context.Context, l *repo.ADTLinkage) (*repo.ADTLinkage, error) {
+	if f.insertErr != nil {
+		return nil, f.insertErr
+	}
+	row := &repo.ADTLinkage{
+		ID:              uuid.New(),
+		StudioNamespace: l.StudioNamespace,
+		ADTNamespace:    l.ADTNamespace,
+		LinkedByUserID:  l.LinkedByUserID,
+		LinkedAt:        time.Now(),
+	}
+	f.live[l.StudioNamespace+"|"+l.ADTNamespace] = row
+	f.insertedRows = append(f.insertedRows, row)
+	return row, nil
 }
 
 func (f *fakeADTLinkageStore) GetLive(_ context.Context, studio, adtNs string) (*repo.ADTLinkage, error) {
@@ -66,8 +84,19 @@ func (f *fakeADTLinkageStore) GetByID(_ context.Context, studio string, id uuid.
 	return nil, repo.ErrNotFound
 }
 
-func (f *fakeADTLinkageStore) SoftDelete(context.Context, string, uuid.UUID) error {
-	return errors.New("SoftDelete unimplemented in fakeADTLinkageStore")
+func (f *fakeADTLinkageStore) SoftDelete(_ context.Context, studio string, id uuid.UUID) error {
+	if f.softDeleteErr != nil {
+		return f.softDeleteErr
+	}
+	for k, r := range f.live {
+		if r.StudioNamespace == studio && r.ID == id {
+			now := time.Now()
+			r.DeletedAt = &now
+			f.softDeletedKeys = append(f.softDeletedKeys, k)
+			return nil
+		}
+	}
+	return repo.ErrNotFound
 }
 
 func (f *fakeADTLinkageStore) seedLive(studio, adtNs string) *repo.ADTLinkage {
