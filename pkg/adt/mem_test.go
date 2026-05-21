@@ -1,8 +1,10 @@
 package adt_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"log/slog"
 	"strings"
 	"testing"
 	"time"
@@ -231,5 +233,27 @@ func TestMemClient_DeleteLinkage_InjectedFailure(t *testing.T) {
 	// Slot consumed → next call uses the happy path.
 	if err := c.DeleteLinkage(context.Background(), "studio-A", "adt-ns-1"); err != nil {
 		t.Fatalf("DeleteLinkage after slot consumed: %v", err)
+	}
+}
+
+// TestMemClient_DeleteLinkage_LoudNoOpWhenLoggerWired pins the
+// 2026-05-21 recovery: a production deploy that accidentally fell back
+// to MemClient surfaces a one-line breadcrumb on every UnlinkADT call
+// site so the silent-no-op is no longer silent.
+func TestMemClient_DeleteLinkage_LoudNoOpWhenLoggerWired(t *testing.T) {
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&buf, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	c := adt.NewMemClient().WithLogger(logger)
+	c.RecordLinkage("studio-A", "adt-ns-1")
+
+	if err := c.DeleteLinkage(context.Background(), "studio-A", "adt-ns-1"); err != nil {
+		t.Fatalf("DeleteLinkage: %v", err)
+	}
+	out := buf.String()
+	if !strings.Contains(out, "adt_mem_delete_linkage_noop") {
+		t.Fatalf("log line missing event marker: %s", out)
+	}
+	if !strings.Contains(out, "NO-OP for ADT-side propagation") {
+		t.Fatalf("log line missing operator-actionable copy: %s", out)
 	}
 }

@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"log/slog"
 	"sort"
 	"sync"
 	"time"
@@ -46,6 +47,12 @@ type MemClient struct {
 	// tests can pin the no-expiry DM-body branch from
 	// docs/dm-queue.md.
 	URLTTL time.Duration
+
+	// logger is optional; when set, MemClient emits a loud Info line
+	// every time DeleteLinkage is invoked so a production deploy that
+	// accidentally fell back to MemClient surfaces the no-op at every
+	// call site. nil = quiet (the default for unit tests).
+	logger *slog.Logger
 }
 
 type linkKey struct {
@@ -76,6 +83,18 @@ func NewMemClient() *MemClient {
 		builds:  make(map[buildsKey][]Build),
 		games:   make(map[linkKey][]Game),
 	}
+}
+
+// WithLogger attaches a logger so MemClient can warn at every
+// DeleteLinkage invocation. The bootapp wires this in the silent-
+// fallback branch so a production deploy that accidentally picked
+// MemClient (the 2026-05-21 orphan-flag bug) emits a one-line
+// breadcrumb on every UnlinkADT call site instead of failing silently.
+func (c *MemClient) WithLogger(l *slog.Logger) *MemClient {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.logger = l
+	return c
 }
 
 // RecordLinkage marks (studio_namespace, adt_namespace) as linked on
@@ -221,9 +240,19 @@ func (c *MemClient) IssueDownloadURL(_ context.Context, params IssueDownloadURLP
 // surfaces when the flag was already absent (idempotent post-state
 // match). DeleteLinkageErr consumes one slot per call for retry-policy
 // tests.
+//
+// When a logger is wired (WithLogger), MemClient logs an Info breadcrumb
+// on every invocation so a production deploy that accidentally picked
+// MemClient surfaces the silent-no-op on every UnlinkADT call site.
 func (c *MemClient) DeleteLinkage(_ context.Context, studioNamespace, adtNamespace string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if c.logger != nil {
+		c.logger.Info("adt.MemClient.DeleteLinkage invoked — NO-OP for ADT-side propagation; set ADT_BASE_URL + AGS_IAM_CLIENT_* + PLUGIN_GRPC_SERVER_AUTH_ENABLED to wire the live HTTPClient",
+			"event", "adt_mem_delete_linkage_noop",
+			"adt_namespace", adtNamespace,
+			"studio_namespace", studioNamespace)
+	}
 	if err := pop(&c.DeleteLinkageErr); err != nil {
 		return err
 	}
