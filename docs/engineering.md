@@ -188,6 +188,7 @@ Four test layers, matched to the boundary they exercise. Every PR adds tests at 
 
 - **Player Svelte**: Playwright smoke for the golden flow against a spun-up backend; `@axe-core/playwright` a11y gate on the five pages listed in PRD §6 Accessibility.
 - **Admin Extend App UI**: **Vitest + React Testing Library** for component + page unit tests (mock the codegen'd react-query hooks at module boundary — never hand-roll fetch mocks). Playwright for one golden-path admin smoke (create playtest → approve an applicant → see status flip) run against the standalone dev bootstrap (`main.tsx`) with a seeded Postgres. The template ships no test runner; we bring our own. No a11y CI gate (PRD §6 — admin UI excluded).
+    - **Antd v6 + jsdom portal-leak gotcha**: Modal / confirm dialogs render into portals that jsdom does not garbage-collect between tests in the same file — stale `.ant-modal-confirm` (and similar `.ant-modal-mask`) nodes survive and bleed assertions across cases. When a test file mounts antd modals, add an `afterEach` that scrubs them, e.g. `document.querySelectorAll('.ant-modal-confirm, .ant-modal-mask').forEach((n) => n.remove())`. Surfaced during B13's `federated-element.test.tsx` build-picker modal cases.
 - **Generated `playtesthubapi/` is not tested directly.** Trust the codegen; assert its output is current via the "codegen fresh" CI gate (§5) instead.
 
 ### 3.5 What we do not test
