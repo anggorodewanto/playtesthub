@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
 
+	"github.com/anggorodewanto/playtesthub/pkg/agsid"
 	pb "github.com/anggorodewanto/playtesthub/pkg/pb/playtesthub/v1"
 	"github.com/anggorodewanto/playtesthub/pkg/repo"
 )
@@ -180,8 +181,8 @@ func TestListAuditLog_ActorFilterUUID(t *testing.T) {
 		t.Fatalf("entries = %d, want 2", got)
 	}
 	for i, e := range resp.GetEntries() {
-		if e.GetActorUserId() != target.String() {
-			t.Errorf("entries[%d].actor_user_id = %s, want %s", i, e.GetActorUserId(), target)
+		if want := agsid.Format(target); e.GetActorUserId() != want {
+			t.Errorf("entries[%d].actor_user_id = %s, want %s", i, e.GetActorUserId(), want)
 		}
 	}
 }

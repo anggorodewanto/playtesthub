@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	"github.com/anggorodewanto/playtesthub/pkg/agsid"
 )
 
 // Audit-action constants for the M5 set. Doc-of-truth: schema.md
@@ -48,7 +50,7 @@ func AppendADTLinkageCreate(ctx context.Context, store AuditLogStore, namespace 
 		"adtLinkageId":    linkageID.String(),
 		"studioNamespace": studioNamespace,
 		"adtNamespace":    adtNamespace,
-		"linkedBy":        actor.String(),
+		"linkedBy":        agsid.Format(actor),
 	})
 }
 
@@ -62,7 +64,7 @@ func AppendAnnouncementCreate(ctx context.Context, store AuditLogStore, namespac
 		"playtestId":     playtestID.String(),
 		"sendToFilter":   sendToFilter,
 		"recipientCount": recipientCount,
-		"createdBy":      actor.String(),
+		"createdBy":      agsid.Format(actor),
 	})
 }
 

@@ -14,6 +14,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/anggorodewanto/playtesthub/pkg/adt"
+	"github.com/anggorodewanto/playtesthub/pkg/agsid"
 	pb "github.com/anggorodewanto/playtesthub/pkg/pb/playtesthub/v1"
 	"github.com/anggorodewanto/playtesthub/pkg/repo"
 )
@@ -338,7 +339,7 @@ func adtLinkageToProto(r *repo.ADTLinkage) *pb.ADTLinkage {
 		Id:              r.ID.String(),
 		StudioNamespace: r.StudioNamespace,
 		AdtNamespace:    r.ADTNamespace,
-		LinkedByUserId:  r.LinkedByUserID.String(),
+		LinkedByUserId:  agsid.Format(r.LinkedByUserID),
 		LinkedAt:        timestamppb.New(r.LinkedAt),
 	}
 	if r.DeletedAt != nil {

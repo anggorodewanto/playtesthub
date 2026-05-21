@@ -11,6 +11,7 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/anggorodewanto/playtesthub/pkg/agsid"
 	pb "github.com/anggorodewanto/playtesthub/pkg/pb/playtesthub/v1"
 	"github.com/anggorodewanto/playtesthub/pkg/repo"
 )
@@ -284,7 +285,7 @@ func announcementToProto(a *repo.Announcement) *pb.Announcement {
 		Status:          announcementStatusToPb(a.Status),
 		RecipientsTotal: a.RecipientsTotal,
 		RecipientsSent:  a.RecipientsSent,
-		CreatedByUserId: a.CreatedByUserID.String(),
+		CreatedByUserId: agsid.Format(a.CreatedByUserID),
 		CreatedAt:       timestamppb.New(a.CreatedAt),
 	}
 }

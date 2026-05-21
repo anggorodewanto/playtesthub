@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/anggorodewanto/playtesthub/pkg/agsid"
 	"github.com/anggorodewanto/playtesthub/pkg/repo"
 )
 
@@ -162,7 +163,7 @@ func TestAppendCodeGrantOrphaned_SystemEmittedNoActor(t *testing.T) {
 		t.Errorf("actor = %v, want nil", row.ActorUserID)
 	}
 	got := decodeAfter(t, row)
-	if got["applicantId"] != applicant.String() || got["codeId"] != code.String() || got["userId"] != user.String() {
+	if got["applicantId"] != applicant.String() || got["codeId"] != code.String() || got["userId"] != agsid.Format(user) {
 		t.Errorf("payload = %+v", got)
 	}
 	// Timestamp round-trips as RFC3339Nano.

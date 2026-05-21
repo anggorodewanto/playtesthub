@@ -34,6 +34,10 @@ Required indexes (serve the audit log viewer, PRD §5.7 page 5):
 - `AuditLog(playtestId, createdAt DESC)` — powers the per-playtest audit viewer listing and cursor pagination.
 - `AuditLog(actorUserId, createdAt DESC)` — powers actor-filtered views (admin who triggered an action).
 
+### AGS user-id wire format
+
+Postgres `user_id` / `actor_user_id` columns are typed `UUID` and serialize back in canonical 36-char dashed form on read. AGS itself uses the dashless 32-char hex variant (JWT `sub` claim, IAM API paths). Every customer-visible surface — gRPC response fields, structured logs, and `AuditLog` JSONB payload fields that carry an *AGS user id* (`actorUserId`/`actor_user_id`, the `userId` field on `code.grant_orphaned`, `linkedBy` on `adt_linkage.create`, `createdBy` on `announcement.create`) — is normalised to the dashless form via `pkg/agsid.Format` so admins see the same id shape the AGS portal shows. Internal entity ids (`applicantId`, `codeId`, `playtestId`, `adtLinkageId`, `announcementId`, `surveyId`) are dashed UUIDs and stay dashed everywhere. Request inputs accept both forms (`uuid.Parse` is liberal). Audit JSONB rows persisted **before** this normalisation landed retain dashed AGS user ids in their payloads — historical drift is acceptable since audit rows are frozen per PRD §6 and never backfilled.
+
 ## AuditLog — `action` enum with JSONB payload shapes
 
 The full set of audited admin actions in MVP. Each row's `before` and `after` JSONB columns carry the payload shape documented here. The `AuditLog` table schema is defined above; PRD §5.1 carries the accompanying prose rules (permission matrix, accountability note).

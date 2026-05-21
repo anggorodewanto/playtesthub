@@ -11,6 +11,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/anggorodewanto/playtesthub/pkg/adt"
+	"github.com/anggorodewanto/playtesthub/pkg/agsid"
 	pb "github.com/anggorodewanto/playtesthub/pkg/pb/playtesthub/v1"
 	"github.com/anggorodewanto/playtesthub/pkg/repo"
 )
@@ -549,7 +550,7 @@ func adminApplicantToProto(a *repo.Applicant) *pb.Applicant {
 	out := &pb.Applicant{
 		Id:            a.ID.String(),
 		PlaytestId:    a.PlaytestID.String(),
-		UserId:        a.UserID.String(),
+		UserId:        agsid.Format(a.UserID),
 		DiscordHandle: a.DiscordHandle,
 		Platforms:     stringsToPlatforms(a.Platforms),
 		Status:        applicantStatusStringToEnum(a.Status),

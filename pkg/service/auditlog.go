@@ -10,6 +10,7 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/anggorodewanto/playtesthub/pkg/agsid"
 	pb "github.com/anggorodewanto/playtesthub/pkg/pb/playtesthub/v1"
 	"github.com/anggorodewanto/playtesthub/pkg/repo"
 )
@@ -103,7 +104,7 @@ func auditLogToProto(r *repo.AuditLog) *pb.AuditLogEntry {
 		out.PlaytestId = &v
 	}
 	if r.ActorUserID != nil {
-		v := r.ActorUserID.String()
+		v := agsid.Format(*r.ActorUserID)
 		out.ActorUserId = &v
 	}
 	return out

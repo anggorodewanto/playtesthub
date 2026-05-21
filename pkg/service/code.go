@@ -12,6 +12,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"github.com/anggorodewanto/playtesthub/pkg/agsid"
 	pb "github.com/anggorodewanto/playtesthub/pkg/pb/playtesthub/v1"
 	"github.com/anggorodewanto/playtesthub/pkg/repo"
 )
@@ -359,7 +360,7 @@ func codeToProto(c *repo.Code) *pb.Code {
 		CreatedAt:  timeToTimestamp(&c.CreatedAt),
 	}
 	if c.ReservedBy != nil {
-		v := c.ReservedBy.String()
+		v := agsid.Format(*c.ReservedBy)
 		out.ReservedBy = &v
 	}
 	if c.ReservedAt != nil {

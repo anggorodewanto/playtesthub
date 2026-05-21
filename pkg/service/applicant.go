@@ -11,6 +11,7 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/anggorodewanto/playtesthub/pkg/agsid"
 	"github.com/anggorodewanto/playtesthub/pkg/discord"
 	iampkg "github.com/anggorodewanto/playtesthub/pkg/iam"
 	pb "github.com/anggorodewanto/playtesthub/pkg/pb/playtesthub/v1"
@@ -354,7 +355,7 @@ func (s *PlaytesthubServiceServer) AcceptNDA(ctx context.Context, req *pb.Accept
 
 func ndaAcceptanceToProto(a *repo.NDAAcceptance) *pb.NDAAcceptance {
 	return &pb.NDAAcceptance{
-		UserId:         a.UserID.String(),
+		UserId:         agsid.Format(a.UserID),
 		PlaytestId:     a.PlaytestID.String(),
 		NdaVersionHash: a.NDAVersionHash,
 		AcceptedAt:     timestamppb.New(a.AcceptedAt),
@@ -411,7 +412,7 @@ func (s *PlaytesthubServiceServer) resolveDiscordSnowflake(ctx context.Context, 
 	id, err := s.platformLookup.GetDiscordID(ctx, userID.String())
 	if err != nil {
 		slog.WarnContext(ctx, "ags platform lookup failed; signup proceeds without discord snowflake",
-			"userId", userID.String(), "error", err.Error())
+			"userId", agsid.Format(userID), "error", err.Error())
 		return ctx
 	}
 	if id == "" {
@@ -431,7 +432,7 @@ func (s *PlaytesthubServiceServer) resolveDiscordHandle(ctx context.Context, use
 	discordID, _ := iampkg.DiscordIDFromContext(ctx)
 	fallback := discordID
 	if fallback == "" {
-		fallback = userID.String()
+		fallback = agsid.Format(userID)
 	}
 	if s.discord == nil || discordID == "" {
 		return fallback
@@ -454,7 +455,7 @@ func playerApplicantToProto(a *repo.Applicant) *pb.Applicant {
 	out := &pb.Applicant{
 		Id:         a.ID.String(),
 		PlaytestId: a.PlaytestID.String(),
-		UserId:     a.UserID.String(),
+		UserId:     agsid.Format(a.UserID),
 		Status:     applicantStatusStringToEnum(a.Status),
 		CreatedAt:  timestamppb.New(a.CreatedAt),
 	}

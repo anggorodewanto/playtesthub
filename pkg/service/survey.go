@@ -11,6 +11,7 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/anggorodewanto/playtesthub/pkg/agsid"
 	pb "github.com/anggorodewanto/playtesthub/pkg/pb/playtesthub/v1"
 	"github.com/anggorodewanto/playtesthub/pkg/repo"
 )
@@ -762,7 +763,7 @@ func surveyResponseToProto(r *repo.SurveyResponse) (*pb.SurveyResponse, error) {
 	out := &pb.SurveyResponse{
 		Id:          r.ID.String(),
 		PlaytestId:  r.PlaytestID.String(),
-		UserId:      r.UserID.String(),
+		UserId:      agsid.Format(r.UserID),
 		SurveyId:    r.SurveyID.String(),
 		SubmittedAt: timestamppb.New(r.SubmittedAt),
 	}

@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	"github.com/anggorodewanto/playtesthub/pkg/agsid"
 )
 
 // Audit-action constants for the M2 set. Doc-of-truth: schema.md
@@ -109,7 +111,7 @@ func AppendCodeGrantOrphaned(ctx context.Context, store AuditLogStore, namespace
 	return appendAction(ctx, store, namespace, &playtestID, nil, ActionCodeGrantOrphaned, map[string]any{
 		"applicantId":        applicantID.String(),
 		"codeId":             codeID.String(),
-		"userId":             userID.String(),
+		"userId":             agsid.Format(userID),
 		"originalReservedAt": originalReservedAt.UTC().Format(time.RFC3339Nano),
 	})
 }

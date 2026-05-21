@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
 
+	"github.com/anggorodewanto/playtesthub/pkg/agsid"
 	"github.com/anggorodewanto/playtesthub/pkg/discord"
 	iampkg "github.com/anggorodewanto/playtesthub/pkg/iam"
 	pb "github.com/anggorodewanto/playtesthub/pkg/pb/playtesthub/v1"
@@ -96,8 +97,8 @@ func TestSignup_HappyPath_CreatesPendingApplicant(t *testing.T) {
 	if resp.GetApplicant().GetStatus() != pb.ApplicantStatus_APPLICANT_STATUS_PENDING {
 		t.Errorf("status = %s, want PENDING", resp.GetApplicant().GetStatus())
 	}
-	if resp.GetApplicant().GetUserId() != userID.String() {
-		t.Errorf("user_id = %q, want %q", resp.GetApplicant().GetUserId(), userID.String())
+	if got, want := resp.GetApplicant().GetUserId(), agsid.Format(userID); got != want {
+		t.Errorf("user_id = %q, want %q", got, want)
 	}
 	if !lookup.called {
 		t.Error("expected discord lookup to run")
@@ -227,8 +228,8 @@ func TestSignup_DiscordFederated_LookupFails_FallsBackToUserID(t *testing.T) {
 	if got := applicants.rows[0].DiscordUserID; got != nil {
 		t.Errorf("discord_user_id = %v, want nil on lookup failure", got)
 	}
-	if got := applicants.rows[0].DiscordHandle; got != userID.String() {
-		t.Errorf("discord_handle = %q, want %s (uuid fallback)", got, userID)
+	if got, want := applicants.rows[0].DiscordHandle, agsid.Format(userID); got != want {
+		t.Errorf("discord_handle = %q, want %s (uuid fallback)", got, want)
 	}
 }
 
@@ -248,8 +249,8 @@ func TestSignup_NoDiscordIDInCtx_FallsBackToUserID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected: %v", err)
 	}
-	if got := applicants.rows[0].DiscordHandle; got != userID.String() {
-		t.Errorf("fallback handle = %q, want %s (AGS user id)", got, userID)
+	if got, want := applicants.rows[0].DiscordHandle, agsid.Format(userID); got != want {
+		t.Errorf("fallback handle = %q, want %s (AGS user id)", got, want)
 	}
 	// Non-Discord-federated → no snowflake to persist; queue will skip
 	// with `lastDmError='missing_recipient'` (errors.md).

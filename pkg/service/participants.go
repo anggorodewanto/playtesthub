@@ -7,6 +7,7 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/anggorodewanto/playtesthub/pkg/agsid"
 	pb "github.com/anggorodewanto/playtesthub/pkg/pb/playtesthub/v1"
 	"github.com/anggorodewanto/playtesthub/pkg/repo"
 )
@@ -59,7 +60,7 @@ func applicantStatusFilterFromPb(v pb.ApplicantStatus) string {
 func applicantToParticipantRow(a *repo.Applicant) *pb.ParticipantRow {
 	row := &pb.ParticipantRow{
 		ApplicantId:   a.ID.String(),
-		UserId:        a.UserID.String(),
+		UserId:        agsid.Format(a.UserID),
 		DiscordHandle: a.DiscordHandle,
 		SignupAt:      timestamppb.New(a.CreatedAt),
 		Status:        applicantStatusStringToEnum(a.Status),
