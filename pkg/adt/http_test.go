@@ -36,6 +36,56 @@ func newTestClient(t *testing.T, srv *httptest.Server, token adt.TokenGetter) *a
 	return c
 }
 
+// TestHTTPClient_ListBuilds_RejectsLegacyEnvelope locks the live ADT
+// envelope key. ADT returns `{"data": [...]}` (verified against the
+// 2026-05-21 live swagger v1.35.0); a server replying with the legacy
+// `{"builds": [...]}` shape must NOT silently surface rows — Bug 1 from
+// the 2026-05-21 probe report.
+func TestHTTPClient_ListBuilds_RejectsLegacyEnvelope(t *testing.T) {
+	t.Parallel()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"builds": []map[string]any{
+				{"id": "build-legacy", "game_version_name": "v1", "game_version_id": "x", "created_at": "2026-05-20T12:00:00Z", "platform_name": "windows"},
+			},
+		})
+	}))
+	t.Cleanup(srv.Close)
+
+	c := newTestClient(t, srv, tokenGetterReturning("svc-jwt"))
+	builds, err := c.ListBuilds(context.Background(), "studio-ns", "adt-ns", "game-1")
+	if err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+	if len(builds) != 0 {
+		t.Fatalf("legacy `builds` envelope should be ignored — len=%d, want 0", len(builds))
+	}
+}
+
+// TestHTTPClient_ListGames_RejectsLegacyEnvelope locks the live ADT
+// envelope key for the games endpoint. Mirrors the builds regression
+// (Bug 2 from the 2026-05-21 probe).
+func TestHTTPClient_ListGames_RejectsLegacyEnvelope(t *testing.T) {
+	t.Parallel()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"games": []map[string]any{
+				{"id": "game-legacy", "name": "Old", "created_at": "2026-05-21T10:00:00Z"},
+			},
+		})
+	}))
+	t.Cleanup(srv.Close)
+
+	c := newTestClient(t, srv, tokenGetterReturning("svc-jwt"))
+	games, err := c.ListGames(context.Background(), "studio-ns", "adt-ns")
+	if err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+	if len(games) != 0 {
+		t.Fatalf("legacy `games` envelope should be ignored — len=%d, want 0", len(games))
+	}
+}
+
 func TestHTTPClient_ListBuilds_HappyPath(t *testing.T) {
 	t.Parallel()
 	var capturedAuth string
@@ -44,11 +94,12 @@ func TestHTTPClient_ListBuilds_HappyPath(t *testing.T) {
 		capturedAuth = r.Header.Get("Authorization")
 		capturedPath = r.URL.Path
 		_ = json.NewEncoder(w).Encode(map[string]any{
-			"builds": []map[string]any{
+			"data": []map[string]any{
 				{
 					"id":                "build-1",
 					"game_version_name": "v1.2.3",
 					"game_version_id":   "abc",
+					"build_name":        "ignored-build-name",
 					"created_at":        "2026-05-20T12:00:00Z",
 					"platform_name":     "windows",
 				},
@@ -187,7 +238,7 @@ func TestHTTPClient_ListGames_HappyPath(t *testing.T) {
 		capturedAuth = r.Header.Get("Authorization")
 		capturedPath = r.URL.Path
 		_ = json.NewEncoder(w).Encode(map[string]any{
-			"games": []map[string]any{
+			"data": []map[string]any{
 				{"id": "game-1", "name": "Aces", "created_at": "2026-05-21T10:00:00Z"},
 			},
 		})

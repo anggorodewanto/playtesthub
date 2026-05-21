@@ -83,19 +83,19 @@ func (c *HTTPClient) ListGames(ctx context.Context, studioNamespace, adtNamespac
 	endpoint := c.BaseURL + "/profiling/namespaces/" + url.PathEscape(adtNamespace) + "/agsplaytesthub/games"
 
 	var raw struct {
-		Games []struct {
+		Data []struct {
 			ID        string `json:"id"`
 			Name      string `json:"name"`
 			CreatedAt string `json:"created_at"`
-		} `json:"games"`
+		} `json:"data"`
 	}
 	if err := c.Policy.Run(ctx, "ListGames", func(attemptCtx context.Context) error {
 		return c.doJSON(attemptCtx, http.MethodGet, endpoint, "ListGames", &raw)
 	}); err != nil {
 		return nil, err
 	}
-	out := make([]Game, 0, len(raw.Games))
-	for _, g := range raw.Games {
+	out := make([]Game, 0, len(raw.Data))
+	for _, g := range raw.Data {
 		var createdAt time.Time
 		if g.CreatedAt != "" {
 			if t, err := time.Parse(time.RFC3339, g.CreatedAt); err == nil {
@@ -116,21 +116,21 @@ func (c *HTTPClient) ListBuilds(ctx context.Context, studioNamespace, adtNamespa
 		"/agsplaytesthub/games/" + url.PathEscape(adtGameID) + "/builds"
 
 	var raw struct {
-		Builds []struct {
+		Data []struct {
 			ID              string `json:"id"`
 			GameVersionName string `json:"game_version_name"`
 			GameVersionID   string `json:"game_version_id"`
 			CreatedAt       string `json:"created_at"`
 			PlatformName    string `json:"platform_name"`
-		} `json:"builds"`
+		} `json:"data"`
 	}
 	if err := c.Policy.Run(ctx, "ListBuilds", func(attemptCtx context.Context) error {
 		return c.doJSON(attemptCtx, http.MethodGet, endpoint, "ListBuilds", &raw)
 	}); err != nil {
 		return nil, err
 	}
-	out := make([]Build, 0, len(raw.Builds))
-	for _, b := range raw.Builds {
+	out := make([]Build, 0, len(raw.Data))
+	for _, b := range raw.Data {
 		var uploaded time.Time
 		if b.CreatedAt != "" {
 			if t, err := time.Parse(time.RFC3339, b.CreatedAt); err == nil {
