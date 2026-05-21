@@ -24,6 +24,7 @@ import { V1GetPublicPlaytestResponse } from '../generated-definitions/V1GetPubli
 import { V1GetSurveyResponse } from '../generated-definitions/V1GetSurveyResponse.js'
 import { V1SignupResponse } from '../generated-definitions/V1SignupResponse.js'
 import { V1SubmitSurveyResponseResponse } from '../generated-definitions/V1SubmitSurveyResponseResponse.js'
+import { V1WhoAmIResponse } from '../generated-definitions/V1WhoAmIResponse.js'
 import { PlaytesthubService$ } from './endpoints/PlaytesthubService$.js'
 
 export function PlaytesthubServiceApi(sdk: AccelByteSDK, args?: SdkSetConfigParam) {
@@ -57,6 +58,13 @@ export function PlaytesthubServiceApi(sdk: AccelByteSDK, args?: SdkSetConfigPara
     } else {
       axiosInstance.interceptors = sdkAssembly.axiosInstance.interceptors
     }
+  }
+
+  async function getPlayerMe(): Promise<AxiosResponse<V1WhoAmIResponse>> {
+    const $ = new PlaytesthubService$(axiosInstance, namespace, useSchemaValidation)
+    const resp = await $.getPlayerMe()
+    if (resp.error) throw resp.error
+    return resp.response
   }
 
   async function getConfig(): Promise<AxiosResponse<V1GetPublicConfigResponse>> {
@@ -143,6 +151,10 @@ export function PlaytesthubServiceApi(sdk: AccelByteSDK, args?: SdkSetConfigPara
   }
 
   return {
+    /**
+     * Returns the caller's AGS user id plus the best-effort Discord handle resolved via the same bot-token lookup the signup flow uses. discord_handle is empty when the caller is not Discord-federated or the lookup fails — the field is informational; callers must not treat it as authoritative identity.
+     */
+    getPlayerMe,
     /**
      * Returns environment-derived client config that both the admin and player frontends need to construct cross-app URLs. player_base_url is the public origin of the player Svelte bundle (from backend env PLAYER_BASE_URL); empty string when unset.
      */

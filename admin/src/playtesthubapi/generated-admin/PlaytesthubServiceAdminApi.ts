@@ -16,6 +16,7 @@ import { PlaytesthubServiceCreatePlaytestBody } from '../generated-definitions/P
 import { PlaytesthubServiceCreateSurveyBody } from '../generated-definitions/PlaytesthubServiceCreateSurveyBody.js'
 import { PlaytesthubServiceEditPlaytestBody } from '../generated-definitions/PlaytesthubServiceEditPlaytestBody.js'
 import { PlaytesthubServiceEditSurveyBody } from '../generated-definitions/PlaytesthubServiceEditSurveyBody.js'
+import { PlaytesthubServiceRecoverAdtLinkageBody } from '../generated-definitions/PlaytesthubServiceRecoverAdtLinkageBody.js'
 import { PlaytesthubServiceRejectApplicantBody } from '../generated-definitions/PlaytesthubServiceRejectApplicantBody.js'
 import { PlaytesthubServiceRetryDmBody } from '../generated-definitions/PlaytesthubServiceRetryDmBody.js'
 import { PlaytesthubServiceRetryFailedDmsBody } from '../generated-definitions/PlaytesthubServiceRetryFailedDmsBody.js'
@@ -32,6 +33,7 @@ import { V1CreatePlaytestResponse } from '../generated-definitions/V1CreatePlayt
 import { V1CreateSurveyResponse } from '../generated-definitions/V1CreateSurveyResponse.js'
 import { V1EditPlaytestResponse } from '../generated-definitions/V1EditPlaytestResponse.js'
 import { V1EditSurveyResponse } from '../generated-definitions/V1EditSurveyResponse.js'
+import { V1GetAdtClientDiagnosticsResponse } from '../generated-definitions/V1GetAdtClientDiagnosticsResponse.js'
 import { V1GetCodePoolResponse } from '../generated-definitions/V1GetCodePoolResponse.js'
 import { V1GetPlaytestParticipantsResponse } from '../generated-definitions/V1GetPlaytestParticipantsResponse.js'
 import { V1GetWorkerHealthResponse } from '../generated-definitions/V1GetWorkerHealthResponse.js'
@@ -43,6 +45,7 @@ import { V1ListApplicantsResponse } from '../generated-definitions/V1ListApplica
 import { V1ListAuditLogResponse } from '../generated-definitions/V1ListAuditLogResponse.js'
 import { V1ListPlaytestsResponse } from '../generated-definitions/V1ListPlaytestsResponse.js'
 import { V1ListSurveyResponsesResponse } from '../generated-definitions/V1ListSurveyResponsesResponse.js'
+import { V1RecoverAdtLinkageResponse } from '../generated-definitions/V1RecoverAdtLinkageResponse.js'
 import { V1RejectApplicantResponse } from '../generated-definitions/V1RejectApplicantResponse.js'
 import { V1RetryDmResponse } from '../generated-definitions/V1RetryDmResponse.js'
 import { V1RetryFailedDmsResponse } from '../generated-definitions/V1RetryFailedDmsResponse.js'
@@ -123,6 +126,15 @@ export function PlaytesthubServiceAdminApi(sdk: AccelByteSDK, args?: SdkSetConfi
     return resp.response
   }
 
+  async function createAdtLinkagesRecover(
+    data: PlaytesthubServiceRecoverAdtLinkageBody
+  ): Promise<AxiosResponse<V1RecoverAdtLinkageResponse>> {
+    const $ = new PlaytesthubServiceAdmin$(axiosInstance, namespace, useSchemaValidation)
+    const resp = await $.createAdtLinkagesRecover(data)
+    if (resp.error) throw resp.error
+    return resp.response
+  }
+
   async function createAdtLinkagesComplete(data: PlaytesthubServiceCompleteAdtLinkBody): Promise<AxiosResponse<V1CompleteAdtLinkResponse>> {
     const $ = new PlaytesthubServiceAdmin$(axiosInstance, namespace, useSchemaValidation)
     const resp = await $.createAdtLinkagesComplete(data)
@@ -157,6 +169,13 @@ export function PlaytesthubServiceAdminApi(sdk: AccelByteSDK, args?: SdkSetConfi
   async function deleteAdtLinkage_ByAdtLinkageId(adtLinkageId: string): Promise<AxiosResponse<V1UnlinkAdtResponse>> {
     const $ = new PlaytesthubServiceAdmin$(axiosInstance, namespace, useSchemaValidation)
     const resp = await $.deleteAdtLinkage_ByAdtLinkageId(adtLinkageId)
+    if (resp.error) throw resp.error
+    return resp.response
+  }
+
+  async function getDiagnosticsAdtClientKind(): Promise<AxiosResponse<V1GetAdtClientDiagnosticsResponse>> {
+    const $ = new PlaytesthubServiceAdmin$(axiosInstance, namespace, useSchemaValidation)
+    const resp = await $.getDiagnosticsAdtClientKind()
     if (resp.error) throw resp.error
     return resp.response
   }
@@ -368,6 +387,10 @@ export function PlaytesthubServiceAdminApi(sdk: AccelByteSDK, args?: SdkSetConfi
      */
     createAdtLinkagesStart,
     /**
+     * Operator-recovery surface for the 2026-05-21 orphan-flag bug: when ADT still carries a linkage flag but no local adt_linkage row exists, StartADTLink + the redirect dance fail with 409 / already_linked. RecoverADTLinkage probes ADT (ListGames) to confirm the orphan flag, then inserts the local row directly. No OAuth round-trip. AlreadyExists when a live row for (studio, adtNamespace) is already present; FailedPrecondition when ADT reports no flag for the pair; Unavailable on ADT transient errors.
+     */
+    createAdtLinkagesRecover,
+    /**
      * Consumes the adt_link_pending row matching `state` (not expired); inserts the adt_linkage identity row with `adt_namespace` echoed by ADT on the callback URL. No outbound ADT call — tampering is self-defeating because the first downstream service-JWT call would 401 (PRD §4.8.2).
      */
     createAdtLinkagesComplete,
@@ -380,9 +403,13 @@ export function PlaytesthubServiceAdminApi(sdk: AccelByteSDK, args?: SdkSetConfi
      */
     patchPlaytest_ByPlaytestId,
     /**
-     * Idempotent re-unlink against an already soft-deleted row is a no-op success. Linkage absent for the caller's studio → NotFound (PRD §4.8).
+     * Idempotent re-unlink against an already soft-deleted row is a no-op success. Linkage absent for the caller's studio → NotFound (PRD §4.8). Best-effort calls ADT's DELETE /linkage in the same flow so the ADT-side flag and the local row drop together.
      */
     deleteAdtLinkage_ByAdtLinkageId,
+    /**
+     * Diagnostic surface for the 2026-05-21 silent-fallback bug: the bootapp gate that selects HTTP-backed vs in-memory ADT client requires ALL of AuthEnabled + ADT_BASE_URL + AGS_BASE_URL + AGS_IAM_CLIENT_ID + AGS_IAM_CLIENT_SECRET. When any one is empty the gate silently falls to the in-memory MemClient and UnlinkADT's ADT-side propagation becomes a no-op. This RPC returns the gate decision ("http" | "mem") plus a boolean presence flag for each env var so the operator can pinpoint the missing one without needing the boot log. Secret values are NEVER returned — only booleans.
+     */
+    getDiagnosticsAdtClientKind,
     /**
      * Returns aggregate counts plus the full code list including raw values — admin surfaces are exempt from the §6 log-redaction rule (PRD §5.7).
      */

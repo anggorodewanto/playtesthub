@@ -24,6 +24,7 @@ import { V1GetPublicPlaytestResponse } from '../../generated-definitions/V1GetPu
 import { V1GetSurveyResponse } from '../../generated-definitions/V1GetSurveyResponse.js'
 import { V1SignupResponse } from '../../generated-definitions/V1SignupResponse.js'
 import { V1SubmitSurveyResponseResponse } from '../../generated-definitions/V1SubmitSurveyResponseResponse.js'
+import { V1WhoAmIResponse } from '../../generated-definitions/V1WhoAmIResponse.js'
 
 export class PlaytesthubService$ {
   private axiosInstance: AxiosInstance
@@ -34,6 +35,16 @@ export class PlaytesthubService$ {
     this.useSchemaValidation = useSchemaValidation
   }
 
+  /**
+   * Returns the caller's AGS user id plus the best-effort Discord handle resolved via the same bot-token lookup the signup flow uses. discord_handle is empty when the caller is not Discord-federated or the lookup fails — the field is informational; callers must not treat it as authoritative identity.
+   */
+  getPlayerMe(): Promise<Response<V1WhoAmIResponse>> {
+    const params = {} as AxiosRequestConfig
+    const url = '/v1/player/me'
+    const resultPromise = this.axiosInstance.get(url, { params })
+
+    return Validate.validateOrReturnResponse(this.useSchemaValidation, () => resultPromise, V1WhoAmIResponse, 'V1WhoAmIResponse')
+  }
   /**
    * Returns environment-derived client config that both the admin and player frontends need to construct cross-app URLs. player_base_url is the public origin of the player Svelte bundle (from backend env PLAYER_BASE_URL); empty string when unset.
    */

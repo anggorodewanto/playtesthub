@@ -58,7 +58,7 @@
     "/v1/admin/namespaces/{namespace}/adt/linkages/{adtLinkageId}": {
       "delete": {
         "summary": "Soft-delete an ADT linkage (admin; idempotent)",
-        "description": "Idempotent re-unlink against an already soft-deleted row is a no-op success. Linkage absent for the caller's studio → NotFound (PRD §4.8).",
+        "description": "Idempotent re-unlink against an already soft-deleted row is a no-op success. Linkage absent for the caller's studio → NotFound (PRD §4.8). Best-effort calls ADT's DELETE /linkage in the same flow so the ADT-side flag and the local row drop together.",
         "operationId": "PlaytesthubService_UnlinkADT",
         "responses": {
           "200": {
@@ -223,6 +223,51 @@
             "required": true,
             "schema": {
               "$ref": "#/definitions/PlaytesthubServiceCompleteADTLinkBody"
+            }
+          }
+        ],
+        "tags": [
+          "PlaytesthubService"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v1/admin/namespaces/{namespace}/adt/linkages:recover": {
+      "post": {
+        "summary": "Adopt an ADT-side linkage that has no local row (admin)",
+        "description": "Operator-recovery surface for the 2026-05-21 orphan-flag bug: when ADT still carries a linkage flag but no local adt_linkage row exists, StartADTLink + the redirect dance fail with 409 / already_linked. RecoverADTLinkage probes ADT (ListGames) to confirm the orphan flag, then inserts the local row directly. No OAuth round-trip. AlreadyExists when a live row for (studio, adtNamespace) is already present; FailedPrecondition when ADT reports no flag for the pair; Unavailable on ADT transient errors.",
+        "operationId": "PlaytesthubService_RecoverADTLinkage",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1RecoverADTLinkageResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/PlaytesthubServiceRecoverADTLinkageBody"
             }
           }
         ],
@@ -422,6 +467,43 @@
             "schema": {
               "$ref": "#/definitions/PlaytesthubServiceRetryDMBody"
             }
+          }
+        ],
+        "tags": [
+          "PlaytesthubService"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v1/admin/namespaces/{namespace}/diagnostics/adt-client-kind": {
+      "get": {
+        "summary": "Report which ADT client kind was wired at boot + presence of every gate env var (admin)",
+        "description": "Diagnostic surface for the 2026-05-21 silent-fallback bug: the bootapp gate that selects HTTP-backed vs in-memory ADT client requires ALL of AuthEnabled + ADT_BASE_URL + AGS_BASE_URL + AGS_IAM_CLIENT_ID + AGS_IAM_CLIENT_SECRET. When any one is empty the gate silently falls to the in-memory MemClient and UnlinkADT's ADT-side propagation becomes a no-op. This RPC returns the gate decision (\"http\" | \"mem\") plus a boolean presence flag for each env var so the operator can pinpoint the missing one without needing the boot log. Secret values are NEVER returned — only booleans.",
+        "operationId": "PlaytesthubService_GetADTClientDiagnostics",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetADTClientDiagnosticsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "type": "string"
           }
         ],
         "tags": [
@@ -1478,6 +1560,35 @@
         ]
       }
     },
+    "/v1/player/me": {
+      "get": {
+        "summary": "Get the authenticated caller's identity (player)",
+        "description": "Returns the caller's AGS user id plus the best-effort Discord handle resolved via the same bot-token lookup the signup flow uses. discord_handle is empty when the caller is not Discord-federated or the lookup fails — the field is informational; callers must not treat it as authoritative identity.",
+        "operationId": "PlaytesthubService_WhoAmI",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1WhoAmIResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "PlaytesthubService"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
     "/v1/player/playtests/{playtestId}/adtDownload": {
       "get": {
         "summary": "Get the ADT build download URL for the caller (authenticated player; APPROVED applicants only)",
@@ -2025,6 +2136,15 @@
         }
       }
     },
+    "PlaytesthubServiceRecoverADTLinkageBody": {
+      "type": "object",
+      "properties": {
+        "adtNamespace": {
+          "type": "string",
+          "description": "ADT namespace whose orphan flag (present on ADT's side, absent\nlocally) the caller wants to adopt. Required."
+        }
+      }
+    },
     "PlaytesthubServiceRejectApplicantBody": {
       "type": "object",
       "properties": {
@@ -2552,6 +2672,36 @@
         }
       }
     },
+    "v1GetADTClientDiagnosticsResponse": {
+      "type": "object",
+      "properties": {
+        "adtClientKind": {
+          "type": "string",
+          "description": "Which adt.Client implementation the bootapp wired:\n  \"http\" — adt.NewHTTPClient (live ADT calls).\n  \"mem\"  — adt.NewMemClient (no-op for ADT-side propagation)."
+        },
+        "authEnabled": {
+          "type": "boolean",
+          "description": "PLUGIN_GRPC_SERVER_AUTH_ENABLED at boot."
+        },
+        "adtBaseUrlSet": {
+          "type": "boolean",
+          "description": "True when ADT_BASE_URL was non-empty at boot."
+        },
+        "agsBaseUrlSet": {
+          "type": "boolean",
+          "description": "True when AGS_BASE_URL was non-empty at boot."
+        },
+        "agsIamClientIdSet": {
+          "type": "boolean",
+          "description": "True when AGS_IAM_CLIENT_ID was non-empty at boot."
+        },
+        "agsIamClientSecretSet": {
+          "type": "boolean",
+          "description": "True when AGS_IAM_CLIENT_SECRET was non-empty at boot."
+        }
+      },
+      "description": "GetADTClientDiagnosticsResponse — booleans only. Values for the AGS\nIAM client id / secret are NEVER returned; only their presence\n(non-empty at boot) is exposed."
+    },
     "v1GetADTDownloadInfoResponse": {
       "type": "object",
       "properties": {
@@ -3052,6 +3202,14 @@
       },
       "description": "PublicPlaytest is the restricted field set exposed to unauthenticated\ncallers on GetPublicPlaytest (PRD §5.2)."
     },
+    "v1RecoverADTLinkageResponse": {
+      "type": "object",
+      "properties": {
+        "linkage": {
+          "$ref": "#/definitions/v1ADTLinkage"
+        }
+      }
+    },
     "v1RejectApplicantResponse": {
       "type": "object",
       "properties": {
@@ -3313,6 +3471,23 @@
             "type": "object",
             "$ref": "#/definitions/v1UploadCodesRejection"
           }
+        }
+      }
+    },
+    "v1WhoAmIResponse": {
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "AGS user id in dashless form (matches the wire shape the rest of\nthe player surface uses — pkg/agsid.Format)."
+        },
+        "discordHandle": {
+          "type": "string",
+          "description": "Best-effort human-readable Discord handle (e.g. \"shadowrealm#4421\").\nEmpty when the caller is not Discord-federated, the Discord bot\nclient is unconfigured, or the lookup fails. Informational — never\ntreat as identity, never log alongside NDA / survey content."
+        },
+        "discordId": {
+          "type": "string",
+          "description": "Discord snowflake when available. Empty otherwise. Useful for the\nfrontend to badge the account without round-tripping through AGS."
         }
       }
     },

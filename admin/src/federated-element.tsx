@@ -43,6 +43,7 @@ import type { V1WorkerHealthEntry } from './playtesthubapi/generated-definitions
 import {
   Key_PlaytesthubServiceAdmin,
   usePlaytesthubServiceAdminApi_CreateAdtLinkagesCompleteMutation,
+  usePlaytesthubServiceAdminApi_CreateAdtLinkagesRecoverMutation,
   usePlaytesthubServiceAdminApi_CreateAdtLinkagesStartMutation,
   usePlaytesthubServiceAdminApi_CreatePlaytestMutation,
   usePlaytesthubServiceAdminApi_CreatePlaytest_ByPlaytestIdTransitionStatuMutation,
@@ -132,6 +133,14 @@ export function FederatedElement() {
 // query string; this page calls CompleteADTLink(state, adt_namespace)
 // and navigates back to the playtests list on success. Per PRD §4.8.2
 // no `grantCode` is read or forwarded — none is issued.
+//
+// 2026-05-21 recovery affordance: when ADT replies `result=failed`,
+// the most common reason is `already_linked` (ADT still carries an
+// orphan flag from a previous link that didn't soft-delete locally).
+// The page exposes a "Recover existing linkage" button that calls
+// RecoverADTLinkage(adt_namespace) so the operator no longer dead-ends
+// at the error toast — the recovery agent shipped the RPC + CLI but
+// the UI affordance had to wait for codegen.
 function ADTLinkCallbackPage() {
   const { sdk } = useAppUIContext()
   const navigate = useNavigate()
@@ -144,10 +153,13 @@ function ADTLinkCallbackPage() {
   // succeed. ADT-reported failures and missing-param errors have no
   // retry path — the operator must restart the link flow.
   const [canRetry, setCanRetry] = useState(false)
+  const [recoverError, setRecoverError] = useState<string | null>(null)
+  const [recovered, setRecovered] = useState(false)
 
   const state = params.get('state') ?? ''
   const result = params.get('result') ?? ''
   const adtNamespace = params.get('adt_namespace') ?? ''
+  const reason = params.get('reason') ?? ''
 
   const completeMutation = usePlaytesthubServiceAdminApi_CreateAdtLinkagesCompleteMutation(sdk, {
     onSuccess: () => {
@@ -160,15 +172,31 @@ function ADTLinkCallbackPage() {
     }
   })
 
+  const recoverMutation = usePlaytesthubServiceAdminApi_CreateAdtLinkagesRecoverMutation(sdk, {
+    onSuccess: () => {
+      setRecovered(true)
+      message.success('ADT linkage recovered')
+      navigate('/')
+    },
+    onError: (err: { message?: string }) => {
+      setRecoverError(err.message ?? 'Recovering the ADT linkage failed')
+    }
+  })
+
   const runComplete = () => {
     setError(null)
     setCanRetry(false)
     completeMutation.mutate({ data: { state, adtNamespace } })
   }
 
+  const runRecover = () => {
+    setRecoverError(null)
+    recoverMutation.mutate({ data: { adtNamespace } })
+  }
+
   useEffect(() => {
     if (result === 'failed') {
-      setError(params.get('reason') ?? 'ADT reported the link as failed')
+      setError(reason || 'ADT reported the link as failed')
       setCanRetry(false)
       return
     }
@@ -181,12 +209,27 @@ function ADTLinkCallbackPage() {
     // We deliberately depend only on the URL inputs — re-running on
     // mutation churn would refire the mutation.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state, adtNamespace, result])
+  }, [state, adtNamespace, result, reason])
 
   if (error) {
+    // Recovery is only meaningful when ADT (a) reported a failure
+    // AND (b) echoed an adt_namespace we can pass through. The
+    // affordance is primary when `reason=already_linked`; secondary
+    // otherwise ("If you believe ADT already has this linkage…").
+    const showRecover = result === 'failed' && Boolean(adtNamespace)
+    const isAlreadyLinked = reason === 'already_linked'
     return (
       <Space direction="vertical" style={{ width: '100%' }} data-testid="adt-link-callback">
         <Alert type="error" message="ADT linking failed" description={error} showIcon />
+        {recoverError && (
+          <Alert
+            type="error"
+            message="Recovery failed"
+            description={recoverError}
+            showIcon
+            data-testid="adt-link-callback-recover-error"
+          />
+        )}
         <Space>
           {canRetry && (
             <Button
@@ -196,6 +239,19 @@ function ADTLinkCallbackPage() {
               data-testid="adt-link-callback-retry"
             >
               Retry
+            </Button>
+          )}
+          {showRecover && (
+            <Button
+              type={isAlreadyLinked ? 'primary' : 'default'}
+              onClick={runRecover}
+              loading={recoverMutation.isPending}
+              disabled={recovered}
+              data-testid="adt-link-callback-recover"
+            >
+              {isAlreadyLinked
+                ? 'Recover existing linkage'
+                : 'If you believe ADT already has this linkage, try Recover'}
             </Button>
           )}
           <Button onClick={() => navigate('/')}>Back to playtests</Button>

@@ -32,6 +32,7 @@ const mockTopUpMutation = vi.fn()
 const mockSyncMutation = vi.fn()
 const mockGetWorkersHealth = vi.fn()
 const mockCompleteAdtLinkMutation = vi.fn()
+const mockRecoverAdtLinkMutation = vi.fn()
 const mockGetAdtLinkages = vi.fn()
 const mockGetAdtBuilds = vi.fn()
 const mockGetAdtGames = vi.fn()
@@ -71,6 +72,7 @@ vi.mock('./playtesthubapi/generated-admin/queries/PlaytesthubServiceAdmin.query'
   usePlaytesthubServiceAdminApi_CreateCodesSyncFromAg_ByPlaytestIdMutation: (...args: unknown[]) => mockSyncMutation(...args),
   usePlaytesthubServiceAdminApi_GetWorkersHealth: (...args: unknown[]) => mockGetWorkersHealth(...args),
   usePlaytesthubServiceAdminApi_CreateAdtLinkagesCompleteMutation: (...args: unknown[]) => mockCompleteAdtLinkMutation(...args),
+  usePlaytesthubServiceAdminApi_CreateAdtLinkagesRecoverMutation: (...args: unknown[]) => mockRecoverAdtLinkMutation(...args),
   usePlaytesthubServiceAdminApi_GetAdtLinkages: (...args: unknown[]) => mockGetAdtLinkages(...args),
   usePlaytesthubServiceAdminApi_GetBuildsAdt_ByAdtLinkageId: (...args: unknown[]) => mockGetAdtBuilds(...args),
   usePlaytesthubServiceAdminApi_GetGamesAdt_ByAdtLinkageId: (...args: unknown[]) => mockGetAdtGames(...args),
@@ -109,6 +111,7 @@ beforeEach(() => {
   mockSyncMutation.mockReset()
   mockGetWorkersHealth.mockReset()
   mockCompleteAdtLinkMutation.mockReset()
+  mockRecoverAdtLinkMutation.mockReset()
   mockGetAdtLinkages.mockReset()
   mockGetAdtBuilds.mockReset()
   mockGetAdtGames.mockReset()
@@ -133,6 +136,7 @@ beforeEach(() => {
   mockSyncMutation.mockReturnValue({ mutate: vi.fn(), isPending: false, isError: false, error: null })
   mockGetWorkersHealth.mockReturnValue({ data: { workers: [] }, isLoading: false, error: null })
   mockCompleteAdtLinkMutation.mockReturnValue({ mutate: vi.fn(), isPending: false, isError: false, error: null })
+  mockRecoverAdtLinkMutation.mockReturnValue({ mutate: vi.fn(), isPending: false, isError: false, error: null })
   mockGetAdtLinkages.mockReturnValue({ data: { linkages: [] }, isLoading: false, error: null })
   mockGetAdtBuilds.mockReturnValue({ data: { builds: [] }, isLoading: false, error: null })
   mockGetAdtGames.mockReturnValue({ data: { games: [] }, isLoading: false, error: null })
@@ -857,5 +861,50 @@ describe('ADTLinkCallbackPage', () => {
     await user.click(retry)
     expect(mutate).toHaveBeenCalledTimes(2)
     expect(mutate).toHaveBeenLastCalledWith({ data: { state: 'abc', adtNamespace: 'adt-studio-1' } })
+  })
+
+  // 2026-05-21 recovery affordance — Bug 2 of the M5.B follow-up:
+  // when ADT reports result=failed&reason=already_linked, the operator
+  // should be able to adopt the orphan flag with a single click instead
+  // of dead-ending on the error toast.
+  it('offers Recover existing linkage as primary when result=failed&reason=already_linked', async () => {
+    const user = userEvent.setup()
+    const recoverMutate = vi.fn()
+    mockRecoverAdtLinkMutation.mockReturnValue({ mutate: recoverMutate, isPending: false, isError: false, error: null })
+    renderAt('/adt-link-callback?state=abc&adt_namespace=adt-studio-1&result=failed&reason=already_linked')
+    const recover = await screen.findByTestId('adt-link-callback-recover')
+    expect(recover).toHaveTextContent(/recover existing linkage/i)
+    await user.click(recover)
+    expect(recoverMutate).toHaveBeenCalledTimes(1)
+    expect(recoverMutate).toHaveBeenCalledWith({ data: { adtNamespace: 'adt-studio-1' } })
+  })
+
+  // Fallback affordance: ADT reported an unknown reason, but if the
+  // operator believes ADT carries the flag they can still try Recover.
+  it('offers a secondary Recover affordance when the failure reason is unknown', async () => {
+    mockRecoverAdtLinkMutation.mockReturnValue({ mutate: vi.fn(), isPending: false, isError: false, error: null })
+    renderAt('/adt-link-callback?state=abc&adt_namespace=adt-studio-1&result=failed&reason=something_weird')
+    const recover = await screen.findByTestId('adt-link-callback-recover')
+    expect(recover).toHaveTextContent(/if you believe adt already has this linkage, try recover/i)
+  })
+
+  // Surface the recovery mutation's own error so the operator can see
+  // it (e.g. FailedPrecondition when ADT actually reports no flag).
+  it('surfaces the RecoverADTLinkage mutation error', async () => {
+    const user = userEvent.setup()
+    let capturedOnError: ((err: { message?: string }) => void) | undefined
+    const mutate = vi.fn()
+    mockRecoverAdtLinkMutation.mockImplementation((_sdk: unknown, opts: { onError?: (err: { message?: string }) => void }) => {
+      capturedOnError = opts.onError
+      return { mutate, isPending: false, isError: false, error: null }
+    })
+    renderAt('/adt-link-callback?state=abc&adt_namespace=adt-studio-1&result=failed&reason=already_linked')
+    const recover = await screen.findByTestId('adt-link-callback-recover')
+    await user.click(recover)
+    expect(mutate).toHaveBeenCalledTimes(1)
+
+    capturedOnError?.({ message: 'no ADT-side linkage found for that namespace; use StartADTLink to create one' })
+    expect(await screen.findByTestId('adt-link-callback-recover-error')).toBeInTheDocument()
+    expect(screen.getByText(/no ADT-side linkage found/i)).toBeInTheDocument()
   })
 })

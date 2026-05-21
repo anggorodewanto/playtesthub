@@ -19,6 +19,7 @@ import { PlaytesthubServiceCreatePlaytestBody } from '../../generated-definition
 import { PlaytesthubServiceCreateSurveyBody } from '../../generated-definitions/PlaytesthubServiceCreateSurveyBody.js'
 import { PlaytesthubServiceEditPlaytestBody } from '../../generated-definitions/PlaytesthubServiceEditPlaytestBody.js'
 import { PlaytesthubServiceEditSurveyBody } from '../../generated-definitions/PlaytesthubServiceEditSurveyBody.js'
+import { PlaytesthubServiceRecoverAdtLinkageBody } from '../../generated-definitions/PlaytesthubServiceRecoverAdtLinkageBody.js'
 import { PlaytesthubServiceRejectApplicantBody } from '../../generated-definitions/PlaytesthubServiceRejectApplicantBody.js'
 import { PlaytesthubServiceRetryDmBody } from '../../generated-definitions/PlaytesthubServiceRetryDmBody.js'
 import { PlaytesthubServiceRetryFailedDmsBody } from '../../generated-definitions/PlaytesthubServiceRetryFailedDmsBody.js'
@@ -35,6 +36,7 @@ import { V1CreatePlaytestResponse } from '../../generated-definitions/V1CreatePl
 import { V1CreateSurveyResponse } from '../../generated-definitions/V1CreateSurveyResponse.js'
 import { V1EditPlaytestResponse } from '../../generated-definitions/V1EditPlaytestResponse.js'
 import { V1EditSurveyResponse } from '../../generated-definitions/V1EditSurveyResponse.js'
+import { V1GetAdtClientDiagnosticsResponse } from '../../generated-definitions/V1GetAdtClientDiagnosticsResponse.js'
 import { V1GetCodePoolResponse } from '../../generated-definitions/V1GetCodePoolResponse.js'
 import { V1GetPlaytestParticipantsResponse } from '../../generated-definitions/V1GetPlaytestParticipantsResponse.js'
 import { V1GetWorkerHealthResponse } from '../../generated-definitions/V1GetWorkerHealthResponse.js'
@@ -46,6 +48,7 @@ import { V1ListApplicantsResponse } from '../../generated-definitions/V1ListAppl
 import { V1ListAuditLogResponse } from '../../generated-definitions/V1ListAuditLogResponse.js'
 import { V1ListPlaytestsResponse } from '../../generated-definitions/V1ListPlaytestsResponse.js'
 import { V1ListSurveyResponsesResponse } from '../../generated-definitions/V1ListSurveyResponsesResponse.js'
+import { V1RecoverAdtLinkageResponse } from '../../generated-definitions/V1RecoverAdtLinkageResponse.js'
 import { V1RejectApplicantResponse } from '../../generated-definitions/V1RejectApplicantResponse.js'
 import { V1RetryDmResponse } from '../../generated-definitions/V1RetryDmResponse.js'
 import { V1RetryFailedDmsResponse } from '../../generated-definitions/V1RetryFailedDmsResponse.js'
@@ -63,9 +66,11 @@ export const Key_PlaytesthubServiceAdmin = {
   AdtLinkages: 'Playtesthubapi.PlaytesthubServiceAdmin.AdtLinkages',
   WorkersHealth: 'Playtesthubapi.PlaytesthubServiceAdmin.WorkersHealth',
   AdtLinkagesStart: 'Playtesthubapi.PlaytesthubServiceAdmin.AdtLinkagesStart',
+  AdtLinkagesRecover: 'Playtesthubapi.PlaytesthubServiceAdmin.AdtLinkagesRecover',
   AdtLinkagesComplete: 'Playtesthubapi.PlaytesthubServiceAdmin.AdtLinkagesComplete',
   Playtest_ByPlaytestId: 'Playtesthubapi.PlaytesthubServiceAdmin.Playtest_ByPlaytestId',
   AdtLinkage_ByAdtLinkageId: 'Playtesthubapi.PlaytesthubServiceAdmin.AdtLinkage_ByAdtLinkageId',
+  DiagnosticsAdtClientKind: 'Playtesthubapi.PlaytesthubServiceAdmin.DiagnosticsAdtClientKind',
   Codes_ByPlaytestId: 'Playtesthubapi.PlaytesthubServiceAdmin.Codes_ByPlaytestId',
   Survey_ByPlaytestId: 'Playtesthubapi.PlaytesthubServiceAdmin.Survey_ByPlaytestId',
   Applicant_ByApplicantIdReject: 'Playtesthubapi.PlaytesthubServiceAdmin.Applicant_ByApplicantIdReject',
@@ -245,6 +250,49 @@ export const usePlaytesthubServiceAdminApi_CreateAdtLinkagesStartMutation = (
 }
 
 /**
+ * Operator-recovery surface for the 2026-05-21 orphan-flag bug: when ADT still carries a linkage flag but no local adt_linkage row exists, StartADTLink + the redirect dance fail with 409 / already_linked. RecoverADTLinkage probes ADT (ListGames) to confirm the orphan flag, then inserts the local row directly. No OAuth round-trip. AlreadyExists when a live row for (studio, adtNamespace) is already present; FailedPrecondition when ADT reports no flag for the pair; Unavailable on ADT transient errors.
+ *
+ * #### Default Query Options
+ * The default options include:
+ * ```
+ * {
+ *    queryKey: [Key_PlaytesthubServiceAdmin.AdtLinkagesRecover, input]
+ * }
+ * ```
+ */
+export const usePlaytesthubServiceAdminApi_CreateAdtLinkagesRecoverMutation = (
+  sdk: AccelByteSDK,
+  options?: Omit<
+    UseMutationOptions<
+      V1RecoverAdtLinkageResponse,
+      AxiosError<ApiError>,
+      SdkSetConfigParam & { data: PlaytesthubServiceRecoverAdtLinkageBody }
+    >,
+    'mutationKey'
+  >,
+  callback?: (data: V1RecoverAdtLinkageResponse) => void
+): UseMutationResult<
+  V1RecoverAdtLinkageResponse,
+  AxiosError<ApiError>,
+  SdkSetConfigParam & { data: PlaytesthubServiceRecoverAdtLinkageBody }
+> => {
+  const mutationFn = async (input: SdkSetConfigParam & { data: PlaytesthubServiceRecoverAdtLinkageBody }) => {
+    const response = await PlaytesthubServiceAdminApi(sdk, {
+      coreConfig: input.coreConfig,
+      axiosConfig: input.axiosConfig
+    }).createAdtLinkagesRecover(input.data)
+    callback?.(response.data)
+    return response.data
+  }
+
+  return useMutation({
+    mutationKey: [Key_PlaytesthubServiceAdmin.AdtLinkagesRecover],
+    mutationFn,
+    ...options
+  })
+}
+
+/**
  * Consumes the adt_link_pending row matching `state` (not expired); inserts the adt_linkage identity row with `adt_namespace` echoed by ADT on the callback URL. No outbound ADT call — tampering is self-defeating because the first downstream service-JWT call would 401 (PRD §4.8.2).
  *
  * #### Default Query Options
@@ -377,7 +425,7 @@ export const usePlaytesthubServiceAdminApi_PatchPlaytest_ByPlaytestIdMutation = 
 }
 
 /**
- * Idempotent re-unlink against an already soft-deleted row is a no-op success. Linkage absent for the caller's studio → NotFound (PRD §4.8).
+ * Idempotent re-unlink against an already soft-deleted row is a no-op success. Linkage absent for the caller's studio → NotFound (PRD §4.8). Best-effort calls ADT's DELETE /linkage in the same flow so the ADT-side flag and the local row drop together.
  *
  * #### Default Query Options
  * The default options include:
@@ -407,6 +455,40 @@ export const usePlaytesthubServiceAdminApi_DeleteAdtLinkage_ByAdtLinkageIdMutati
   return useMutation({
     mutationKey: [Key_PlaytesthubServiceAdmin.AdtLinkage_ByAdtLinkageId],
     mutationFn,
+    ...options
+  })
+}
+
+/**
+ * Diagnostic surface for the 2026-05-21 silent-fallback bug: the bootapp gate that selects HTTP-backed vs in-memory ADT client requires ALL of AuthEnabled + ADT_BASE_URL + AGS_BASE_URL + AGS_IAM_CLIENT_ID + AGS_IAM_CLIENT_SECRET. When any one is empty the gate silently falls to the in-memory MemClient and UnlinkADT's ADT-side propagation becomes a no-op. This RPC returns the gate decision ("http" | "mem") plus a boolean presence flag for each env var so the operator can pinpoint the missing one without needing the boot log. Secret values are NEVER returned — only booleans.
+ *
+ * #### Default Query Options
+ * The default options include:
+ * ```
+ * {
+ *    queryKey: [Key_PlaytesthubServiceAdmin.DiagnosticsAdtClientKind, input]
+ * }
+ * ```
+ */
+export const usePlaytesthubServiceAdminApi_GetDiagnosticsAdtClientKind = (
+  sdk: AccelByteSDK,
+  input: SdkSetConfigParam,
+  options?: Omit<UseQueryOptions<V1GetAdtClientDiagnosticsResponse, AxiosError<ApiError>>, 'queryKey'>,
+  callback?: (data: AxiosResponse<V1GetAdtClientDiagnosticsResponse>) => void
+): UseQueryResult<V1GetAdtClientDiagnosticsResponse, AxiosError<ApiError>> => {
+  const queryFn =
+    (sdk: AccelByteSDK, input: Parameters<typeof usePlaytesthubServiceAdminApi_GetDiagnosticsAdtClientKind>[1]) => async () => {
+      const response = await PlaytesthubServiceAdminApi(sdk, {
+        coreConfig: input.coreConfig,
+        axiosConfig: input.axiosConfig
+      }).getDiagnosticsAdtClientKind()
+      callback?.(response)
+      return response.data
+    }
+
+  return useQuery<V1GetAdtClientDiagnosticsResponse, AxiosError<ApiError>>({
+    queryKey: [Key_PlaytesthubServiceAdmin.DiagnosticsAdtClientKind, input],
+    queryFn: queryFn(sdk, input),
     ...options
   })
 }

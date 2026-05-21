@@ -16,6 +16,7 @@ import { PlaytesthubServiceCreatePlaytestBody } from '../../generated-definition
 import { PlaytesthubServiceCreateSurveyBody } from '../../generated-definitions/PlaytesthubServiceCreateSurveyBody.js'
 import { PlaytesthubServiceEditPlaytestBody } from '../../generated-definitions/PlaytesthubServiceEditPlaytestBody.js'
 import { PlaytesthubServiceEditSurveyBody } from '../../generated-definitions/PlaytesthubServiceEditSurveyBody.js'
+import { PlaytesthubServiceRecoverAdtLinkageBody } from '../../generated-definitions/PlaytesthubServiceRecoverAdtLinkageBody.js'
 import { PlaytesthubServiceRejectApplicantBody } from '../../generated-definitions/PlaytesthubServiceRejectApplicantBody.js'
 import { PlaytesthubServiceRetryDmBody } from '../../generated-definitions/PlaytesthubServiceRetryDmBody.js'
 import { PlaytesthubServiceRetryFailedDmsBody } from '../../generated-definitions/PlaytesthubServiceRetryFailedDmsBody.js'
@@ -32,6 +33,7 @@ import { V1CreatePlaytestResponse } from '../../generated-definitions/V1CreatePl
 import { V1CreateSurveyResponse } from '../../generated-definitions/V1CreateSurveyResponse.js'
 import { V1EditPlaytestResponse } from '../../generated-definitions/V1EditPlaytestResponse.js'
 import { V1EditSurveyResponse } from '../../generated-definitions/V1EditSurveyResponse.js'
+import { V1GetAdtClientDiagnosticsResponse } from '../../generated-definitions/V1GetAdtClientDiagnosticsResponse.js'
 import { V1GetCodePoolResponse } from '../../generated-definitions/V1GetCodePoolResponse.js'
 import { V1GetPlaytestParticipantsResponse } from '../../generated-definitions/V1GetPlaytestParticipantsResponse.js'
 import { V1GetWorkerHealthResponse } from '../../generated-definitions/V1GetWorkerHealthResponse.js'
@@ -43,6 +45,7 @@ import { V1ListApplicantsResponse } from '../../generated-definitions/V1ListAppl
 import { V1ListAuditLogResponse } from '../../generated-definitions/V1ListAuditLogResponse.js'
 import { V1ListPlaytestsResponse } from '../../generated-definitions/V1ListPlaytestsResponse.js'
 import { V1ListSurveyResponsesResponse } from '../../generated-definitions/V1ListSurveyResponsesResponse.js'
+import { V1RecoverAdtLinkageResponse } from '../../generated-definitions/V1RecoverAdtLinkageResponse.js'
 import { V1RejectApplicantResponse } from '../../generated-definitions/V1RejectApplicantResponse.js'
 import { V1RetryDmResponse } from '../../generated-definitions/V1RetryDmResponse.js'
 import { V1RetryFailedDmsResponse } from '../../generated-definitions/V1RetryFailedDmsResponse.js'
@@ -138,6 +141,21 @@ export class PlaytesthubServiceAdmin$ {
     )
   }
   /**
+   * Operator-recovery surface for the 2026-05-21 orphan-flag bug: when ADT still carries a linkage flag but no local adt_linkage row exists, StartADTLink + the redirect dance fail with 409 / already_linked. RecoverADTLinkage probes ADT (ListGames) to confirm the orphan flag, then inserts the local row directly. No OAuth round-trip. AlreadyExists when a live row for (studio, adtNamespace) is already present; FailedPrecondition when ADT reports no flag for the pair; Unavailable on ADT transient errors.
+   */
+  createAdtLinkagesRecover(data: PlaytesthubServiceRecoverAdtLinkageBody): Promise<Response<V1RecoverAdtLinkageResponse>> {
+    const params = {} as AxiosRequestConfig
+    const url = '/v1/admin/namespaces/{namespace}/adt/linkages:recover'.replace('{namespace}', this.namespace)
+    const resultPromise = this.axiosInstance.post(url, data, { params })
+
+    return Validate.validateOrReturnResponse(
+      this.useSchemaValidation,
+      () => resultPromise,
+      V1RecoverAdtLinkageResponse,
+      'V1RecoverAdtLinkageResponse'
+    )
+  }
+  /**
    * Consumes the adt_link_pending row matching `state` (not expired); inserts the adt_linkage identity row with `adt_namespace` echoed by ADT on the callback URL. No outbound ADT call — tampering is self-defeating because the first downstream service-JWT call would 401 (PRD §4.8.2).
    */
   createAdtLinkagesComplete(data: PlaytesthubServiceCompleteAdtLinkBody): Promise<Response<V1CompleteAdtLinkResponse>> {
@@ -200,7 +218,7 @@ export class PlaytesthubServiceAdmin$ {
     )
   }
   /**
-   * Idempotent re-unlink against an already soft-deleted row is a no-op success. Linkage absent for the caller's studio → NotFound (PRD §4.8).
+   * Idempotent re-unlink against an already soft-deleted row is a no-op success. Linkage absent for the caller's studio → NotFound (PRD §4.8). Best-effort calls ADT's DELETE /linkage in the same flow so the ADT-side flag and the local row drop together.
    */
   deleteAdtLinkage_ByAdtLinkageId(adtLinkageId: string): Promise<Response<V1UnlinkAdtResponse>> {
     const params = {} as AxiosRequestConfig
@@ -210,6 +228,21 @@ export class PlaytesthubServiceAdmin$ {
     const resultPromise = this.axiosInstance.delete(url, { params })
 
     return Validate.validateOrReturnResponse(this.useSchemaValidation, () => resultPromise, V1UnlinkAdtResponse, 'V1UnlinkAdtResponse')
+  }
+  /**
+   * Diagnostic surface for the 2026-05-21 silent-fallback bug: the bootapp gate that selects HTTP-backed vs in-memory ADT client requires ALL of AuthEnabled + ADT_BASE_URL + AGS_BASE_URL + AGS_IAM_CLIENT_ID + AGS_IAM_CLIENT_SECRET. When any one is empty the gate silently falls to the in-memory MemClient and UnlinkADT's ADT-side propagation becomes a no-op. This RPC returns the gate decision ("http" | "mem") plus a boolean presence flag for each env var so the operator can pinpoint the missing one without needing the boot log. Secret values are NEVER returned — only booleans.
+   */
+  getDiagnosticsAdtClientKind(): Promise<Response<V1GetAdtClientDiagnosticsResponse>> {
+    const params = {} as AxiosRequestConfig
+    const url = '/v1/admin/namespaces/{namespace}/diagnostics/adt-client-kind'.replace('{namespace}', this.namespace)
+    const resultPromise = this.axiosInstance.get(url, { params })
+
+    return Validate.validateOrReturnResponse(
+      this.useSchemaValidation,
+      () => resultPromise,
+      V1GetAdtClientDiagnosticsResponse,
+      'V1GetAdtClientDiagnosticsResponse'
+    )
   }
   /**
    * Returns aggregate counts plus the full code list including raw values — admin surfaces are exempt from the §6 log-redaction rule (PRD §5.7).

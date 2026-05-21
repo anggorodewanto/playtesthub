@@ -27,8 +27,10 @@ import { V1GetPublicPlaytestResponse } from '../../generated-definitions/V1GetPu
 import { V1GetSurveyResponse } from '../../generated-definitions/V1GetSurveyResponse.js'
 import { V1SignupResponse } from '../../generated-definitions/V1SignupResponse.js'
 import { V1SubmitSurveyResponseResponse } from '../../generated-definitions/V1SubmitSurveyResponseResponse.js'
+import { V1WhoAmIResponse } from '../../generated-definitions/V1WhoAmIResponse.js'
 
 export const Key_PlaytesthubService = {
+  PlayerMe: 'Playtesthubapi.PlaytesthubService.PlayerMe',
   Config: 'Playtesthubapi.PlaytesthubService.Config',
   PlayerDiscordExchange: 'Playtesthubapi.PlaytesthubService.PlayerDiscordExchange',
   PlayerPlaytest_BySlug: 'Playtesthubapi.PlaytesthubService.PlayerPlaytest_BySlug',
@@ -41,6 +43,36 @@ export const Key_PlaytesthubService = {
   GrantedCodePlayer_ByPlaytestId: 'Playtesthubapi.PlaytesthubService.GrantedCodePlayer_ByPlaytestId',
   SurveySubmitPlayer_ByPlaytestId: 'Playtesthubapi.PlaytesthubService.SurveySubmitPlayer_ByPlaytestId'
 } as const
+
+/**
+ * Returns the caller's AGS user id plus the best-effort Discord handle resolved via the same bot-token lookup the signup flow uses. discord_handle is empty when the caller is not Discord-federated or the lookup fails — the field is informational; callers must not treat it as authoritative identity.
+ *
+ * #### Default Query Options
+ * The default options include:
+ * ```
+ * {
+ *    queryKey: [Key_PlaytesthubService.PlayerMe, input]
+ * }
+ * ```
+ */
+export const usePlaytesthubServiceApi_GetPlayerMe = (
+  sdk: AccelByteSDK,
+  input: SdkSetConfigParam,
+  options?: Omit<UseQueryOptions<V1WhoAmIResponse, AxiosError<ApiError>>, 'queryKey'>,
+  callback?: (data: AxiosResponse<V1WhoAmIResponse>) => void
+): UseQueryResult<V1WhoAmIResponse, AxiosError<ApiError>> => {
+  const queryFn = (sdk: AccelByteSDK, input: Parameters<typeof usePlaytesthubServiceApi_GetPlayerMe>[1]) => async () => {
+    const response = await PlaytesthubServiceApi(sdk, { coreConfig: input.coreConfig, axiosConfig: input.axiosConfig }).getPlayerMe()
+    callback?.(response)
+    return response.data
+  }
+
+  return useQuery<V1WhoAmIResponse, AxiosError<ApiError>>({
+    queryKey: [Key_PlaytesthubService.PlayerMe, input],
+    queryFn: queryFn(sdk, input),
+    ...options
+  })
+}
 
 /**
  * Returns environment-derived client config that both the admin and player frontends need to construct cross-app URLs. player_base_url is the public origin of the player Svelte bundle (from backend env PLAYER_BASE_URL); empty string when unset.
