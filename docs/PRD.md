@@ -139,7 +139,8 @@ Applies only to playtests with `distributionModel = AGS_CAMPAIGN`.
 | ListADTLinkages | admin | (none — studio derived from the backend's service IAM token) | `[]ADTLinkage` (identity columns only — no credential) | read-only | M5.B |
 | StartADTLink | admin | (none — studio derived from the backend's service IAM token) | `{linkUrl, state}` (state is a single-use 32-byte nonce; `linkUrl` carries `state` + `studio_namespace` query params) | not idempotent (each call mints a new `state`) | M5.B |
 | CompleteADTLink | admin | `state`, `adt_namespace` | `ADTLinkage` | natural key (`state` — single-use; replay returns `InvalidArgument`) | M5.B |
-| UnlinkADT | admin | `adtLinkageId` | success/empty | idempotent (re-unlink is no-op) | M5.B |
+| UnlinkADT | admin | `adtLinkageId` | success/empty | idempotent (re-unlink is no-op); best-effort propagates the unlink to ADT (`adt.Client.DeleteLinkage`) in the same flow — failures are logged + counted on `ADTUnlinkADTSideFailures` but do not block the local soft-delete (PRD §4.8). | M5.B |
+| RecoverADTLinkage | admin | `adtNamespace` | `ADTLinkage` | not idempotent (single-use orphan adoption); rejected with `AlreadyExists` when a live row for the pair already exists | M5.B |
 | ListADTBuilds | admin | `adtLinkageId`, `adtGameId` | `[]Build` (proxied through `adt.Client`) | read-only | M5.B |
 | ListADTGames | admin | `adtLinkageId` | `[]Game` (proxied through `adt.Client.ListGames`; drives the create-playtest build-picker top-level dropdown — see [`STATUS_M5.md`](STATUS_M5.md) "Addendum 2026-05-21 — games-list endpoint") | read-only | M5.B |
 | GetADTDownloadInfo | player | `playtestId` | `{url, expiresAt?, source ('issued'|'fallback')}` (gated on `applicant.status='APPROVED'` exactly like `GetGrantedCode`) | read-only (each call may mint a fresh URL per ADT semantics) | M5.B |

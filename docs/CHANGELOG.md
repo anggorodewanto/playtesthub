@@ -1,5 +1,18 @@
 # playtesthub — Full Version History
 
+## v2.6.2 — 2026-05-21
+
+**ADT linkage resilience — UnlinkADT propagates + RecoverADTLinkage RPC** — repairs the 2026-05-21 orphan-flag state surfaced by a live operator. They unlinked locally before the live ADT HTTP adapter shipped, leaving a flag dangling on ADT's side; today's re-link returned 409 / `already_linked`. The orphan flag was scrubbed manually via curl, but the two code paths that allowed the gap are now closed:
+
+- §4.7 — one new RPC: `RecoverADTLinkage(adtNamespace)` (admin; probes ADT via `ListGames` to confirm an orphan-side flag, then inserts the local `adt_linkage` row without an OAuth round-trip; rejected with byte-exact `AlreadyExists` when a live row for the pair already exists; `FailedPrecondition` byte-exact `no ADT-side linkage found for that namespace; use StartADTLink to create one` when ADT reports no flag; `Unavailable` on ADT transient errors).
+- §4.7 — `UnlinkADT` now best-effort calls `adt.Client.DeleteLinkage` between the namespace check and the local soft-delete. Failures are classified (`linkage_missing` / `transient` / `unknown`), logged structured, and counted on a new `ADTUnlinkADTSideFailures` Prometheus counter — but never block the local soft-delete. Rationale: the inverse choice would let an ADT outage strand operators who want to drop their own row.
+- `errors.md` — four new rows for `RecoverADTLinkage` (missing `adtNamespace` → InvalidArgument; existing live row → AlreadyExists byte-exact; ADT 401 → FailedPrecondition byte-exact; ADT transient → Unavailable).
+- `schema.md` — new `adt_linkage.recover` AuditLog action row; payload mirrors `adt_linkage.create` (admin-attributed; identity columns only — no credential payload exists).
+- `pkg/adt` — `Client.DeleteLinkage(ctx, studioNamespace, adtNamespace) → error` added to the interface; `MemClient.DeleteLinkageErr` slot mirrors `ListBuildsErr` / `ListGamesErr`; `HTTPClient.DeleteLinkage` signature gains the studio arg for symmetry (ADT still derives studio from the bearer token).
+- `pth` CLI — new `pth adt linkage recover --adt-namespace=<ns>` subcommand. Smoke (`scripts/smoke/pth.sh`) gains a dry-run probe; `scripts/smoke/cloud.sh` gains the 401 reachability probe so the new route is checked at deploy time.
+- **No schema migration**: the audit_log table stores arbitrary action strings; `adt_linkage.recover` is just a new constant in `pkg/repo/auditlog_m5.go`. No backfill — existing rows are unaffected.
+- **Backwards compatibility note**: `UnlinkADT` keeps the same RPC shape + idempotency guarantees; the ADT-side propagation is purely additive. `RecoverADTLinkage` is a pure addition. Existing `pkg/adt.Client` consumers MUST now implement `DeleteLinkage` — in-process test stubs that mock the interface need a trivial mirror of `ListGames`.
+
 ## v2.6.1 — 2026-05-21
 
 **ADT-eng games-list endpoint** — adds one read-only admin RPC behind the existing `pkg/adt.Client` abstraction so the create-playtest build-picker can drive its top-level dropdown from ADT instead of forcing operators to type `adt_game_id` by hand (STATUS_M5.md B12 + "Addendum 2026-05-21 — games-list endpoint"). Pure abstraction extension — no behavior change to existing playtests.
