@@ -526,6 +526,38 @@ func TestHTTPClient_DeleteLinkage_TokenGetterFailurePropagates(t *testing.T) {
 	}
 }
 
+// TestHTTPClient_AuthorizationHeader_UsesCapitalBearer is the Bug 6
+// canary: live ADT rejects `Authorization: bearer ...` (lowercase b)
+// with HTTP 401 — only `Bearer ` (capital B, single trailing space)
+// is accepted. Production code already does the right thing; this
+// regression locks the literal prefix so a future refactor cannot
+// silently downcase it.
+func TestHTTPClient_AuthorizationHeader_UsesCapitalBearer(t *testing.T) {
+	t.Parallel()
+	var captured string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		captured = r.Header.Get("Authorization")
+		_ = json.NewEncoder(w).Encode(map[string]any{"data": []map[string]any{}})
+	}))
+	t.Cleanup(srv.Close)
+
+	c := newTestClient(t, srv, tokenGetterReturning("svc-jwt"))
+	if _, err := c.ListGames(context.Background(), "studio-ns", "adt-ns"); err != nil {
+		t.Fatalf("ListGames: %v", err)
+	}
+	// Byte-exact prefix: capital B, single space, no other chars.
+	const wantPrefix = "Bearer "
+	if !strings.HasPrefix(captured, wantPrefix) {
+		t.Fatalf("Authorization = %q, want prefix %q", captured, wantPrefix)
+	}
+	if strings.HasPrefix(strings.ToLower(captured), "bearer ") && !strings.HasPrefix(captured, wantPrefix) {
+		t.Fatalf("Authorization = %q used lowercase bearer; live ADT rejects this", captured)
+	}
+	if captured != wantPrefix+"svc-jwt" {
+		t.Fatalf("Authorization = %q, want %q", captured, wantPrefix+"svc-jwt")
+	}
+}
+
 func TestHTTPClient_TokenGetterFailurePropagates(t *testing.T) {
 	t.Parallel()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
