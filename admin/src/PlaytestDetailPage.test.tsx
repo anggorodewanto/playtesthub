@@ -12,6 +12,7 @@ vi.mock('@accelbyte/sdk-extend-app-ui', () => ({
 const mockGetPlaytests = vi.fn()
 const mockTransition = vi.fn()
 const mockGetParticipants = vi.fn()
+const mockGetApplicants = vi.fn()
 const mockGetAnnouncements = vi.fn()
 const mockCreateAnnouncement = vi.fn()
 const mockGetCodes = vi.fn()
@@ -20,6 +21,7 @@ const mockTopUpCodes = vi.fn()
 const mockSyncCodes = vi.fn()
 const mockApprove = vi.fn()
 const mockReject = vi.fn()
+const mockRetryDm = vi.fn()
 const mockGetPublicConfig = vi.fn()
 
 vi.mock('./playtesthubapi/generated-public/queries/PlaytesthubService.query', () => ({
@@ -30,6 +32,7 @@ vi.mock('./playtesthubapi/generated-admin/queries/PlaytesthubServiceAdmin.query'
   Key_PlaytesthubServiceAdmin: {
     Playtests: 'playtests',
     Participants_ByPlaytestId: 'participants',
+    Applicants_ByPlaytestId: 'applicants',
     Announcements_ByPlaytestId: 'announcements',
     Codes_ByPlaytestId: 'codes-by-playtest-id'
   },
@@ -37,6 +40,7 @@ vi.mock('./playtesthubapi/generated-admin/queries/PlaytesthubServiceAdmin.query'
   usePlaytesthubServiceAdminApi_CreatePlaytest_ByPlaytestIdTransitionStatuMutation: (...a: unknown[]) =>
     mockTransition(...a),
   usePlaytesthubServiceAdminApi_GetParticipants_ByPlaytestId: (...a: unknown[]) => mockGetParticipants(...a),
+  usePlaytesthubServiceAdminApi_GetApplicants_ByPlaytestId: (...a: unknown[]) => mockGetApplicants(...a),
   usePlaytesthubServiceAdminApi_GetAnnouncements_ByPlaytestId: (...a: unknown[]) => mockGetAnnouncements(...a),
   usePlaytesthubServiceAdminApi_CreateAnnouncement_ByPlaytestIdMutation: (...a: unknown[]) =>
     mockCreateAnnouncement(...a),
@@ -46,7 +50,8 @@ vi.mock('./playtesthubapi/generated-admin/queries/PlaytesthubServiceAdmin.query'
   usePlaytesthubServiceAdminApi_CreateCodesSyncFromAg_ByPlaytestIdMutation: (...a: unknown[]) => mockSyncCodes(...a),
   usePlaytesthubServiceAdminApi_CreateApplicant_ByApplicantIdApproveMutation: (...a: unknown[]) =>
     mockApprove(...a),
-  usePlaytesthubServiceAdminApi_CreateApplicant_ByApplicantIdRejectMutation: (...a: unknown[]) => mockReject(...a)
+  usePlaytesthubServiceAdminApi_CreateApplicant_ByApplicantIdRejectMutation: (...a: unknown[]) => mockReject(...a),
+  usePlaytesthubServiceAdminApi_CreateApplicant_ByApplicantIdRetryDmMutation: (...a: unknown[]) => mockRetryDm(...a)
 }))
 
 import { PlaytestDetailPage } from './PlaytestDetailPage'
@@ -90,15 +95,17 @@ beforeEach(() => {
     refetch: vi.fn()
   })
   mockTransition.mockReturnValue({ mutate: vi.fn() })
-  mockGetParticipants.mockReturnValue({ data: { participants: [] }, isLoading: false })
+  mockGetParticipants.mockReturnValue({ data: { participants: [] }, isLoading: false, refetch: vi.fn() })
+  mockGetApplicants.mockReturnValue({ data: { applicants: [] }, isLoading: false, error: null, refetch: vi.fn() })
   mockGetAnnouncements.mockReturnValue({ data: { announcements: [] }, isLoading: false, refetch: vi.fn() })
   mockCreateAnnouncement.mockReturnValue({ mutate: vi.fn(), isPending: false })
   mockGetCodes.mockReturnValue({ data: { stats: { total: 0, unused: 0, granted: 0 }, codes: [] }, isLoading: false, error: null, refetch: vi.fn() })
   mockUploadCodes.mockReturnValue({ mutate: vi.fn(), isPending: false })
   mockTopUpCodes.mockReturnValue({ mutate: vi.fn(), isPending: false })
   mockSyncCodes.mockReturnValue({ mutate: vi.fn(), isPending: false })
-  mockApprove.mockReturnValue({ mutate: vi.fn() })
-  mockReject.mockReturnValue({ mutate: vi.fn() })
+  mockApprove.mockReturnValue({ mutate: vi.fn(), isPending: false })
+  mockReject.mockReturnValue({ mutate: vi.fn(), isPending: false })
+  mockRetryDm.mockReturnValue({ mutate: vi.fn(), isPending: false })
   mockGetPublicConfig.mockReturnValue({ data: { playerBaseUrl: 'https://play.example.com' } })
 })
 
@@ -188,7 +195,7 @@ describe('PlaytestDetailPage shell', () => {
     expect(await screen.findByText(/No announcements sent yet/)).toBeInTheDocument()
   })
 
-  it('Participants tab renders the 6-column table + capacity counter', async () => {
+  it('Participants tab renders rows, capacity counter, and joined platform column', async () => {
     mockGetParticipants.mockReturnValue({
       data: {
         participants: [
@@ -210,7 +217,19 @@ describe('PlaytestDetailPage shell', () => {
           }
         ]
       },
-      isLoading: false
+      isLoading: false,
+      refetch: vi.fn()
+    })
+    mockGetApplicants.mockReturnValue({
+      data: {
+        applicants: [
+          { id: 'a1', discordHandle: 'alice#1', platforms: ['PLATFORM_STEAM'], status: 'APPLICANT_STATUS_APPROVED', lastDmStatus: 'DM_STATUS_SENT' },
+          { id: 'a2', discordHandle: 'bob#2', platforms: ['PLATFORM_XBOX'], status: 'APPLICANT_STATUS_PENDING' }
+        ]
+      },
+      isLoading: false,
+      error: null,
+      refetch: vi.fn()
     })
     renderDetail('autumn-draft')
     const user = userEvent.setup()
@@ -218,7 +237,91 @@ describe('PlaytestDetailPage shell', () => {
     expect(await screen.findByText('alice#1')).toBeInTheDocument()
     expect(screen.getByText('bob#2')).toBeInTheDocument()
     expect(screen.getByText('2 / ∞ enrolled')).toBeInTheDocument()
-    expect(screen.getAllByRole('button', { name: 'Approve' })[0]).toBeInTheDocument()
+    expect(screen.getByText('steam')).toBeInTheDocument()
+    expect(screen.getByText('xbox')).toBeInTheDocument()
+    expect(screen.getByText('Sent')).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: /^approve$/i })[0]).toBeInTheDocument()
+  })
+
+  it('Participants tab shows Retry DM only for APPROVED participants whose last DM failed', async () => {
+    mockGetParticipants.mockReturnValue({
+      data: {
+        participants: [
+          { applicantId: 'a1', discordHandle: 'a', status: 'APPLICANT_STATUS_APPROVED' },
+          { applicantId: 'a2', discordHandle: 'b', status: 'APPLICANT_STATUS_APPROVED' },
+          { applicantId: 'a3', discordHandle: 'c', status: 'APPLICANT_STATUS_PENDING' }
+        ]
+      },
+      isLoading: false,
+      refetch: vi.fn()
+    })
+    mockGetApplicants.mockReturnValue({
+      data: {
+        applicants: [
+          { id: 'a1', discordHandle: 'a', status: 'APPLICANT_STATUS_APPROVED', lastDmStatus: 'DM_STATUS_FAILED' },
+          { id: 'a2', discordHandle: 'b', status: 'APPLICANT_STATUS_APPROVED', lastDmStatus: 'DM_STATUS_SENT' },
+          { id: 'a3', discordHandle: 'c', status: 'APPLICANT_STATUS_PENDING' }
+        ]
+      },
+      isLoading: false,
+      error: null,
+      refetch: vi.fn()
+    })
+    renderDetail('autumn-draft')
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('tab', { name: 'Participants' }))
+    await screen.findByText('a')
+    expect(screen.getAllByRole('button', { name: /retry dm/i })).toHaveLength(1)
+  })
+
+  it('Participants tab renders the low-pool banner when unused/total ≤ 10%', async () => {
+    mockGetCodes.mockReturnValue({
+      data: { stats: { total: 100, unused: 5, reserved: 0, granted: 95 }, codes: [] },
+      isLoading: false,
+      error: null,
+      refetch: vi.fn()
+    })
+    renderDetail('autumn-draft')
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('tab', { name: 'Participants' }))
+    expect(await screen.findByText(/code pool is low/i)).toBeInTheDocument()
+  })
+
+  it('Participants tab opens the reject modal and submits the typed reason', async () => {
+    const mutate = vi.fn()
+    mockReject.mockReturnValue({ mutate, isPending: false })
+    mockGetParticipants.mockReturnValue({
+      data: { participants: [{ applicantId: 'a1', discordHandle: 'tester', status: 'APPLICANT_STATUS_PENDING' }] },
+      isLoading: false,
+      refetch: vi.fn()
+    })
+    renderDetail('autumn-draft')
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('tab', { name: 'Participants' }))
+    await user.click(await screen.findByRole('button', { name: /^reject$/i }))
+    const dialog = await screen.findByRole('dialog')
+    await user.type(within(dialog).getByPlaceholderText(/stored on the applicant row/i), 'duplicate signup')
+    await user.click(within(dialog).getByRole('button', { name: /^reject$/i }))
+    await waitFor(() =>
+      expect(mutate).toHaveBeenCalledWith({ applicantId: 'a1', data: { rejectionReason: 'duplicate signup' } })
+    )
+  })
+
+  it('Participants tab approve flow confirms via Popconfirm before mutating', async () => {
+    const mutate = vi.fn()
+    mockApprove.mockReturnValue({ mutate, isPending: false })
+    mockGetParticipants.mockReturnValue({
+      data: { participants: [{ applicantId: 'a1', discordHandle: 'tester', status: 'APPLICANT_STATUS_PENDING' }] },
+      isLoading: false,
+      refetch: vi.fn()
+    })
+    renderDetail('autumn-draft')
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('tab', { name: 'Participants' }))
+    await user.click(await screen.findByRole('button', { name: /^approve$/i }))
+    const popup = await screen.findByRole('tooltip')
+    await user.click(within(popup).getByRole('button', { name: /^approve$/i }))
+    await waitFor(() => expect(mutate).toHaveBeenCalledWith({ applicantId: 'a1', data: {} }))
   })
 
   it('Distribution tab renders the inline Steam upload form + empty-state hint when pool is empty', async () => {

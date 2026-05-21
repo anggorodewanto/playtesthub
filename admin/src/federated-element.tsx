@@ -32,9 +32,7 @@ import {
 import { useEffect, useMemo, useState } from 'react'
 import { Route, Routes, useNavigate, useParams, useSearchParams } from 'react-router'
 import { PlaytestDetailPage } from './PlaytestDetailPage'
-import type { V1Applicant } from './playtesthubapi/generated-definitions/V1Applicant'
 import type { V1AuditLogEntry } from './playtesthubapi/generated-definitions/V1AuditLogEntry'
-import type { V1CodePoolStats } from './playtesthubapi/generated-definitions/V1CodePoolStats'
 import type { V1AdtBuild } from './playtesthubapi/generated-definitions/V1AdtBuild'
 import type { V1AdtLinkage } from './playtesthubapi/generated-definitions/V1AdtLinkage'
 import type { V1MultiChoiceOption } from './playtesthubapi/generated-definitions/V1MultiChoiceOption'
@@ -48,19 +46,14 @@ import {
   Key_PlaytesthubServiceAdmin,
   usePlaytesthubServiceAdminApi_CreateAdtLinkagesCompleteMutation,
   usePlaytesthubServiceAdminApi_CreateAdtLinkagesStartMutation,
-  usePlaytesthubServiceAdminApi_CreateApplicant_ByApplicantIdApproveMutation,
-  usePlaytesthubServiceAdminApi_CreateApplicant_ByApplicantIdRejectMutation,
-  usePlaytesthubServiceAdminApi_CreateApplicant_ByApplicantIdRetryDmMutation,
   usePlaytesthubServiceAdminApi_CreatePlaytestMutation,
   usePlaytesthubServiceAdminApi_CreatePlaytest_ByPlaytestIdTransitionStatuMutation,
   usePlaytesthubServiceAdminApi_CreateSurvey_ByPlaytestIdMutation,
   usePlaytesthubServiceAdminApi_DeleteAdtLinkage_ByAdtLinkageIdMutation,
   usePlaytesthubServiceAdminApi_DeletePlaytest_ByPlaytestIdMutation,
   usePlaytesthubServiceAdminApi_GetAdtLinkages,
-  usePlaytesthubServiceAdminApi_GetApplicants_ByPlaytestId,
   usePlaytesthubServiceAdminApi_GetAuditLog_ByPlaytestId,
   usePlaytesthubServiceAdminApi_GetBuildsAdt_ByAdtLinkageId,
-  usePlaytesthubServiceAdminApi_GetCodes_ByPlaytestId,
   usePlaytesthubServiceAdminApi_GetPlaytest_ByPlaytestId,
   usePlaytesthubServiceAdminApi_GetPlaytests,
   usePlaytesthubServiceAdminApi_GetSurveyResponses_ByPlaytestId,
@@ -78,13 +71,7 @@ const PLATFORMS = [
   { value: 'PLATFORM_OTHER', label: 'Other' }
 ] as const
 
-import {
-  ApplicantStatus,
-  type ApplicantStatusValue,
-  DistributionModel,
-  DmStatus,
-  PlaytestStatus
-} from './shared/playtesthub-enums'
+import { DistributionModel, PlaytestStatus } from './shared/playtesthub-enums'
 import { toastError } from './shared/api-error'
 
 const STATUS_TAG: Record<string, { text: string; color: string }> = {
@@ -138,7 +125,6 @@ export function FederatedElement() {
         <Route path="/" index element={<PlaytestsListPage />} />
         <Route path="new" element={<PlaytestCreatePage />} />
         <Route path=":playtestId/edit" element={<PlaytestEditPage />} />
-        <Route path=":playtestId/applicants" element={<ApplicantsPage />} />
         <Route path=":playtestId/survey" element={<SurveyBuilderPage />} />
         <Route path=":playtestId/survey/responses" element={<SurveyResponsesPage />} />
         <Route path=":playtestId/audit" element={<AuditLogPage />} />
@@ -262,9 +248,6 @@ function PlaytestsListPage() {
             </Button>
             <Button size="small" onClick={() => navigate(`${row.id}/edit`)}>
               Edit
-            </Button>
-            <Button size="small" onClick={() => navigate(`${row.id}/applicants`)}>
-              Applicants
             </Button>
             <Button size="small" onClick={() => navigate(`${row.id}/survey`)}>
               Survey
@@ -895,270 +878,6 @@ function PlaytestEditPage() {
           </Space>
         </Form.Item>
       </Form>
-    </>
-  )
-}
-
-const APPLICANT_STATUS_TAG: Record<string, { text: string; color: string }> = {
-  [ApplicantStatus.PENDING]: { text: 'Pending', color: 'gold' },
-  [ApplicantStatus.APPROVED]: { text: 'Approved', color: 'green' },
-  [ApplicantStatus.REJECTED]: { text: 'Rejected', color: 'red' }
-}
-
-const DM_STATUS_TAG: Record<string, { text: string; color: string }> = {
-  DM_STATUS_PENDING: { text: 'Pending', color: 'default' },
-  [DmStatus.SENT]: { text: 'Sent', color: 'green' },
-  [DmStatus.FAILED]: { text: 'Failed', color: 'red' }
-}
-
-const POOL_LOW_RATIO = 0.1
-
-function isPoolLow(stats: V1CodePoolStats | null | undefined): boolean {
-  const total = stats?.total ?? 0
-  const unused = stats?.unused ?? 0
-  if (total <= 0) return false
-  return unused / total <= POOL_LOW_RATIO
-}
-
-function LowPoolBanner({ stats }: { stats: V1CodePoolStats | null | undefined }) {
-  if (!isPoolLow(stats)) return null
-  return (
-    <Alert
-      type="warning"
-      showIcon
-      message="Code pool is low"
-      description={`Only ${stats?.unused ?? 0} of ${stats?.total ?? 0} codes remain unused. Top up before approving more applicants.`}
-      style={{ marginBottom: 16 }}
-    />
-  )
-}
-
-function ApplicantsPage() {
-  const { sdk } = useAppUIContext()
-  const navigate = useNavigate()
-  const queryClient = useQueryClient()
-  const { playtestId = '' } = useParams()
-
-  const [statusFilter, setStatusFilter] = useState<string>(ApplicantStatus.UNSPECIFIED)
-  const [dmFailedOnly, setDmFailedOnly] = useState(false)
-  const [rejectTarget, setRejectTarget] = useState<V1Applicant | null>(null)
-  const [rejectReason, setRejectReason] = useState('')
-
-  const playtestQuery = usePlaytesthubServiceAdminApi_GetPlaytest_ByPlaytestId(
-    sdk,
-    { playtestId },
-    { enabled: !!playtestId }
-  )
-
-  const applicantsQuery = usePlaytesthubServiceAdminApi_GetApplicants_ByPlaytestId(
-    sdk,
-    {
-      playtestId,
-      queryParams: {
-        statusFilter: statusFilter as ApplicantStatusValue,
-        dmFailedFilter: dmFailedOnly
-      }
-    },
-    { enabled: !!playtestId }
-  )
-
-  const codesQuery = usePlaytesthubServiceAdminApi_GetCodes_ByPlaytestId(
-    sdk,
-    { playtestId },
-    { enabled: !!playtestId }
-  )
-
-  const invalidateApplicants = () => {
-    queryClient.invalidateQueries({ queryKey: [Key_PlaytesthubServiceAdmin.Applicants_ByPlaytestId] })
-    queryClient.invalidateQueries({ queryKey: [Key_PlaytesthubServiceAdmin.Codes_ByPlaytestId] })
-  }
-
-  const approveMutation = usePlaytesthubServiceAdminApi_CreateApplicant_ByApplicantIdApproveMutation(sdk, {
-    onSuccess: () => {
-      message.success('Applicant approved')
-      invalidateApplicants()
-    },
-    onError: toastError('approve')
-  })
-
-  const rejectMutation = usePlaytesthubServiceAdminApi_CreateApplicant_ByApplicantIdRejectMutation(sdk, {
-    onSuccess: () => {
-      message.success('Applicant rejected')
-      setRejectTarget(null)
-      setRejectReason('')
-      invalidateApplicants()
-    },
-    onError: toastError('reject')
-  })
-
-  const retryDmMutation = usePlaytesthubServiceAdminApi_CreateApplicant_ByApplicantIdRetryDmMutation(sdk, {
-    onSuccess: () => {
-      message.success('Retry DM enqueued')
-      invalidateApplicants()
-    },
-    onError: toastError('retry DM')
-  })
-
-  const playtest = playtestQuery.data?.playtest as V1Playtest | undefined
-  const applicants = (applicantsQuery.data?.applicants ?? []) as V1Applicant[]
-  const stats = codesQuery.data?.stats
-
-  const columns = [
-    { title: 'Discord', dataIndex: 'discordHandle', key: 'discordHandle', render: (v: string | null | undefined) => v ?? '—' },
-    {
-      title: 'Platforms',
-      dataIndex: 'platforms',
-      key: 'platforms',
-      render: (v: string[] | null | undefined) => (v ?? []).map(p => p.replace('PLATFORM_', '').toLowerCase()).join(', ') || '—'
-    },
-    {
-      title: 'Status',
-      dataIndex: 'status',
-      key: 'status',
-      render: (v: string | null | undefined) => {
-        const info = APPLICANT_STATUS_TAG[v ?? ''] ?? { text: v ?? '—', color: 'default' }
-        return <Tag color={info.color}>{info.text}</Tag>
-      }
-    },
-    {
-      title: 'DM',
-      dataIndex: 'lastDmStatus',
-      key: 'lastDmStatus',
-      render: (v: string | null | undefined, row: V1Applicant) => {
-        if (!v) return <Tag>—</Tag>
-        const info = DM_STATUS_TAG[v] ?? { text: v, color: 'default' }
-        return (
-          <Tag color={info.color} title={row.lastDmError ?? undefined}>
-            {info.text}
-          </Tag>
-        )
-      }
-    },
-    {
-      title: 'Created',
-      dataIndex: 'createdAt',
-      key: 'createdAt',
-      render: (v: string | null | undefined) => (v ? dayjs(v).format('YYYY-MM-DD HH:mm') : '—')
-    },
-    {
-      title: 'Actions',
-      key: 'actions',
-      render: (_: unknown, row: V1Applicant) => {
-        const isPending = row.status === ApplicantStatus.PENDING
-        const canRetryDm = row.status === ApplicantStatus.APPROVED && row.lastDmStatus === DmStatus.FAILED
-        return (
-          <Space wrap>
-            <Popconfirm
-              title="Approve this applicant?"
-              description="A code will be reserved and granted from the pool."
-              okText="Approve"
-              disabled={!isPending}
-              onConfirm={() => approveMutation.mutate({ applicantId: row.id ?? '', data: {} })}>
-              <Button size="small" type="primary" disabled={!isPending}>
-                Approve
-              </Button>
-            </Popconfirm>
-            <Button size="small" danger disabled={!isPending} onClick={() => setRejectTarget(row)}>
-              Reject
-            </Button>
-            {canRetryDm && (
-              <Button size="small" onClick={() => retryDmMutation.mutate({ applicantId: row.id ?? '', data: {} })}>
-                Retry DM
-              </Button>
-            )}
-          </Space>
-        )
-      }
-    }
-  ]
-
-  return (
-    <>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <div>
-          <Typography.Title level={2} style={{ margin: 0 }}>
-            Applicants
-          </Typography.Title>
-          <Typography.Text type="secondary">
-            {playtest?.title ? `${playtest.title} (${playtest.slug})` : 'Loading playtest…'}
-          </Typography.Text>
-        </div>
-        <Space>
-          <Button onClick={() => navigate('/')}>Back</Button>
-          <Button onClick={() => applicantsQuery.refetch()}>Refresh</Button>
-        </Space>
-      </div>
-
-      <LowPoolBanner stats={stats} />
-
-      <Space style={{ marginBottom: 16 }} wrap>
-        <Select
-          aria-label="Status filter"
-          value={statusFilter}
-          onChange={setStatusFilter}
-          style={{ width: 200 }}
-          options={[
-            { value: ApplicantStatus.UNSPECIFIED, label: 'All statuses' },
-            { value: ApplicantStatus.PENDING, label: 'Pending' },
-            { value: ApplicantStatus.APPROVED, label: 'Approved' },
-            { value: ApplicantStatus.REJECTED, label: 'Rejected' }
-          ]}
-        />
-        <Checkbox checked={dmFailedOnly} onChange={e => setDmFailedOnly(e.target.checked)}>
-          DM failed only
-        </Checkbox>
-      </Space>
-
-      {applicantsQuery.isLoading && <Spin description="Loading applicants..." />}
-      {applicantsQuery.error && (
-        <Alert
-          type="error"
-          message="Failed to load applicants."
-          action={
-            <Button size="small" onClick={() => applicantsQuery.refetch()}>
-              Retry
-            </Button>
-          }
-        />
-      )}
-      {!applicantsQuery.isLoading && !applicantsQuery.error && (
-        <Table<V1Applicant>
-          rowKey={row => row.id ?? ''}
-          dataSource={applicants}
-          columns={columns}
-          pagination={{ pageSize: 50 }}
-        />
-      )}
-
-      <Modal
-        title="Reject applicant"
-        open={!!rejectTarget}
-        onCancel={() => {
-          setRejectTarget(null)
-          setRejectReason('')
-        }}
-        onOk={() =>
-          rejectTarget &&
-          rejectMutation.mutate({
-            applicantId: rejectTarget.id ?? '',
-            data: { rejectionReason: rejectReason.trim() || undefined }
-          })
-        }
-        okText="Reject"
-        okButtonProps={{ danger: true, loading: rejectMutation.isPending }}>
-        <Typography.Paragraph>
-          Reject <strong>{rejectTarget?.discordHandle ?? rejectTarget?.userId ?? 'applicant'}</strong>? This is terminal — they cannot be re-approved.
-        </Typography.Paragraph>
-        <Form.Item label="Reason (optional)" style={{ marginBottom: 0 }}>
-          <Input.TextArea
-            rows={3}
-            value={rejectReason}
-            maxLength={500}
-            onChange={e => setRejectReason(e.target.value)}
-            placeholder="Stored on the applicant row for your future reference. Not shown to the player."
-          />
-        </Form.Item>
-      </Modal>
     </>
   )
 }
