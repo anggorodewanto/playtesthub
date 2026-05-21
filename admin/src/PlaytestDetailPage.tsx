@@ -24,9 +24,12 @@ import {
 import { usePlaytesthubServiceApi_GetConfig } from './playtesthubapi/generated-public/queries/PlaytesthubService.query'
 import { PlaytestStatus } from './shared/playtesthub-enums'
 import { toastError } from './shared/api-error'
+import { AuditTab } from './tabs/AuditTab'
+import { DiscordBotToolsTab } from './tabs/DiscordBotToolsTab'
 import { DistributionTab } from './tabs/DistributionTab'
 import { ParticipantsTab } from './tabs/ParticipantsTab'
-import { DiscordBotToolsTab } from './tabs/DiscordBotToolsTab'
+import { ResponsesTab } from './tabs/ResponsesTab'
+import { SurveyTab } from './tabs/SurveyTab'
 
 const STATUS_PILL: Record<string, { text: string; color: string }> = {
   [PlaytestStatus.DRAFT]: { text: 'Draft', color: 'default' },
@@ -34,7 +37,7 @@ const STATUS_PILL: Record<string, { text: string; color: string }> = {
   [PlaytestStatus.CLOSED]: { text: 'Closed', color: 'red' }
 }
 
-const TABS = ['info', 'distribution', 'participants', 'bot-tools'] as const
+const TABS = ['info', 'distribution', 'participants', 'bot-tools', 'survey', 'responses', 'audit'] as const
 type TabKey = (typeof TABS)[number]
 
 function isTabKey(v: string): v is TabKey {
@@ -197,7 +200,10 @@ export function PlaytestDetailPage() {
             children: <DistributionTab playtest={playtest} />
           },
           { key: 'participants', label: 'Participants', children: <ParticipantsTab playtest={playtest} /> },
-          { key: 'bot-tools', label: 'Discord Bot Tools', children: <DiscordBotToolsTab playtest={playtest} /> }
+          { key: 'bot-tools', label: 'Discord Bot Tools', children: <DiscordBotToolsTab playtest={playtest} /> },
+          { key: 'survey', label: 'Survey', children: <SurveyTab playtest={playtest} /> },
+          { key: 'responses', label: 'Responses', children: <ResponsesTab playtest={playtest} /> },
+          { key: 'audit', label: 'Audit', children: <AuditTab playtest={playtest} /> }
         ]}
       />
     </Space>

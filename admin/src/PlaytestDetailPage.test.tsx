@@ -23,18 +23,26 @@ const mockApprove = vi.fn()
 const mockReject = vi.fn()
 const mockRetryDm = vi.fn()
 const mockGetPublicConfig = vi.fn()
+const mockCreateSurvey = vi.fn()
+const mockPatchSurvey = vi.fn()
+const mockGetSurveyResponses = vi.fn()
+const mockGetSurveyPlayer = vi.fn()
+const mockGetAuditLog = vi.fn()
 
 vi.mock('./playtesthubapi/generated-public/queries/PlaytesthubService.query', () => ({
-  usePlaytesthubServiceApi_GetConfig: (...a: unknown[]) => mockGetPublicConfig(...a)
+  usePlaytesthubServiceApi_GetConfig: (...a: unknown[]) => mockGetPublicConfig(...a),
+  usePlaytesthubServiceApi_GetSurveyPlayer_ByPlaytestId: (...a: unknown[]) => mockGetSurveyPlayer(...a)
 }))
 
 vi.mock('./playtesthubapi/generated-admin/queries/PlaytesthubServiceAdmin.query', () => ({
   Key_PlaytesthubServiceAdmin: {
     Playtests: 'playtests',
+    Playtest_ByPlaytestId: 'playtest-by-id',
     Participants_ByPlaytestId: 'participants',
     Applicants_ByPlaytestId: 'applicants',
     Announcements_ByPlaytestId: 'announcements',
-    Codes_ByPlaytestId: 'codes-by-playtest-id'
+    Codes_ByPlaytestId: 'codes-by-playtest-id',
+    Survey_ByPlaytestId: 'survey-by-playtest-id'
   },
   usePlaytesthubServiceAdminApi_GetPlaytests: (...a: unknown[]) => mockGetPlaytests(...a),
   usePlaytesthubServiceAdminApi_CreatePlaytest_ByPlaytestIdTransitionStatuMutation: (...a: unknown[]) =>
@@ -51,7 +59,11 @@ vi.mock('./playtesthubapi/generated-admin/queries/PlaytesthubServiceAdmin.query'
   usePlaytesthubServiceAdminApi_CreateApplicant_ByApplicantIdApproveMutation: (...a: unknown[]) =>
     mockApprove(...a),
   usePlaytesthubServiceAdminApi_CreateApplicant_ByApplicantIdRejectMutation: (...a: unknown[]) => mockReject(...a),
-  usePlaytesthubServiceAdminApi_CreateApplicant_ByApplicantIdRetryDmMutation: (...a: unknown[]) => mockRetryDm(...a)
+  usePlaytesthubServiceAdminApi_CreateApplicant_ByApplicantIdRetryDmMutation: (...a: unknown[]) => mockRetryDm(...a),
+  usePlaytesthubServiceAdminApi_CreateSurvey_ByPlaytestIdMutation: (...a: unknown[]) => mockCreateSurvey(...a),
+  usePlaytesthubServiceAdminApi_PatchSurvey_ByPlaytestIdMutation: (...a: unknown[]) => mockPatchSurvey(...a),
+  usePlaytesthubServiceAdminApi_GetSurveyResponses_ByPlaytestId: (...a: unknown[]) => mockGetSurveyResponses(...a),
+  usePlaytesthubServiceAdminApi_GetAuditLog_ByPlaytestId: (...a: unknown[]) => mockGetAuditLog(...a)
 }))
 
 import { PlaytestDetailPage } from './PlaytestDetailPage'
@@ -107,6 +119,11 @@ beforeEach(() => {
   mockReject.mockReturnValue({ mutate: vi.fn(), isPending: false })
   mockRetryDm.mockReturnValue({ mutate: vi.fn(), isPending: false })
   mockGetPublicConfig.mockReturnValue({ data: { playerBaseUrl: 'https://play.example.com' } })
+  mockCreateSurvey.mockReturnValue({ mutate: vi.fn(), isPending: false, isError: false, error: null })
+  mockPatchSurvey.mockReturnValue({ mutate: vi.fn(), isPending: false, isError: false, error: null })
+  mockGetSurveyResponses.mockReturnValue({ data: { responses: [] }, isLoading: false, error: null, refetch: vi.fn() })
+  mockGetSurveyPlayer.mockReturnValue({ data: undefined, isLoading: false, isError: false, error: null })
+  mockGetAuditLog.mockReturnValue({ data: { entries: [], nextPageToken: '' }, isLoading: false, error: null, refetch: vi.fn() })
 })
 
 describe('PlaytestDetailPage shell', () => {
@@ -429,6 +446,293 @@ describe('PlaytestDetailPage shell', () => {
     expect(mutate.mock.calls[0][0]).toMatchObject({
       playtestId: 'pt-draft',
       data: { targetStatus: 'PLAYTEST_STATUS_OPEN' }
+    })
+  })
+
+  it('Survey tab renders a blank text question when the playtest has no survey', async () => {
+    renderDetail('autumn-draft')
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('tab', { name: 'Survey' }))
+    await waitFor(() => expect(screen.getAllByTestId('survey-question')).toHaveLength(1))
+    expect(screen.getByRole('button', { name: /create survey/i })).toBeInTheDocument()
+  })
+
+  it('Survey tab submits CreateSurvey with the typed question on a fresh playtest', async () => {
+    const mutate = vi.fn()
+    mockCreateSurvey.mockReturnValue({ mutate, isPending: false, isError: false, error: null })
+    renderDetail('autumn-draft')
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('tab', { name: 'Survey' }))
+    const prompts = await screen.findAllByPlaceholderText(/what did you think of the build/i)
+    await user.type(prompts[0], 'Did you like it?')
+    await user.click(screen.getByRole('button', { name: /create survey/i }))
+    await waitFor(() =>
+      expect(mutate).toHaveBeenCalledWith({
+        playtestId: 'pt-draft',
+        data: {
+          questions: [{ type: 'SURVEY_QUESTION_TYPE_TEXT', prompt: 'Did you like it?', required: false }]
+        }
+      })
+    )
+  })
+
+  it('Survey tab preloads existing survey questions and renders Save new version', async () => {
+    mockGetPlaytests.mockReturnValue({
+      data: {
+        playtests: [{ ...DRAFT_PT, id: 'pt-open-svy', slug: 'autumn-open-svy', status: 'PLAYTEST_STATUS_OPEN', surveyId: 'sur_1' }]
+      },
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn()
+    })
+    mockGetSurveyPlayer.mockReturnValue({
+      data: {
+        survey: {
+          id: 'sur_1',
+          version: 2,
+          questions: [{ id: 'q1', type: 'SURVEY_QUESTION_TYPE_TEXT', prompt: 'Tell us', required: true }]
+        }
+      },
+      isLoading: false,
+      isError: false,
+      error: null
+    })
+    renderDetail('autumn-open-svy')
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('tab', { name: 'Survey' }))
+    await waitFor(() => expect(screen.getAllByTestId('survey-question')).toHaveLength(1))
+    expect(screen.getByDisplayValue('Tell us')).toBeInTheDocument()
+    expect(screen.getByText(/current version v2 \(saving creates v3\)/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /save new version/i })).toBeInTheDocument()
+  })
+
+  it('Survey tab warns about DRAFT preload when GetSurvey errors and the playtest is DRAFT', async () => {
+    mockGetPlaytests.mockReturnValue({
+      data: { playtests: [{ ...DRAFT_PT, surveyId: 'sur_1' }] },
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn()
+    })
+    mockGetSurveyPlayer.mockReturnValue({ data: undefined, isLoading: false, isError: true, error: null })
+    renderDetail('autumn-draft')
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('tab', { name: 'Survey' }))
+    expect(await screen.findByText(/draft playtest survey can't be previewed/i)).toBeInTheDocument()
+  })
+
+  it('Responses tab shows the empty-state info banner when the playtest has no survey', async () => {
+    renderDetail('autumn-draft')
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('tab', { name: 'Responses' }))
+    expect(await screen.findByText(/no survey configured for this playtest/i)).toBeInTheDocument()
+  })
+
+  it('Responses tab groups responses by survey version and renders a histogram bucket per option id', async () => {
+    mockGetPlaytests.mockReturnValue({
+      data: {
+        playtests: [{ ...DRAFT_PT, id: 'pt-open-svy', slug: 'autumn-open-svy', status: 'PLAYTEST_STATUS_OPEN', surveyId: 'sur_2' }]
+      },
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn()
+    })
+    mockGetSurveyPlayer.mockReturnValue({
+      data: {
+        survey: {
+          id: 'sur_2',
+          version: 2,
+          questions: [
+            {
+              id: 'q1',
+              type: 'SURVEY_QUESTION_TYPE_MULTI_CHOICE',
+              prompt: 'Which platforms?',
+              options: [
+                { id: 'o1', label: 'Steam' },
+                { id: 'o2', label: 'Xbox' }
+              ]
+            },
+            { id: 'q2', type: 'SURVEY_QUESTION_TYPE_RATING', prompt: 'Rate it' }
+          ]
+        }
+      },
+      isLoading: false,
+      isError: false,
+      error: null
+    })
+    mockGetSurveyResponses.mockReturnValue({
+      data: {
+        responses: [
+          {
+            id: 'r1',
+            surveyId: 'sur_2',
+            userId: 'u1',
+            submittedAt: '2026-05-01T10:00:00Z',
+            answers: [
+              { questionId: 'q1', multiChoice: { optionIds: ['o1'] } },
+              { questionId: 'q2', rating: 5 }
+            ]
+          },
+          {
+            id: 'r2',
+            surveyId: 'sur_1',
+            userId: 'u2',
+            submittedAt: '2026-04-30T10:00:00Z',
+            answers: [{ questionId: 'q1', multiChoice: { optionIds: ['o2'] } }]
+          }
+        ]
+      },
+      isLoading: false,
+      error: null,
+      refetch: vi.fn()
+    })
+    renderDetail('autumn-open-svy')
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('tab', { name: 'Responses' }))
+    await waitFor(() => expect(screen.getAllByTestId('survey-aggregate')).toHaveLength(2))
+    expect(screen.getByText(/2 response\(s\) total/)).toBeInTheDocument()
+    expect(screen.getByText(/sur_2 \(current\)/)).toBeInTheDocument()
+    expect(screen.getByText('sur_1', { exact: false })).toBeInTheDocument()
+    expect(screen.getByTestId('option-bar-q1-o1')).toBeInTheDocument()
+    expect(screen.getByTestId('option-bar-q1-o2')).toBeInTheDocument()
+    expect(screen.getByTestId('rating-bar-q2-5')).toBeInTheDocument()
+  })
+
+  it('Audit tab renders the actor + action filters', async () => {
+    renderDetail('autumn-draft')
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('tab', { name: 'Audit' }))
+    expect(await screen.findByLabelText(/actor filter/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/action filter/i)).toBeInTheDocument()
+  })
+
+  it('Audit tab renders system actor as a tag and admin actor as code', async () => {
+    mockGetAuditLog.mockReturnValue({
+      data: {
+        entries: [
+          {
+            id: 'a_1',
+            action: 'applicant.approve',
+            actorUserId: 'user-uuid-1',
+            createdAt: '2026-05-01T10:00:00Z',
+            beforeJson: '{}',
+            afterJson: '{"applicantId":"app_1"}'
+          },
+          {
+            id: 'a_2',
+            action: 'code.upload',
+            actorUserId: null,
+            createdAt: '2026-05-01T11:00:00Z',
+            beforeJson: '{}',
+            afterJson: '{"count":42}'
+          }
+        ],
+        nextPageToken: ''
+      },
+      isLoading: false,
+      error: null,
+      refetch: vi.fn()
+    })
+    renderDetail('autumn-draft')
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('tab', { name: 'Audit' }))
+    expect(await screen.findByText('user-uuid-1')).toBeInTheDocument()
+    expect(screen.getAllByText('system').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getByText('applicant.approve')).toBeInTheDocument()
+    expect(screen.getByText('code.upload')).toBeInTheDocument()
+  })
+
+  it('Audit tab passes actorFilter=system when System is chosen', async () => {
+    renderDetail('autumn-draft')
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('tab', { name: 'Audit' }))
+    const actorSelect = await screen.findByLabelText(/actor filter/i)
+    await user.click(actorSelect)
+    await user.click(await screen.findByText('System'))
+    await waitFor(() => {
+      const lastCall = mockGetAuditLog.mock.calls.at(-1)
+      expect(lastCall?.[1].queryParams.actorFilter).toBe('system')
+    })
+  })
+
+  it('Audit tab only commits the typed actor user id on Enter (not on every keystroke)', async () => {
+    renderDetail('autumn-draft')
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('tab', { name: 'Audit' }))
+    const actorSelect = await screen.findByLabelText(/actor filter/i)
+    await user.click(actorSelect)
+    await user.click(await screen.findByText(/admin user/i))
+    const input = await screen.findByLabelText(/actor user id/i)
+    await user.type(input, 'abc-123')
+    const callsMidType = mockGetAuditLog.mock.calls.filter(
+      c => c[1]?.queryParams?.actorFilter && c[1].queryParams.actorFilter !== 'system'
+    )
+    expect(callsMidType).toHaveLength(0)
+    await user.keyboard('{Enter}')
+    await waitFor(() => {
+      const lastCall = mockGetAuditLog.mock.calls.at(-1)
+      expect(lastCall?.[1].queryParams.actorFilter).toBe('abc-123')
+    })
+  })
+
+  it('Audit tab expanding a row renders the JSON before/after diff and tags changed keys', async () => {
+    mockGetAuditLog.mockReturnValue({
+      data: {
+        entries: [
+          {
+            id: 'a_1',
+            action: 'survey.edit',
+            actorUserId: 'admin-1',
+            createdAt: '2026-05-01T10:00:00Z',
+            beforeJson: '{"surveyId":"sur_1","questions":1}',
+            afterJson: '{"surveyId":"sur_2","questions":1}'
+          }
+        ],
+        nextPageToken: ''
+      },
+      isLoading: false,
+      error: null,
+      refetch: vi.fn()
+    })
+    renderDetail('autumn-draft')
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('tab', { name: 'Audit' }))
+    await user.click(await screen.findByRole('button', { name: /expand row/i }))
+    expect(await screen.findByTestId('audit-diff')).toBeInTheDocument()
+    expect(screen.getByTestId('audit-diff-key-surveyId')).toBeInTheDocument()
+    expect(screen.queryByTestId('audit-diff-key-questions')).not.toBeInTheDocument()
+  })
+
+  it('Audit tab Next button is disabled when there is no next page token', async () => {
+    mockGetAuditLog.mockReturnValue({
+      data: { entries: [{ id: 'a_1', action: 'playtest.edit', createdAt: '2026-05-01T10:00:00Z', beforeJson: '{}', afterJson: '{}' }], nextPageToken: '' },
+      isLoading: false,
+      error: null,
+      refetch: vi.fn()
+    })
+    renderDetail('autumn-draft')
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('tab', { name: 'Audit' }))
+    const nextBtn = await screen.findByRole('button', { name: /^next$/i })
+    expect(nextBtn).toBeDisabled()
+  })
+
+  it('Audit tab Next click advances the cursor to the returned next_page_token', async () => {
+    mockGetAuditLog.mockReturnValue({
+      data: {
+        entries: [{ id: 'a_1', action: 'playtest.edit', createdAt: '2026-05-01T10:00:00Z', beforeJson: '{}', afterJson: '{}' }],
+        nextPageToken: 'cursor-page-2'
+      },
+      isLoading: false,
+      error: null,
+      refetch: vi.fn()
+    })
+    renderDetail('autumn-draft')
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('tab', { name: 'Audit' }))
+    await user.click(await screen.findByRole('button', { name: /^next$/i }))
+    await waitFor(() => {
+      const lastCall = mockGetAuditLog.mock.calls.at(-1)
+      expect(lastCall?.[1].queryParams.pageToken).toBe('cursor-page-2')
     })
   })
 })
