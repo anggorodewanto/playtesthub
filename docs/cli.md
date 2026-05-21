@@ -95,8 +95,8 @@ Commands mirror PRD §4.7, grouped by domain. Each command lands **in the same m
 | `pth playtest get-player --slug <s>` | `GetPlaytestForPlayer` | Requires player token. |
 | `pth playtest get --id <id>` | `GetPlaytest` (admin) | Admin token. |
 | `pth playtest list` | `ListPlaytests` | Admin. |
-| `pth playtest create --slug <s> --title <t> [--distribution-model STEAM_KEYS\|AGS_CAMPAIGN] [--nda-required] [--nda-text @file.md] [--starts-at <ts>] [--ends-at <ts>] [--platforms STEAM,XBOX,...]` | `CreatePlaytest` | M1 note: `AGS_CAMPAIGN` returns `Unimplemented` — surfaced as a non-zero exit with the raw gRPC message. |
-| `pth playtest edit --id <id> [mutable fields]` | `EditPlaytest` | Only PRD-whitelisted fields. |
+| `pth playtest create --slug <s> --title <t> [--distribution-model STEAM_KEYS\|AGS_CAMPAIGN\|ADT] [--nda-required] [--nda-text @file.md] [--starts-at <ts>] [--ends-at <ts>] [--platforms STEAM,XBOX,...] [--description <d>] [--banner-image-url <url>] [--initial-code-quantity <n>] [--auto-approve --auto-approve-limit <n>] [--adt-namespace <n>] [--adt-game-id <id>] [--adt-build-id <id>] [--adt-fallback-url <url>]` | `CreatePlaytest` | M5.A: `--auto-approve` + `--auto-approve-limit` (1..100,000) enable the auto-approve path. M5.B: pass `--distribution-model=ADT` with the four `--adt-*` flags to create an ADT playtest. M2: `--initial-code-quantity` is required for `--distribution-model=AGS_CAMPAIGN`. |
+| `pth playtest edit --id <id> [--title <t>] [--description <d>] [--banner-image-url <url>] [--platforms <csv>] [--starts-at <ts>] [--ends-at <ts>] [--nda-required] [--nda-text @file] [--auto-approve --auto-approve-limit <n>]` | `EditPlaytest` | Only PRD-whitelisted fields. ADT identifiers (`adt_namespace`/`adt_game_id`/`adt_build_id`) are immutable post-create; only `--adt-fallback-url` would be editable (currently surfaced via the admin UI, not yet exposed on the CLI). |
 | `pth playtest delete --id <id>` | `SoftDeletePlaytest` | Idempotent. |
 | `pth playtest transition --id <id> --to <status>` | `TransitionPlaytestStatus` | |
 | `pth applicant signup --slug <s> --platforms STEAM,XBOX` | `Signup` | Requires player token. The proto field is `slug`, so we surface `--slug` here for symmetry with `playtest get-public --slug`. |
@@ -129,15 +129,44 @@ Commands mirror PRD §4.7, grouped by domain. Each command lands **in the same m
 | `pth audit list --playtest <id> [--actor <a>] [--action <a>] [--cursor <c>]` | `ListAuditLog` |
 | `pth applicant retry-failed-dms --playtest <id>` | `RetryFailedDms` |
 
-### 6.4 Scripted flows
+### 6.4 M4 — playtest window enforcement
+
+| Command | Wraps RPC | Notes |
+| --- | --- | --- |
+| `pth playtest schedule-info --id <id>` | `AdminGetPlaytest` (read-only) | Echoes the playtest's `startsAt` / `endsAt` window + the worker's next tick boundary. Used to debug the auto-DRAFT→OPEN→CLOSED transitions (PRD §5.1, [`docs/STATUS_M4.md`](STATUS_M4.md)). |
+
+### 6.5 M5.B — ADT distribution
+
+PRD §4.8 / [`docs/runbooks/adt-linking.md`](runbooks/adt-linking.md). All five RPCs require admin auth + `--namespace`; all accept `--dry-run` to print the request JSON without dialling.
+
+| Command | Wraps RPC | Notes |
+| --- | --- | --- |
+| `pth adt linkage list` | `ListADTLinkages` | Lists live `adt_linkage` rows for the caller's studio. Identity columns only — no credential payload. |
+| `pth adt linkage start` | `StartADTLink` | Returns `{linkUrl, state}`. Open `linkUrl` in a browser, complete ADT-side sign-in, capture `state` + `adt_namespace` from the redirect, then run `complete`. |
+| `pth adt linkage complete --state <s> --adt-namespace <ns>` | `CompleteADTLink` | Idempotent on duplicate `(studio, adt_namespace)`; replay with a consumed `state` returns `InvalidArgument`. |
+| `pth adt linkage unlink --id <adt_linkage_id>` | `UnlinkADT` | Idempotent; best-effort `DELETE` against ADT to drop its side's flag. |
+| `pth adt build list --linkage-id <id> --game-id <gid>` | `ListADTBuilds` | Defense-in-depth check: `CreatePlaytest` ADT branch reuses the same path to verify the picked `adt_build_id` belongs to `(adt_namespace, adt_game_id)`. |
+
+### 6.6 M5.C — bulk announcement DM
+
+PRD §5.7 / [`docs/runbooks/announcement-broadcast.md`](runbooks/announcement-broadcast.md). Admin-authored; subject + message bodies are PII-sensitive and never logged.
+
+| Command | Wraps RPC | Notes |
+| --- | --- | --- |
+| `pth announcement create --playtest-id <id> --subject <s> --message <m> [--send-to ALL\|APPROVED_ONLY\|PENDING_ONLY]` | `CreateAnnouncement` | Subject 1–200 chars; message 1–4000 chars. Default filter `APPROVED_ONLY`. Fan-out is async through the existing M2 DM queue; the response carries `{announcementId, recipientCount}`. |
+| `pth announcement list --playtest-id <id>` | `ListAnnouncements` | Returns past announcements with `{date, subject, recipientCount, status: Sent\|Sending\|Failed}`. |
+
+### 6.7 Scripted flows
 
 Composite commands that run a whole PRD §4.1 golden flow end-to-end in one shot. Each flow prints one JSON document per step to stdout (one line per step, NDJSON), so the caller can grep/jq through the sequence. Flows are the bread-and-butter surface for the e2e suite.
 
 | Command | Milestone | Steps |
 | --- | --- | --- |
-| `pth flow golden-m1 --slug <s>` | M1 | create-playtest → transition OPEN → signup (synthetic player) → assert status=PENDING. |
-| `pth flow golden-m2 --slug <s>` | M2 | golden-m1 → accept-nda → upload codes → approve → assert status=APPROVED + code visible. |
-| `pth flow golden-m3 --slug <s>` | M3 | golden-m2 → create survey → submit response → list responses. |
+| `pth flow golden-m1 --slug <s>` | M1 | create-playtest → transition OPEN → signup (synthetic player) → assert status=PENDING. 4 NDJSON steps. |
+| `pth flow golden-m2 --slug <s> [--auto-approve --auto-approve-limit <n>]` | M2 / M5.A | golden-m1 → accept-nda → upload codes → approve → assert status=APPROVED + code visible. 7 NDJSON steps. With `--auto-approve`: `upload-codes` is hoisted before `signup` and the manual `approve` step is replaced by `assert-applicant-auto-approved`. |
+| `pth flow golden-m3 --slug <s> [--auto-approve --auto-approve-limit <n>]` | M3 / M5.A | golden-m2 → create survey → submit response → list responses. 10 NDJSON steps. M5.A variant inherits the M2 auto-approve reorder. |
+| `pth flow golden-m4 --slug <s>` | M4 | playtest window enforcement: create with past `startsAt` + future `endsAt` → wait for worker tick → assert auto-transitioned to OPEN → fast-forward `endsAt` → assert CLOSED. 4 NDJSON steps. |
+| `pth flow golden-m5 --slug <s>` | M5.B | golden-m1 prefix → link-adt-start → link-adt-complete → list-builds → create-playtest with `distributionModel=ADT --auto-approve --auto-approve-limit 5` → transition OPEN → signup → assert-auto-approved → assert-adt-download-info-non-empty. 11 NDJSON steps. Uses `adt.MemClient` end-to-end; the live HTTPClient round-trip is an operator validation step on a deployed namespace (see `docs/runbooks/adt-linking.md`). |
 
 Each flow takes `--admin-token` and `--player-token` flags (or their `--fake-jwt` equivalents) so it can run against any environment. Flows are pure CLI composition — they do not ship their own gRPC client; they invoke the single-RPC subcommands in-process.
 
