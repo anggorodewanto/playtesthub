@@ -19,6 +19,7 @@ func TestServiceDescriptorMethods(t *testing.T) {
 		"GetPublicPlaytest":        true,
 		"GetPublicConfig":          true,
 		"GetPlaytestForPlayer":     true,
+		"WhoAmI":                   true,
 		"AdminGetPlaytest":         true,
 		"ListPlaytests":            true,
 		"CreatePlaytest":           true,

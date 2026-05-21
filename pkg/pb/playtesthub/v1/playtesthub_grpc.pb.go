@@ -22,6 +22,7 @@ const (
 	PlaytesthubService_GetPublicPlaytest_FullMethodName        = "/playtesthub.v1.PlaytesthubService/GetPublicPlaytest"
 	PlaytesthubService_GetPublicConfig_FullMethodName          = "/playtesthub.v1.PlaytesthubService/GetPublicConfig"
 	PlaytesthubService_GetPlaytestForPlayer_FullMethodName     = "/playtesthub.v1.PlaytesthubService/GetPlaytestForPlayer"
+	PlaytesthubService_WhoAmI_FullMethodName                   = "/playtesthub.v1.PlaytesthubService/WhoAmI"
 	PlaytesthubService_AdminGetPlaytest_FullMethodName         = "/playtesthub.v1.PlaytesthubService/AdminGetPlaytest"
 	PlaytesthubService_ListPlaytests_FullMethodName            = "/playtesthub.v1.PlaytesthubService/ListPlaytests"
 	PlaytesthubService_CreatePlaytest_FullMethodName           = "/playtesthub.v1.PlaytesthubService/CreatePlaytest"
@@ -79,6 +80,7 @@ type PlaytesthubServiceClient interface {
 	GetPublicPlaytest(ctx context.Context, in *GetPublicPlaytestRequest, opts ...grpc.CallOption) (*GetPublicPlaytestResponse, error)
 	GetPublicConfig(ctx context.Context, in *GetPublicConfigRequest, opts ...grpc.CallOption) (*GetPublicConfigResponse, error)
 	GetPlaytestForPlayer(ctx context.Context, in *GetPlaytestForPlayerRequest, opts ...grpc.CallOption) (*GetPlaytestForPlayerResponse, error)
+	WhoAmI(ctx context.Context, in *WhoAmIRequest, opts ...grpc.CallOption) (*WhoAmIResponse, error)
 	AdminGetPlaytest(ctx context.Context, in *AdminGetPlaytestRequest, opts ...grpc.CallOption) (*AdminGetPlaytestResponse, error)
 	ListPlaytests(ctx context.Context, in *ListPlaytestsRequest, opts ...grpc.CallOption) (*ListPlaytestsResponse, error)
 	CreatePlaytest(ctx context.Context, in *CreatePlaytestRequest, opts ...grpc.CallOption) (*CreatePlaytestResponse, error)
@@ -157,6 +159,16 @@ func (c *playtesthubServiceClient) GetPlaytestForPlayer(ctx context.Context, in 
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetPlaytestForPlayerResponse)
 	err := c.cc.Invoke(ctx, PlaytesthubService_GetPlaytestForPlayer_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *playtesthubServiceClient) WhoAmI(ctx context.Context, in *WhoAmIRequest, opts ...grpc.CallOption) (*WhoAmIResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(WhoAmIResponse)
+	err := c.cc.Invoke(ctx, PlaytesthubService_WhoAmI_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -542,6 +554,7 @@ type PlaytesthubServiceServer interface {
 	GetPublicPlaytest(context.Context, *GetPublicPlaytestRequest) (*GetPublicPlaytestResponse, error)
 	GetPublicConfig(context.Context, *GetPublicConfigRequest) (*GetPublicConfigResponse, error)
 	GetPlaytestForPlayer(context.Context, *GetPlaytestForPlayerRequest) (*GetPlaytestForPlayerResponse, error)
+	WhoAmI(context.Context, *WhoAmIRequest) (*WhoAmIResponse, error)
 	AdminGetPlaytest(context.Context, *AdminGetPlaytestRequest) (*AdminGetPlaytestResponse, error)
 	ListPlaytests(context.Context, *ListPlaytestsRequest) (*ListPlaytestsResponse, error)
 	CreatePlaytest(context.Context, *CreatePlaytestRequest) (*CreatePlaytestResponse, error)
@@ -603,6 +616,9 @@ func (UnimplementedPlaytesthubServiceServer) GetPublicConfig(context.Context, *G
 }
 func (UnimplementedPlaytesthubServiceServer) GetPlaytestForPlayer(context.Context, *GetPlaytestForPlayerRequest) (*GetPlaytestForPlayerResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetPlaytestForPlayer not implemented")
+}
+func (UnimplementedPlaytesthubServiceServer) WhoAmI(context.Context, *WhoAmIRequest) (*WhoAmIResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method WhoAmI not implemented")
 }
 func (UnimplementedPlaytesthubServiceServer) AdminGetPlaytest(context.Context, *AdminGetPlaytestRequest) (*AdminGetPlaytestResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method AdminGetPlaytest not implemented")
@@ -782,6 +798,24 @@ func _PlaytesthubService_GetPlaytestForPlayer_Handler(srv interface{}, ctx conte
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(PlaytesthubServiceServer).GetPlaytestForPlayer(ctx, req.(*GetPlaytestForPlayerRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PlaytesthubService_WhoAmI_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(WhoAmIRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PlaytesthubServiceServer).WhoAmI(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PlaytesthubService_WhoAmI_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PlaytesthubServiceServer).WhoAmI(ctx, req.(*WhoAmIRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1452,6 +1486,10 @@ var PlaytesthubService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetPlaytestForPlayer",
 			Handler:    _PlaytesthubService_GetPlaytestForPlayer_Handler,
+		},
+		{
+			MethodName: "WhoAmI",
+			Handler:    _PlaytesthubService_WhoAmI_Handler,
 		},
 		{
 			MethodName: "AdminGetPlaytest",

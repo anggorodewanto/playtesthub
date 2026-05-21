@@ -53,6 +53,20 @@ service PlaytesthubService {
     };
   }
 
+  rpc WhoAmI(WhoAmIRequest) returns (WhoAmIResponse) {
+    option (google.api.http) = {get: "/v1/player/me"};
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Get the authenticated caller's identity (player)"
+      description: "Returns the caller's AGS user id plus the best-effort Discord handle resolved via the same bot-token lookup the signup flow uses. discord_handle is empty when the caller is not Discord-federated or the lookup fails — the field is informational; callers must not treat it as authoritative identity."
+      security: {
+        security_requirement: {
+          key: "Bearer"
+          value: {}
+        }
+      }
+    };
+  }
+
   rpc AdminGetPlaytest(AdminGetPlaytestRequest) returns (AdminGetPlaytestResponse) {
     option (playtesthub.v1.action) = ACTION_READ;
     option (playtesthub.v1.resource) = "ADMIN:NAMESPACE:{namespace}:EXTEND:APPUI";
@@ -1013,6 +1027,21 @@ message GetPlaytestForPlayerRequest {
 }
 message GetPlaytestForPlayerResponse {
   PlayerPlaytest playtest = 1;
+}
+
+message WhoAmIRequest {}
+message WhoAmIResponse {
+  // AGS user id in dashless form (matches the wire shape the rest of
+  // the player surface uses — pkg/agsid.Format).
+  string user_id = 1;
+  // Best-effort human-readable Discord handle (e.g. "shadowrealm#4421").
+  // Empty when the caller is not Discord-federated, the Discord bot
+  // client is unconfigured, or the lookup fails. Informational — never
+  // treat as identity, never log alongside NDA / survey content.
+  string discord_handle = 2;
+  // Discord snowflake when available. Empty otherwise. Useful for the
+  // frontend to badge the account without round-tripping through AGS.
+  string discord_id = 3;
 }
 
 message AdminGetPlaytestRequest {

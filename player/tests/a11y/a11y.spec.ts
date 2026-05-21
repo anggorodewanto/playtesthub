@@ -143,7 +143,7 @@ test.describe('player a11y (axe-core / WCAG 2.1 A+AA)', () => {
     await seedToken(page);
     await stubBackend(page);
     await page.goto(`/#/playtest/${SLUG}/signup`);
-    await expect(page.getByRole('heading', { name: /Sign up for/ })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /Sign-Up Form/i })).toBeVisible();
     await assertNoCriticalViolations(page, 'signup');
   });
 

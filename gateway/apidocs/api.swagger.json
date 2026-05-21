@@ -1435,6 +1435,35 @@
         ]
       }
     },
+    "/v1/player/me": {
+      "get": {
+        "summary": "Get the authenticated caller's identity (player)",
+        "description": "Returns the caller's AGS user id plus the best-effort Discord handle resolved via the same bot-token lookup the signup flow uses. discord_handle is empty when the caller is not Discord-federated or the lookup fails — the field is informational; callers must not treat it as authoritative identity.",
+        "operationId": "PlaytesthubService_WhoAmI",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1WhoAmIResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "PlaytesthubService"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
     "/v1/player/playtests/{playtestId}/adtDownload": {
       "get": {
         "summary": "Get the ADT build download URL for the caller (authenticated player; APPROVED applicants only)",
@@ -3242,6 +3271,23 @@
             "type": "object",
             "$ref": "#/definitions/v1UploadCodesRejection"
           }
+        }
+      }
+    },
+    "v1WhoAmIResponse": {
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "AGS user id in dashless form (matches the wire shape the rest of\nthe player surface uses — pkg/agsid.Format)."
+        },
+        "discordHandle": {
+          "type": "string",
+          "description": "Best-effort human-readable Discord handle (e.g. \"shadowrealm#4421\").\nEmpty when the caller is not Discord-federated, the Discord bot\nclient is unconfigured, or the lookup fails. Informational — never\ntreat as identity, never log alongside NDA / survey content."
+        },
+        "discordId": {
+          "type": "string",
+          "description": "Discord snowflake when available. Empty otherwise. Useful for the\nfrontend to badge the account without round-tripping through AGS."
         }
       }
     },

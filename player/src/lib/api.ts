@@ -131,6 +131,24 @@ export async function fetchPublicPlaytest(config: Config, slug: string): Promise
   return body.playtest;
 }
 
+export type MyProfile = {
+  userId: string;
+  discordHandle: string;
+  discordId: string;
+};
+
+export async function fetchMyProfile(config: Config): Promise<MyProfile> {
+  const body = await doJson<Partial<MyProfile>>(config, '/v1/player/me', {
+    method: 'GET',
+    authed: true,
+  });
+  return {
+    userId: body.userId ?? '',
+    discordHandle: body.discordHandle ?? '',
+    discordId: body.discordId ?? '',
+  };
+}
+
 export async function submitSignup(
   config: Config,
   slug: string,

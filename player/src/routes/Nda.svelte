@@ -10,6 +10,7 @@
   } from '../lib/api';
   import { getAccessToken } from '../lib/auth';
   import { navigate, pendingPath, playtestPath } from '../lib/router';
+  import Card from '../lib/ui/Card.svelte';
 
   let { config, slug }: { config: Config; slug: string } = $props();
 
@@ -76,30 +77,40 @@
   load();
 </script>
 
-<main class="mx-auto max-w-2xl p-6 md:p-10">
-  {#if loadError}
-    <p class="rounded border border-red-200 bg-red-50 p-4 text-red-800" role="alert">{loadError}</p>
-  {:else if !playtest || !applicant}
-    <p class="text-slate-500">Loading…</p>
-  {:else}
-    <h1 class="text-2xl font-semibold">Non-disclosure agreement</h1>
-    <p class="mt-2 text-sm text-slate-600">
-      Please read and accept the NDA before your application proceeds.
+{#if loadError}
+  <main class="mx-auto w-full max-w-2xl px-4 py-10">
+    <p class="rounded-lg border border-red-200 bg-red-50 p-4 text-red-800" role="alert">
+      {loadError}
     </p>
-    <article
-      class="mt-6 max-h-96 overflow-y-auto whitespace-pre-wrap rounded border border-slate-200 bg-slate-50 p-4 text-sm text-slate-800"
-      data-testid="nda-text"
-    >
-      {playtest.ndaText}
-    </article>
-    <form class="mt-6 space-y-4" onsubmit={handleAccept}>
-      <label class="flex items-start gap-2">
+  </main>
+{:else if !playtest || !applicant}
+  <main class="mx-auto w-full max-w-2xl px-4 py-10">
+    <p class="text-slate-500">Loading…</p>
+  </main>
+{:else}
+  <Card>
+    <form class="space-y-6 px-8 py-7" onsubmit={handleAccept}>
+      <header>
+        <h1 class="text-2xl font-bold text-slate-900">Non-Disclosure Agreement</h1>
+        <p class="mt-1 text-sm text-slate-600">
+          You must read and accept the NDA before your sign-up is submitted.
+        </p>
+      </header>
+      <hr class="border-slate-200" />
+      <article
+        class="max-h-72 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm leading-relaxed whitespace-pre-wrap text-slate-800"
+        data-testid="nda-text"
+      >
+        {playtest.ndaText}
+      </article>
+      <label class="flex items-start gap-2.5 text-sm text-slate-800">
         <input
           type="checkbox"
           checked={agreed}
           onchange={(e) => (agreed = (e.currentTarget as HTMLInputElement).checked)}
+          class="mt-0.5 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
         />
-        <span class="text-sm text-slate-800">I have read and agree to the NDA above.</span>
+        <span>I have read and agree to the Non-Disclosure Agreement</span>
       </label>
       {#if submitError}
         <p class="text-sm text-red-700" role="alert">{submitError}</p>
@@ -107,10 +118,10 @@
       <button
         type="submit"
         disabled={!agreed || submitting}
-        class="rounded bg-slate-900 px-4 py-2 text-white hover:bg-slate-700 disabled:opacity-50"
+        class="w-full rounded-lg bg-indigo-600 px-4 py-3 font-medium text-white shadow-sm transition hover:bg-indigo-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 disabled:opacity-60"
       >
-        {submitting ? 'Submitting…' : 'Accept'}
+        {submitting ? 'Submitting…' : 'Submit Sign-Up'}
       </button>
     </form>
-  {/if}
-</main>
+  </Card>
+{/if}

@@ -10,6 +10,8 @@
     clearPendingLogin,
     storePendingLogin,
   } from '../lib/auth';
+  import Card from '../lib/ui/Card.svelte';
+  import Banner from '../lib/ui/Banner.svelte';
 
   let { config, slug }: { config: Config; slug: string } = $props();
 
@@ -55,45 +57,75 @@
   });
 </script>
 
-<main class="mx-auto max-w-2xl p-6 md:p-10">
-  {#if loadError}
-    <section class="rounded border border-red-200 bg-red-50 p-4 text-red-800">
+{#if loadError}
+  <main class="mx-auto w-full max-w-2xl px-4 py-10">
+    <section
+      class="rounded-lg border border-red-200 bg-red-50 p-4 text-red-800"
+      role="alert"
+    >
       {loadError}
     </section>
-  {:else if !playtest}
+  </main>
+{:else if !playtest}
+  <main class="mx-auto w-full max-w-2xl px-4 py-10">
     <p class="text-slate-500">Loading…</p>
-  {:else}
+  </main>
+{:else}
+  <Card>
     <article>
-      <h1 class="text-3xl font-semibold">{playtest.title}</h1>
-      {#if playtest.bannerImageUrl}
-        <img
-          src={playtest.bannerImageUrl}
-          alt=""
-          class="mt-6 w-full rounded"
-          referrerpolicy="no-referrer"
-        />
-      {/if}
-      <p class="mt-4 text-sm text-slate-600">
-        {formatDateRange(playtest.startsAt, playtest.endsAt)}
-      </p>
-      <p class="mt-2 text-sm text-slate-600" data-testid="playtest-platforms">
-        {#if playtest.platforms && playtest.platforms.length > 0}
-          Platforms: {playtest.platforms.map(platformLabel).join(', ')}
-        {:else}
-          Platforms: not specified
+      <header class="bg-slate-900 px-8 py-10 text-white">
+        <p class="text-xs font-semibold tracking-widest text-slate-300 uppercase">
+          Closed Playtest
+        </p>
+        <h1 class="mt-2 text-3xl font-bold leading-tight">{playtest.title}</h1>
+      </header>
+      <div class="space-y-6 px-8 py-7">
+        <dl class="flex flex-wrap gap-x-8 gap-y-2 text-sm text-slate-600">
+          <div>
+            <dt class="inline">Dates:</dt>
+            <dd class="ml-1 inline font-semibold text-slate-900">
+              {formatDateRange(playtest.startsAt, playtest.endsAt)}
+            </dd>
+          </div>
+          <div data-testid="playtest-platforms">
+            <dt class="inline">Platforms:</dt>
+            <dd class="ml-1 inline font-semibold text-slate-900">
+              {#if playtest.platforms && playtest.platforms.length > 0}
+                {playtest.platforms.map(platformLabel).join(', ')}
+              {:else}
+                not specified
+              {/if}
+            </dd>
+          </div>
+        </dl>
+        {#if playtest.bannerImageUrl}
+          <img
+            src={playtest.bannerImageUrl}
+            alt=""
+            class="w-full rounded-lg"
+            referrerpolicy="no-referrer"
+          />
         {/if}
-      </p>
-      <section class="mt-6 whitespace-pre-wrap text-slate-800" data-testid="playtest-description">
-        {playtest.description}
-      </section>
-      <button
-        type="button"
-        class="mt-8 rounded bg-slate-900 px-4 py-2 text-white hover:bg-slate-700 disabled:opacity-50"
-        disabled={redirecting}
-        onclick={handleSignup}
-      >
-        {redirecting ? 'Redirecting to Discord…' : 'Sign up'}
-      </button>
+        <section
+          class="whitespace-pre-wrap leading-relaxed text-slate-800"
+          data-testid="playtest-description"
+        >
+          {playtest.description}
+        </section>
+        <Banner tone="muted" role={null}>
+          <strong class="font-semibold text-slate-900">Before you sign up:</strong> You'll
+          need a Discord account to authenticate. The studio may require NDA acceptance
+          before reviewing your application.
+        </Banner>
+        <button
+          type="button"
+          class="w-full rounded-lg bg-indigo-600 px-4 py-3 font-medium text-white shadow-sm transition hover:bg-indigo-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 disabled:opacity-60"
+          disabled={redirecting}
+          onclick={handleSignup}
+        >
+          {redirecting ? 'Redirecting to Discord…' : 'Sign In with Discord to Sign Up'}
+        </button>
+      </div>
     </article>
-  {/if}
-</main>
+  </Card>
+{/if}
