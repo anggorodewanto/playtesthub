@@ -62,6 +62,31 @@ func (s *PlaytesthubServiceServer) WithADTLinkConfig(cfg ADTLinkConfig) *Playtes
 	return s
 }
 
+// ADTDiagnostics is the snapshot the bootapp hands to the service so
+// GetADTClientDiagnostics can report which adt.Client kind was wired
+// and which env vars fed the gate. Values are presence booleans only —
+// the AGS IAM client id + secret are NEVER held here as plaintext.
+type ADTDiagnostics struct {
+	// ClientKind is "http" when adt.NewHTTPClient was wired and "mem"
+	// when adt.NewMemClient was wired. Empty when the diagnostic was
+	// not provided (treated as "unknown" by the RPC).
+	ClientKind            string
+	AuthEnabled           bool
+	ADTBaseURLSet         bool
+	AGSBaseURLSet         bool
+	AGSIAMClientIDSet     bool
+	AGSIAMClientSecretSet bool
+}
+
+// WithADTDiagnostics records the bootapp's gate decision so
+// GetADTClientDiagnostics can surface it without re-deriving from the
+// runtime adtClient interface. Wired in bootapp.New right after the
+// gate evaluation; tests that exercise the RPC directly call it too.
+func (s *PlaytesthubServiceServer) WithADTDiagnostics(d ADTDiagnostics) *PlaytesthubServiceServer {
+	s.adtDiagnostics = d
+	return s
+}
+
 // WithStudioNamespaceResolver attaches the resolver that returns the
 // backend's studio identity from its service IAM JWT. The ADT linkage
 // handlers call it to scope every linkage row + every ADT API call.
@@ -507,6 +532,28 @@ func (s *PlaytesthubServiceServer) ListADTGames(ctx context.Context, req *pb.Lis
 		out = append(out, adtGameToProto(g))
 	}
 	return &pb.ListADTGamesResponse{Games: out}, nil
+}
+
+// GetADTClientDiagnostics returns the snapshot the bootapp recorded
+// when it picked between adt.NewHTTPClient and adt.NewMemClient.
+// Booleans only — the secret-bearing env vars are reported as presence
+// flags, never as values. Admin-only (auth same as UnlinkADT).
+func (s *PlaytesthubServiceServer) GetADTClientDiagnostics(ctx context.Context, req *pb.GetADTClientDiagnosticsRequest) (*pb.GetADTClientDiagnosticsResponse, error) {
+	if _, err := requireActor(ctx); err != nil {
+		return nil, err
+	}
+	if err := s.checkNamespace(req.GetNamespace()); err != nil {
+		return nil, err
+	}
+	d := s.adtDiagnostics
+	return &pb.GetADTClientDiagnosticsResponse{
+		AdtClientKind:         d.ClientKind,
+		AuthEnabled:           d.AuthEnabled,
+		AdtBaseUrlSet:         d.ADTBaseURLSet,
+		AgsBaseUrlSet:         d.AGSBaseURLSet,
+		AgsIamClientIdSet:     d.AGSIAMClientIDSet,
+		AgsIamClientSecretSet: d.AGSIAMClientSecretSet,
+	}, nil
 }
 
 func adtGameToProto(g adt.Game) *pb.ADTGame {

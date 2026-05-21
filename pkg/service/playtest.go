@@ -82,6 +82,14 @@ type PlaytesthubServiceServer struct {
 	adtLinkConfig   ADTLinkConfig
 	studioNamespace StudioNamespaceResolver
 
+	// adtDiagnostics records the bootapp's gate decision + the presence
+	// (not value) of each env var that feeds it. Read-only after wiring;
+	// surfaced verbatim via GetADTClientDiagnostics so an operator can
+	// pinpoint a silent MemClient fallback without needing the boot log
+	// (2026-05-21 orphan-flag bug). Unwired servers report
+	// adt_client_kind="" so the RPC stays honest.
+	adtDiagnostics ADTDiagnostics
+
 	// Announcement wiring (M5.C / PRD §5.4 "Bulk announcements"). nil
 	// announcement leaves CreateAnnouncement / ListAnnouncements
 	// returning Internal — bootapp wires both fields together when the

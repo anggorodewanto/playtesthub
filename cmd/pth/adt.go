@@ -22,11 +22,12 @@ import (
 //	adt linkage recover  --adt-namespace <ns>
 //	adt build   list     --linkage-id <id> --game-id <id>
 //	adt games   list     --linkage-id <id>
+//	adt diagnostics                           — report which adt.Client kind was wired
 //
 // PRD §4.8 / STATUS_M5.md B9 + B12.
 func runADT(ctx context.Context, stdout, stderr io.Writer, g *Globals, args []string, factory playtestClientFactory) int {
 	if len(args) == 0 {
-		fmt.Fprintln(stderr, "adt: usage: pth adt {linkage|build|games} ...")
+		fmt.Fprintln(stderr, "adt: usage: pth adt {linkage|build|games|diagnostics} ...")
 		return exitLocalError
 	}
 	group, rest := args[0], args[1:]
@@ -37,10 +38,29 @@ func runADT(ctx context.Context, stdout, stderr io.Writer, g *Globals, args []st
 		return runADTBuild(ctx, stdout, stderr, g, rest, factory)
 	case "games":
 		return runADTGames(ctx, stdout, stderr, g, rest, factory)
+	case "diagnostics":
+		return runADTDiagnostics(ctx, stdout, stderr, g, rest, factory)
 	default:
 		fmt.Fprintf(stderr, "adt: unknown group %q\n", group)
 		return exitLocalError
 	}
+}
+
+func runADTDiagnostics(ctx context.Context, stdout, stderr io.Writer, g *Globals, args []string, factory playtestClientFactory) int {
+	fs := flag.NewFlagSet("adt diagnostics", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	dryRun := fs.Bool("dry-run", false, "print the request JSON and exit without dialling")
+	if err := fs.Parse(args); err != nil {
+		return exitLocalError
+	}
+	if !g.requireNamespace(stderr, "adt diagnostics") {
+		return exitLocalError
+	}
+	req := &pb.GetADTClientDiagnosticsRequest{Namespace: g.Namespace}
+	return invokePlaytest(ctx, stdout, stderr, g, factory, "GetADTClientDiagnostics", req, *dryRun,
+		func(c pb.PlaytesthubServiceClient, cctx context.Context) (proto.Message, error) {
+			return c.GetADTClientDiagnostics(cctx, req)
+		})
 }
 
 func runADTLinkage(ctx context.Context, stdout, stderr io.Writer, g *Globals, args []string, factory playtestClientFactory) int {

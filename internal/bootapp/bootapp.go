@@ -348,28 +348,7 @@ func buildPlaytesthubServer(cfg *config.Config, dbPool *pgxpool.Pool, httpClient
 		logger.Info("ags client: in-memory (enable auth to use the live SDK adapter)")
 	}
 
-	// ADT distribution model (M5.B / STATUS_M5.md Track B). The live
-	// HTTP-backed adapter is enabled when AuthEnabled && ADTBaseURL is
-	// set and AGS IAM creds are available — those creds mint the
-	// service JWT the adapter attaches to every ADT call. Otherwise
-	// (dev / smoke / e2e / boots without ADT config) we fall back to
-	// MemClient so the full ADT code path is still exercised without
-	// an outbound round-trip.
-	var adtClient adt.Client
-	if cfg.AuthEnabled && cfg.ADTBaseURL != "" && cfg.AGSBaseURL != "" && cfg.AGSIAMClientID != "" && cfg.AGSIAMClientSecret != "" {
-		adtLookup := &iampkg.AGSAdminPlatformLookup{
-			HTTPClient:   httpClient,
-			BaseURL:      cfg.AGSBaseURL,
-			Namespace:    cfg.AGSNamespace,
-			ClientID:     cfg.AGSIAMClientID,
-			ClientSecret: cfg.AGSIAMClientSecret,
-		}
-		adtClient = adt.NewHTTPClient(cfg.ADTBaseURL, httpClient, adtLookup.AdminToken)
-		logger.Info("adt client: HTTP-backed", "baseUrl", cfg.ADTBaseURL)
-	} else {
-		adtClient = adt.NewMemClient()
-		logger.Info("adt client: in-memory (set ADT_BASE_URL + enable auth to use the live HTTP adapter)")
-	}
+	adtClient, adtDiagnostics := buildADTClient(cfg, httpClient, logger)
 
 	adtLinkageStore := repo.NewPgADTLinkageStore(dbPool)
 	announcementStore := repo.NewPgAnnouncementStore(dbPool)
@@ -405,6 +384,7 @@ func buildPlaytesthubServer(cfg *config.Config, dbPool *pgxpool.Pool, httpClient
 		WithAGSCodeBatchSize(cfg.AGSCodeBatchSize).
 		WithADTLinkageStore(adtLinkageStore).
 		WithADTClient(adtClient).
+		WithADTDiagnostics(adtDiagnostics).
 		WithADTLinkConfig(service.ADTLinkConfig{
 			ADTBaseURL:        cfg.ADTBaseURL,
 			RedirectBaseURL:   cfg.ADTRedirectBaseURL,
@@ -473,3 +453,47 @@ func buildStudioNamespaceResolver(cfg *config.Config, httpClient *http.Client) s
 // making outbound Discord calls. Production with a configured bot
 // token uses *discord.BotClient (M3 phase 7).
 func noopDMSender(_ context.Context, _, _ string) error { return nil }
+
+// buildADTClient evaluates the ADT-client gate (M5.B / STATUS_M5.md
+// Track B). The live HTTP-backed adapter is enabled when AuthEnabled
+// && ADTBaseURL is set and AGS IAM creds are available — those creds
+// mint the service JWT the adapter attaches to every ADT call.
+// Otherwise (dev / smoke / e2e / boots without ADT config) it falls
+// back to MemClient. The 2026-05-21 silent-fallback bug taught us to
+// log loudly when the production gate falls back unexpectedly; the
+// returned ADTDiagnostics is also handed to the service so
+// GetADTClientDiagnostics can surface the verdict via RPC.
+func buildADTClient(cfg *config.Config, httpClient *http.Client, logger *slog.Logger) (adt.Client, service.ADTDiagnostics) {
+	diag := service.ADTDiagnostics{
+		AuthEnabled:           cfg.AuthEnabled,
+		ADTBaseURLSet:         cfg.ADTBaseURL != "",
+		AGSBaseURLSet:         cfg.AGSBaseURL != "",
+		AGSIAMClientIDSet:     cfg.AGSIAMClientID != "",
+		AGSIAMClientSecretSet: cfg.AGSIAMClientSecret != "",
+	}
+	if cfg.AuthEnabled && cfg.ADTBaseURL != "" && cfg.AGSBaseURL != "" && cfg.AGSIAMClientID != "" && cfg.AGSIAMClientSecret != "" {
+		adtLookup := &iampkg.AGSAdminPlatformLookup{
+			HTTPClient:   httpClient,
+			BaseURL:      cfg.AGSBaseURL,
+			Namespace:    cfg.AGSNamespace,
+			ClientID:     cfg.AGSIAMClientID,
+			ClientSecret: cfg.AGSIAMClientSecret,
+		}
+		diag.ClientKind = "http"
+		logger.Info("adt client: HTTP-backed", "baseUrl", cfg.ADTBaseURL)
+		return adt.NewHTTPClient(cfg.ADTBaseURL, httpClient, adtLookup.AdminToken), diag
+	}
+	diag.ClientKind = "mem"
+	if cfg.AuthEnabled && cfg.ADTBaseURL != "" {
+		logger.Warn("adt client: falling back to in-memory MemClient despite AuthEnabled+ADT_BASE_URL set; ADT-side propagation is a NO-OP",
+			"event", "adt_client_fallback",
+			"auth_enabled", cfg.AuthEnabled,
+			"adt_base_url_set", cfg.ADTBaseURL != "",
+			"ags_base_url_set", cfg.AGSBaseURL != "",
+			"ags_iam_client_id_set", cfg.AGSIAMClientID != "",
+			"ags_iam_client_secret_set", cfg.AGSIAMClientSecret != "")
+	} else {
+		logger.Info("adt client: in-memory (set ADT_BASE_URL + enable auth to use the live HTTP adapter)")
+	}
+	return adt.NewMemClient().WithLogger(logger), diag
+}

@@ -148,6 +148,7 @@ PRD §4.8 / [`docs/runbooks/adt-linking.md`](runbooks/adt-linking.md). All seven
 | `pth adt linkage recover --adt-namespace <ns>` | `RecoverADTLinkage` | Adopts an orphan ADT-side flag (flag present on ADT, no local row) without an OAuth round-trip. Probes ADT first; `FailedPrecondition` if no flag exists, `AlreadyExists` if a non-deleted local row already covers `(studio, adt_namespace)`. |
 | `pth adt build list --linkage-id <id> --game-id <gid>` | `ListADTBuilds` | Defense-in-depth check: `CreatePlaytest` ADT branch reuses the same path to verify the picked `adt_build_id` belongs to `(adt_namespace, adt_game_id)`. |
 | `pth adt games list --linkage-id <id>` | `ListADTGames` | Drives the admin build-picker top-level dropdown so operators no longer type the `adt_game_id` by hand. STATUS_M5.md B12. |
+| `pth adt diagnostics` | `GetADTClientDiagnostics` | Reports which `adt.Client` kind the bootapp wired (`http` vs `mem`) plus the presence (booleans only — never values) of every env var that feeds the gate (`PLUGIN_GRPC_SERVER_AUTH_ENABLED`, `ADT_BASE_URL`, `AGS_BASE_URL`, `AGS_IAM_CLIENT_ID`, `AGS_IAM_CLIENT_SECRET`). Use when `UnlinkADT` appears to soft-delete locally but ADT still reports the linkage — `mem` here means the boot gate silently fell back and ADT-side propagation is a no-op. |
 
 ### 6.6 M5.C — bulk announcement DM
 

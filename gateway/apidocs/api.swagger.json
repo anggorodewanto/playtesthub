@@ -479,6 +479,43 @@
         ]
       }
     },
+    "/v1/admin/namespaces/{namespace}/diagnostics/adt-client-kind": {
+      "get": {
+        "summary": "Report which ADT client kind was wired at boot + presence of every gate env var (admin)",
+        "description": "Diagnostic surface for the 2026-05-21 silent-fallback bug: the bootapp gate that selects HTTP-backed vs in-memory ADT client requires ALL of AuthEnabled + ADT_BASE_URL + AGS_BASE_URL + AGS_IAM_CLIENT_ID + AGS_IAM_CLIENT_SECRET. When any one is empty the gate silently falls to the in-memory MemClient and UnlinkADT's ADT-side propagation becomes a no-op. This RPC returns the gate decision (\"http\" | \"mem\") plus a boolean presence flag for each env var so the operator can pinpoint the missing one without needing the boot log. Secret values are NEVER returned — only booleans.",
+        "operationId": "PlaytesthubService_GetADTClientDiagnostics",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetADTClientDiagnosticsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "PlaytesthubService"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
     "/v1/admin/namespaces/{namespace}/playtests": {
       "get": {
         "summary": "List playtests in a namespace (admin, unpaginated; 100-item cap)",
@@ -2634,6 +2671,36 @@
           "description": "Always \"Bearer\" today; carried verbatim for forward-compat."
         }
       }
+    },
+    "v1GetADTClientDiagnosticsResponse": {
+      "type": "object",
+      "properties": {
+        "adtClientKind": {
+          "type": "string",
+          "description": "Which adt.Client implementation the bootapp wired:\n  \"http\" — adt.NewHTTPClient (live ADT calls).\n  \"mem\"  — adt.NewMemClient (no-op for ADT-side propagation)."
+        },
+        "authEnabled": {
+          "type": "boolean",
+          "description": "PLUGIN_GRPC_SERVER_AUTH_ENABLED at boot."
+        },
+        "adtBaseUrlSet": {
+          "type": "boolean",
+          "description": "True when ADT_BASE_URL was non-empty at boot."
+        },
+        "agsBaseUrlSet": {
+          "type": "boolean",
+          "description": "True when AGS_BASE_URL was non-empty at boot."
+        },
+        "agsIamClientIdSet": {
+          "type": "boolean",
+          "description": "True when AGS_IAM_CLIENT_ID was non-empty at boot."
+        },
+        "agsIamClientSecretSet": {
+          "type": "boolean",
+          "description": "True when AGS_IAM_CLIENT_SECRET was non-empty at boot."
+        }
+      },
+      "description": "GetADTClientDiagnosticsResponse — booleans only. Values for the AGS\nIAM client id / secret are NEVER returned; only their presence\n(non-empty at boot) is exposed."
     },
     "v1GetADTDownloadInfoResponse": {
       "type": "object",

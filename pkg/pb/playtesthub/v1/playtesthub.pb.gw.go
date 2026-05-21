@@ -1992,6 +1992,45 @@ func local_request_PlaytesthubService_ListADTGames_0(ctx context.Context, marsha
 	return msg, metadata, err
 }
 
+func request_PlaytesthubService_GetADTClientDiagnostics_0(ctx context.Context, marshaler runtime.Marshaler, client PlaytesthubServiceClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var (
+		protoReq GetADTClientDiagnosticsRequest
+		metadata runtime.ServerMetadata
+		err      error
+	)
+	if req.Body != nil {
+		_, _ = io.Copy(io.Discard, req.Body)
+	}
+	val, ok := pathParams["namespace"]
+	if !ok {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "namespace")
+	}
+	protoReq.Namespace, err = runtime.String(val)
+	if err != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "namespace", err)
+	}
+	msg, err := client.GetADTClientDiagnostics(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
+	return msg, metadata, err
+}
+
+func local_request_PlaytesthubService_GetADTClientDiagnostics_0(ctx context.Context, marshaler runtime.Marshaler, server PlaytesthubServiceServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var (
+		protoReq GetADTClientDiagnosticsRequest
+		metadata runtime.ServerMetadata
+		err      error
+	)
+	val, ok := pathParams["namespace"]
+	if !ok {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "namespace")
+	}
+	protoReq.Namespace, err = runtime.String(val)
+	if err != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "namespace", err)
+	}
+	msg, err := server.GetADTClientDiagnostics(ctx, &protoReq)
+	return msg, metadata, err
+}
+
 var filter_PlaytesthubService_GetPlaytestParticipants_0 = &utilities.DoubleArray{Encoding: map[string]int{"namespace": 0, "playtest_id": 1}, Base: []int{1, 1, 2, 0, 0}, Check: []int{0, 1, 1, 2, 3}}
 
 func request_PlaytesthubService_GetPlaytestParticipants_0(ctx context.Context, marshaler runtime.Marshaler, client PlaytesthubServiceClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
@@ -2963,6 +3002,26 @@ func RegisterPlaytesthubServiceHandlerServer(ctx context.Context, mux *runtime.S
 		}
 		forward_PlaytesthubService_ListADTGames_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
 	})
+	mux.Handle(http.MethodGet, pattern_PlaytesthubService_GetADTClientDiagnostics_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		var stream runtime.ServerTransportStream
+		ctx = grpc.NewContextWithServerTransportStream(ctx, &stream)
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		annotatedContext, err := runtime.AnnotateIncomingContext(ctx, mux, req, "/playtesthub.v1.PlaytesthubService/GetADTClientDiagnostics", runtime.WithHTTPPathPattern("/v1/admin/namespaces/{namespace}/diagnostics/adt-client-kind"))
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := local_request_PlaytesthubService_GetADTClientDiagnostics_0(annotatedContext, inboundMarshaler, server, req, pathParams)
+		md.HeaderMD, md.TrailerMD = metadata.Join(md.HeaderMD, stream.Header()), metadata.Join(md.TrailerMD, stream.Trailer())
+		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
+		if err != nil {
+			runtime.HTTPError(annotatedContext, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		forward_PlaytesthubService_GetADTClientDiagnostics_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+	})
 	mux.Handle(http.MethodGet, pattern_PlaytesthubService_GetPlaytestParticipants_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
@@ -3726,6 +3785,23 @@ func RegisterPlaytesthubServiceHandlerClient(ctx context.Context, mux *runtime.S
 		}
 		forward_PlaytesthubService_ListADTGames_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
 	})
+	mux.Handle(http.MethodGet, pattern_PlaytesthubService_GetADTClientDiagnostics_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		annotatedContext, err := runtime.AnnotateContext(ctx, mux, req, "/playtesthub.v1.PlaytesthubService/GetADTClientDiagnostics", runtime.WithHTTPPathPattern("/v1/admin/namespaces/{namespace}/diagnostics/adt-client-kind"))
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := request_PlaytesthubService_GetADTClientDiagnostics_0(annotatedContext, inboundMarshaler, client, req, pathParams)
+		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
+		if err != nil {
+			runtime.HTTPError(annotatedContext, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		forward_PlaytesthubService_GetADTClientDiagnostics_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+	})
 	mux.Handle(http.MethodGet, pattern_PlaytesthubService_GetPlaytestParticipants_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
@@ -3820,6 +3896,7 @@ var (
 	pattern_PlaytesthubService_RecoverADTLinkage_0        = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 1, 0, 4, 1, 5, 3, 2, 4, 2, 5}, []string{"v1", "admin", "namespaces", "namespace", "adt", "linkages"}, "recover"))
 	pattern_PlaytesthubService_ListADTBuilds_0            = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 1, 0, 4, 1, 5, 3, 2, 4, 2, 5, 1, 0, 4, 1, 5, 6, 2, 7}, []string{"v1", "admin", "namespaces", "namespace", "adt", "linkages", "adt_linkage_id", "builds"}, ""))
 	pattern_PlaytesthubService_ListADTGames_0             = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 1, 0, 4, 1, 5, 3, 2, 4, 2, 5, 1, 0, 4, 1, 5, 6, 2, 7}, []string{"v1", "admin", "namespaces", "namespace", "adt", "linkages", "adt_linkage_id", "games"}, ""))
+	pattern_PlaytesthubService_GetADTClientDiagnostics_0  = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 1, 0, 4, 1, 5, 3, 2, 4, 2, 5}, []string{"v1", "admin", "namespaces", "namespace", "diagnostics", "adt-client-kind"}, ""))
 	pattern_PlaytesthubService_GetPlaytestParticipants_0  = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 1, 0, 4, 1, 5, 3, 2, 4, 1, 0, 4, 1, 5, 5, 2, 6}, []string{"v1", "admin", "namespaces", "namespace", "playtests", "playtest_id", "participants"}, ""))
 	pattern_PlaytesthubService_CreateAnnouncement_0       = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 1, 0, 4, 1, 5, 3, 2, 4, 1, 0, 4, 1, 5, 5, 2, 6}, []string{"v1", "admin", "namespaces", "namespace", "playtests", "playtest_id", "announcements"}, ""))
 	pattern_PlaytesthubService_ListAnnouncements_0        = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 1, 0, 4, 1, 5, 3, 2, 4, 1, 0, 4, 1, 5, 5, 2, 6}, []string{"v1", "admin", "namespaces", "namespace", "playtests", "playtest_id", "announcements"}, ""))
@@ -3865,6 +3942,7 @@ var (
 	forward_PlaytesthubService_RecoverADTLinkage_0        = runtime.ForwardResponseMessage
 	forward_PlaytesthubService_ListADTBuilds_0            = runtime.ForwardResponseMessage
 	forward_PlaytesthubService_ListADTGames_0             = runtime.ForwardResponseMessage
+	forward_PlaytesthubService_GetADTClientDiagnostics_0  = runtime.ForwardResponseMessage
 	forward_PlaytesthubService_GetPlaytestParticipants_0  = runtime.ForwardResponseMessage
 	forward_PlaytesthubService_CreateAnnouncement_0       = runtime.ForwardResponseMessage
 	forward_PlaytesthubService_ListAnnouncements_0        = runtime.ForwardResponseMessage

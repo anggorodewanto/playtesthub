@@ -51,14 +51,15 @@ func TestServiceDescriptorMethods(t *testing.T) {
 		// M4
 		"GetWorkerHealth": true,
 		// M5.B (ADT linkage + player download)
-		"ListADTLinkages":    true,
-		"StartADTLink":       true,
-		"CompleteADTLink":    true,
-		"UnlinkADT":          true,
-		"RecoverADTLinkage":  true,
-		"ListADTBuilds":      true,
-		"ListADTGames":       true,
-		"GetADTDownloadInfo": true,
+		"ListADTLinkages":         true,
+		"StartADTLink":            true,
+		"CompleteADTLink":         true,
+		"UnlinkADT":               true,
+		"RecoverADTLinkage":       true,
+		"ListADTBuilds":           true,
+		"ListADTGames":            true,
+		"GetADTClientDiagnostics": true,
+		"GetADTDownloadInfo":      true,
 		// M5.C (participants + announcements)
 		"GetPlaytestParticipants": true,
 		"CreateAnnouncement":      true,

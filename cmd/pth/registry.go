@@ -49,6 +49,13 @@ var catalogue = []commandSpec{
 		Example:       "pth --namespace mygame --profile admin adt build list --linkage-id 01J0... --game-id mygame",
 	},
 	{
+		Name:          "adt diagnostics",
+		Milestone:     "M5.B",
+		Description:   "Admin: report which adt.Client kind was wired at boot + presence of the env vars that fed the gate (PRD §4.8 / 2026-05-21 silent-fallback recovery).",
+		OptionalFlags: []flagSpec{dryRunFlag()},
+		Example:       "pth --namespace mygame --profile admin adt diagnostics",
+	},
+	{
 		Name:          "adt games list",
 		Milestone:     "M5.B",
 		Description:   "Admin: list ADT games under a linkage's namespace (cli.md §6.5, PRD §4.8; STATUS_M5.md B12).",

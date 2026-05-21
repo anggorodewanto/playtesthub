@@ -683,6 +683,22 @@ service PlaytesthubService {
     };
   }
 
+  rpc GetADTClientDiagnostics(GetADTClientDiagnosticsRequest) returns (GetADTClientDiagnosticsResponse) {
+    option (playtesthub.v1.action) = ACTION_READ;
+    option (playtesthub.v1.resource) = "ADMIN:NAMESPACE:{namespace}:EXTEND:APPUI";
+    option (google.api.http) = {get: "/v1/admin/namespaces/{namespace}/diagnostics/adt-client-kind"};
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Report which ADT client kind was wired at boot + presence of every gate env var (admin)"
+      description: "Diagnostic surface for the 2026-05-21 silent-fallback bug: the bootapp gate that selects HTTP-backed vs in-memory ADT client requires ALL of AuthEnabled + ADT_BASE_URL + AGS_BASE_URL + AGS_IAM_CLIENT_ID + AGS_IAM_CLIENT_SECRET. When any one is empty the gate silently falls to the in-memory MemClient and UnlinkADT's ADT-side propagation becomes a no-op. This RPC returns the gate decision (\"http\" | \"mem\") plus a boolean presence flag for each env var so the operator can pinpoint the missing one without needing the boot log. Secret values are NEVER returned — only booleans."
+      security: {
+        security_requirement: {
+          key: "Bearer"
+          value: {}
+        }
+      }
+    };
+  }
+
   // M5.C — participants surface backing the detail page Participants tab.
   // Cache-only read; the four ADT telemetry cache columns ship dormant in
   // M5.C (NULL/zero across the milestone — M6 lights them up).
@@ -1577,6 +1593,30 @@ message ListADTGamesRequest {
 }
 message ListADTGamesResponse {
   repeated ADTGame games = 1;
+}
+
+message GetADTClientDiagnosticsRequest {
+  string namespace = 1;
+}
+
+// GetADTClientDiagnosticsResponse — booleans only. Values for the AGS
+// IAM client id / secret are NEVER returned; only their presence
+// (non-empty at boot) is exposed.
+message GetADTClientDiagnosticsResponse {
+  // Which adt.Client implementation the bootapp wired:
+  //   "http" — adt.NewHTTPClient (live ADT calls).
+  //   "mem"  — adt.NewMemClient (no-op for ADT-side propagation).
+  string adt_client_kind = 1;
+  // PLUGIN_GRPC_SERVER_AUTH_ENABLED at boot.
+  bool auth_enabled = 2;
+  // True when ADT_BASE_URL was non-empty at boot.
+  bool adt_base_url_set = 3;
+  // True when AGS_BASE_URL was non-empty at boot.
+  bool ags_base_url_set = 4;
+  // True when AGS_IAM_CLIENT_ID was non-empty at boot.
+  bool ags_iam_client_id_set = 5;
+  // True when AGS_IAM_CLIENT_SECRET was non-empty at boot.
+  bool ags_iam_client_secret_set = 6;
 }
 
 // ---------------- M5.C entities + messages ----------------
