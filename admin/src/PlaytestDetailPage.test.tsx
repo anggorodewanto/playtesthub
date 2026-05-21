@@ -19,6 +19,7 @@ const mockGetCodes = vi.fn()
 const mockUploadCodes = vi.fn()
 const mockTopUpCodes = vi.fn()
 const mockSyncCodes = vi.fn()
+const mockGetAdtLinkages = vi.fn()
 const mockApprove = vi.fn()
 const mockReject = vi.fn()
 const mockRetryDm = vi.fn()
@@ -56,6 +57,7 @@ vi.mock('./playtesthubapi/generated-admin/queries/PlaytesthubServiceAdmin.query'
   usePlaytesthubServiceAdminApi_CreateCodesUpload_ByPlaytestIdMutation: (...a: unknown[]) => mockUploadCodes(...a),
   usePlaytesthubServiceAdminApi_CreateCodesTopUp_ByPlaytestIdMutation: (...a: unknown[]) => mockTopUpCodes(...a),
   usePlaytesthubServiceAdminApi_CreateCodesSyncFromAg_ByPlaytestIdMutation: (...a: unknown[]) => mockSyncCodes(...a),
+  usePlaytesthubServiceAdminApi_GetAdtLinkages: (...a: unknown[]) => mockGetAdtLinkages(...a),
   usePlaytesthubServiceAdminApi_CreateApplicant_ByApplicantIdApproveMutation: (...a: unknown[]) =>
     mockApprove(...a),
   usePlaytesthubServiceAdminApi_CreateApplicant_ByApplicantIdRejectMutation: (...a: unknown[]) => mockReject(...a),
@@ -115,6 +117,7 @@ beforeEach(() => {
   mockUploadCodes.mockReturnValue({ mutate: vi.fn(), isPending: false })
   mockTopUpCodes.mockReturnValue({ mutate: vi.fn(), isPending: false })
   mockSyncCodes.mockReturnValue({ mutate: vi.fn(), isPending: false })
+  mockGetAdtLinkages.mockReturnValue({ data: { linkages: [] }, isLoading: false, error: null, refetch: vi.fn() })
   mockApprove.mockReturnValue({ mutate: vi.fn(), isPending: false })
   mockReject.mockReturnValue({ mutate: vi.fn(), isPending: false })
   mockRetryDm.mockReturnValue({ mutate: vi.fn(), isPending: false })
@@ -351,7 +354,7 @@ describe('PlaytestDetailPage shell', () => {
     renderDetail('autumn-draft')
     const user = userEvent.setup()
     await user.click(screen.getByRole('tab', { name: 'Distribution' }))
-    expect(await screen.findByRole('heading', { name: /upload steam keys/i })).toBeInTheDocument()
+    expect(await screen.findByText(/upload steam keys/i)).toBeInTheDocument()
     expect(screen.getByText('No codes uploaded yet')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /^choose file$/i })).toBeInTheDocument()
   })
@@ -410,7 +413,7 @@ describe('PlaytestDetailPage shell', () => {
     renderDetail('autumn-adt')
     const user = userEvent.setup()
     await user.click(screen.getByRole('tab', { name: 'Distribution' }))
-    expect(await screen.findByText('🔗 ADT Namespace Not Linked')).toBeInTheDocument()
+    expect(await screen.findByText('ADT Namespace Not Linked')).toBeInTheDocument()
   })
 
   it('Copy share link uses the backend-supplied player_base_url, not the admin host', async () => {

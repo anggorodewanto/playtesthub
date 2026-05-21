@@ -1,3 +1,4 @@
+import { CheckCircleFilled, CodeSandboxOutlined } from '@ant-design/icons'
 import { useAppUIContext } from '@accelbyte/sdk-extend-app-ui'
 import { useQueryClient } from '@tanstack/react-query'
 import {
@@ -16,6 +17,7 @@ import {
 } from 'antd'
 import dayjs from 'dayjs'
 import { useState } from 'react'
+import type { V1AdtLinkage } from '../playtesthubapi/generated-definitions/V1AdtLinkage'
 import type { V1Code } from '../playtesthubapi/generated-definitions/V1Code'
 import type { V1CodePoolStats } from '../playtesthubapi/generated-definitions/V1CodePoolStats'
 import type { V1Playtest } from '../playtesthubapi/generated-definitions/V1Playtest'
@@ -25,6 +27,7 @@ import {
   usePlaytesthubServiceAdminApi_CreateCodesSyncFromAg_ByPlaytestIdMutation,
   usePlaytesthubServiceAdminApi_CreateCodesTopUp_ByPlaytestIdMutation,
   usePlaytesthubServiceAdminApi_CreateCodesUpload_ByPlaytestIdMutation,
+  usePlaytesthubServiceAdminApi_GetAdtLinkages,
   usePlaytesthubServiceAdminApi_GetCodes_ByPlaytestId
 } from '../playtesthubapi/generated-admin/queries/PlaytesthubServiceAdmin.query'
 import { toastError } from '../shared/api-error'
@@ -61,16 +64,41 @@ export function DistributionTab({ playtest }: { playtest: V1Playtest }) {
 }
 
 function ADTPanel({ playtest }: { playtest: V1Playtest }) {
+  const { sdk } = useAppUIContext()
+  const linkagesQuery = usePlaytesthubServiceAdminApi_GetAdtLinkages(sdk, {})
+  const linkages = (linkagesQuery.data?.linkages ?? []) as V1AdtLinkage[]
+  const linkage = linkages.find(l => l.adtNamespace === playtest.adtNamespace) ?? null
   const linked = Boolean(playtest.adtNamespace)
+
   return (
-    <Space direction="vertical" style={{ width: '100%' }} data-testid="distribution-tab">
-      <Typography.Title level={4} style={{ marginTop: 0 }}>
-        ADT distribution
-      </Typography.Title>
-      {!linked ? (
-        <Card>
+    <Space direction="vertical" size="middle" style={{ width: '100%' }} data-testid="distribution-tab">
+      <Card
+        data-testid="adt-connection-card"
+        title="ADT Connection"
+        extra={
+          linked ? (
+            <Space>
+              <Tag color="green" style={{ marginInlineEnd: 0 }}>
+                ● Connected
+              </Tag>
+              <Button>Unlink</Button>
+            </Space>
+          ) : (
+            <Tag style={{ marginInlineEnd: 0 }}>Not Connected</Tag>
+          )
+        }>
+        {linked ? (
+          <div style={{ display: 'flex', gap: 48, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+            <FieldColumn label="ADT NAMESPACE" value={<code>{playtest.adtNamespace ?? '—'}</code>} />
+            <FieldColumn label="LINKED AS" value={linkage?.linkedByUserId ?? '—'} />
+            <FieldColumn
+              label="LINKED ON"
+              value={linkage?.linkedAt ? dayjs(linkage.linkedAt).format('MMM D, YYYY, h:mm A') : '—'}
+            />
+          </div>
+        ) : (
           <Space direction="vertical">
-            <Typography.Text strong>🔗 ADT Namespace Not Linked</Typography.Text>
+            <Typography.Text strong>ADT Namespace Not Linked</Typography.Text>
             <Typography.Text type="secondary">
               Link your studio's ADT namespace to surface builds and approve players against this playtest.
             </Typography.Text>
@@ -78,18 +106,49 @@ function ADTPanel({ playtest }: { playtest: V1Playtest }) {
               Linking happens from the Playtests list page → Link new ADT Namespace.
             </Typography.Text>
           </Space>
-        </Card>
-      ) : (
-        <Card>
-          <Space direction="vertical" size="small">
-            <Tag color="blue">ADT linkage is studio-wide</Tag>
-            <FieldRow label="ADT Namespace" value={playtest.adtNamespace ?? '—'} />
-            <FieldRow label="Game ID" value={playtest.adtGameId ?? '—'} />
-            <FieldRow label="Build ID" value={playtest.adtBuildId ?? '—'} />
-            <FieldRow label="Fallback URL" value={playtest.adtFallbackDownloadUrl ?? '(none)'} />
-            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-              ADT linkage is studio-wide; the same ADT namespace covers every playtest under this studio.
-            </Typography.Text>
+        )}
+      </Card>
+
+      {linked && (
+        <Card data-testid="adt-build-card" title="Game Build" extra={<Button>Change Build</Button>}>
+          <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+            <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+              <div
+                style={{
+                  width: 56,
+                  height: 56,
+                  borderRadius: 8,
+                  background: '#722ed1',
+                  color: '#fff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 28,
+                  flexShrink: 0
+                }}>
+                <CodeSandboxOutlined />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <Typography.Text strong>{playtest.adtBuildId ?? '—'}</Typography.Text>
+                <Typography.Text type="secondary" style={{ fontSize: 13 }}>
+                  Game ID: <strong style={{ color: 'rgba(0,0,0,0.88)' }}>{playtest.adtGameId ?? '—'}</strong>
+                  {playtest.adtFallbackDownloadUrl && (
+                    <>
+                      {'  ·  '}Fallback URL:{' '}
+                      <a href={playtest.adtFallbackDownloadUrl} target="_blank" rel="noreferrer">
+                        configured
+                      </a>
+                    </>
+                  )}
+                </Typography.Text>
+              </div>
+            </div>
+            <Alert
+              type="success"
+              showIcon
+              icon={<CheckCircleFilled />}
+              message="Approved participants will receive a direct download link via Discord DM from the PlaytestHub bot."
+            />
           </Space>
         </Card>
       )}
@@ -141,61 +200,61 @@ function SteamKeysPanel({ playtest }: { playtest: V1Playtest }) {
   const total = stats?.total ?? 0
 
   return (
-    <Space direction="vertical" style={{ width: '100%' }} data-testid="distribution-tab">
-      <Typography.Title level={4} style={{ marginTop: 0 }}>
-        Steam keys
-      </Typography.Title>
+    <Space direction="vertical" size="middle" style={{ width: '100%' }} data-testid="distribution-tab">
+      <Card data-testid="code-pool-card" title="Code Pool">
+        <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+          <LowPoolBanner stats={stats} />
+          <PoolStatsRow stats={stats} />
+        </Space>
+      </Card>
 
-      <LowPoolBanner stats={stats} />
-      <PoolStatsRow stats={stats} />
-
-      <div>
-        <Typography.Title level={5}>Upload Steam keys</Typography.Title>
-        <Typography.Paragraph type="secondary">
-          One code per line. UTF-8, max 10 MB, max 50,000 lines, charset <code>[A-Za-z0-9._-]</code>, length 1–128. Any
-          invalid line rejects the whole file.
-        </Typography.Paragraph>
-        <Upload accept=".csv,.txt,text/plain,text/csv" beforeUpload={handleFileChosen} maxCount={1} showUploadList={false}>
-          <Button>Choose file</Button>
-        </Upload>
-        {csvFilename && (
-          <Typography.Paragraph style={{ marginTop: 8 }}>
-            Selected: <code>{csvFilename}</code>
+      <Card data-testid="code-upload-card" title="Upload Steam Keys">
+        <Space direction="vertical" size="small" style={{ width: '100%' }}>
+          <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
+            One code per line. UTF-8, max 10 MB, max 50,000 lines, charset <code>[A-Za-z0-9._-]</code>, length 1–128. Any
+            invalid line rejects the whole file.
           </Typography.Paragraph>
-        )}
-        <Button
-          type="primary"
-          disabled={!csvText}
-          loading={uploadMutation.isPending}
-          style={{ marginTop: 8 }}
-          onClick={() => uploadMutation.mutate({ playtestId, data: { csvContent: csvText, filename: csvFilename || undefined } })}>
-          Upload
-        </Button>
-        {rejections.length > 0 && (
-          <Alert
-            type="error"
-            style={{ marginTop: 12 }}
-            message={`Upload rejected — ${rejections.length} invalid line${rejections.length === 1 ? '' : 's'}`}
-            description={
-              <ul style={{ margin: 0, paddingLeft: 20 }}>
-                {rejections.slice(0, 50).map((rej, i) => (
-                  <li key={i}>
-                    Line {rej.lineNumber}: {rej.reason}
-                    {rej.value ? ` — ${rej.value}` : ''}
-                  </li>
-                ))}
-                {rejections.length > 50 && <li>…and {rejections.length - 50} more.</li>}
-              </ul>
-            }
-          />
-        )}
-      </div>
+          <Upload accept=".csv,.txt,text/plain,text/csv" beforeUpload={handleFileChosen} maxCount={1} showUploadList={false}>
+            <Button>Choose file</Button>
+          </Upload>
+          {csvFilename && (
+            <Typography.Paragraph style={{ marginBottom: 0 }}>
+              Selected: <code>{csvFilename}</code>
+            </Typography.Paragraph>
+          )}
+          <Button
+            type="primary"
+            disabled={!csvText}
+            loading={uploadMutation.isPending}
+            onClick={() => uploadMutation.mutate({ playtestId, data: { csvContent: csvText, filename: csvFilename || undefined } })}>
+            Upload
+          </Button>
+          {rejections.length > 0 && (
+            <Alert
+              type="error"
+              message={`Upload rejected — ${rejections.length} invalid line${rejections.length === 1 ? '' : 's'}`}
+              description={
+                <ul style={{ margin: 0, paddingLeft: 20 }}>
+                  {rejections.slice(0, 50).map((rej, i) => (
+                    <li key={i}>
+                      Line {rej.lineNumber}: {rej.reason}
+                      {rej.value ? ` — ${rej.value}` : ''}
+                    </li>
+                  ))}
+                  {rejections.length > 50 && <li>…and {rejections.length - 50} more.</li>}
+                </ul>
+              }
+            />
+          )}
+          {total === 0 && !codesQuery.isLoading && (
+            <Alert type="info" showIcon message="No codes uploaded yet" description="Upload a CSV above to start approving applicants." />
+          )}
+        </Space>
+      </Card>
 
-      {total === 0 && !codesQuery.isLoading && (
-        <Alert type="info" showIcon message="No codes uploaded yet" description="Upload a CSV above to start approving applicants." />
-      )}
-
-      <CodesTable query={codesQuery} codes={codes} />
+      <Card data-testid="codes-card" title="Codes">
+        <CodesTable query={codesQuery} codes={codes} />
+      </Card>
     </Space>
   )
 }
@@ -230,43 +289,46 @@ function AGSCampaignPanel({ playtest }: { playtest: V1Playtest }) {
   const codes = (codesQuery.data?.codes ?? []) as V1Code[]
 
   return (
-    <Space direction="vertical" style={{ width: '100%' }} data-testid="distribution-tab">
-      <Typography.Title level={4} style={{ marginTop: 0 }}>
-        AGS Campaign codes
-      </Typography.Title>
-
-      <Card>
-        <Space direction="vertical" size="small">
+    <Space direction="vertical" size="middle" style={{ width: '100%' }} data-testid="distribution-tab">
+      <Card data-testid="ags-config-card" title="AGS Campaign Configuration">
+        <Space direction="vertical" size="small" style={{ width: '100%' }}>
           <FieldRow label="AGS Item ID" value={playtest.agsItemId ?? '—'} />
           <FieldRow label="AGS Campaign ID" value={playtest.agsCampaignId ?? '—'} />
           <FieldRow label="Initial Quantity" value={playtest.initialCodeQuantity ?? '—'} />
         </Space>
       </Card>
 
-      <LowPoolBanner stats={stats} />
-      <PoolStatsRow stats={stats} />
-
-      <div>
-        <Typography.Title level={5}>Generate / sync AGS Campaign codes</Typography.Title>
-        <Typography.Paragraph type="secondary">
-          Top-up calls AGS to generate fresh codes. Sync re-fetches from AGS to recover from a previous failure (idempotent).
-        </Typography.Paragraph>
-        <Space>
-          <InputNumber min={1} max={50000} value={topUpQty} onChange={v => setTopUpQty(typeof v === 'number' ? v : null)} />
-          <Button
-            type="primary"
-            disabled={!topUpQty || topUpQty < 1}
-            loading={topUpMutation.isPending}
-            onClick={() => topUpQty && topUpMutation.mutate({ playtestId, data: { quantity: topUpQty } })}>
-            Generate more codes
-          </Button>
-          <Button loading={syncMutation.isPending} onClick={() => syncMutation.mutate({ playtestId, data: {} })}>
-            Sync from AGS
-          </Button>
+      <Card data-testid="code-pool-card" title="Code Pool">
+        <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+          <LowPoolBanner stats={stats} />
+          <PoolStatsRow stats={stats} />
         </Space>
-      </div>
+      </Card>
 
-      <CodesTable query={codesQuery} codes={codes} />
+      <Card data-testid="code-generate-card" title="Generate / Sync AGS Campaign Codes">
+        <Space direction="vertical" size="small" style={{ width: '100%' }}>
+          <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
+            Top-up calls AGS to generate fresh codes. Sync re-fetches from AGS to recover from a previous failure (idempotent).
+          </Typography.Paragraph>
+          <Space>
+            <InputNumber min={1} max={50000} value={topUpQty} onChange={v => setTopUpQty(typeof v === 'number' ? v : null)} />
+            <Button
+              type="primary"
+              disabled={!topUpQty || topUpQty < 1}
+              loading={topUpMutation.isPending}
+              onClick={() => topUpQty && topUpMutation.mutate({ playtestId, data: { quantity: topUpQty } })}>
+              Generate more codes
+            </Button>
+            <Button loading={syncMutation.isPending} onClick={() => syncMutation.mutate({ playtestId, data: {} })}>
+              Sync from AGS
+            </Button>
+          </Space>
+        </Space>
+      </Card>
+
+      <Card data-testid="codes-card" title="Codes">
+        <CodesTable query={codesQuery} codes={codes} />
+      </Card>
     </Space>
   )
 }
@@ -322,26 +384,21 @@ function CodesTable({
       render: (v: string | null | undefined) => (v ? dayjs(v).format('YYYY-MM-DD HH:mm') : '—')
     }
   ]
-  return (
-    <div>
-      <Typography.Title level={5}>Codes</Typography.Title>
-      {query.isLoading && <Spin />}
-      {!query.isLoading && !!query.error && (
-        <Alert
-          type="error"
-          message="Failed to load codes."
-          action={
-            <Button size="small" onClick={() => query.refetch()}>
-              Retry
-            </Button>
-          }
-        />
-      )}
-      {!query.isLoading && !query.error && (
-        <Table<V1Code> rowKey={row => row.id ?? ''} dataSource={codes} columns={columns} pagination={{ pageSize: 50 }} />
-      )}
-    </div>
-  )
+  if (query.isLoading) return <Spin />
+  if (query.error) {
+    return (
+      <Alert
+        type="error"
+        message="Failed to load codes."
+        action={
+          <Button size="small" onClick={() => query.refetch()}>
+            Retry
+          </Button>
+        }
+      />
+    )
+  }
+  return <Table<V1Code> rowKey={row => row.id ?? ''} dataSource={codes} columns={columns} pagination={{ pageSize: 50 }} />
 }
 
 function FieldRow({ label, value }: { label: string; value: React.ReactNode }) {
@@ -351,6 +408,17 @@ function FieldRow({ label, value }: { label: string; value: React.ReactNode }) {
         {label}
       </Typography.Text>
       <Typography.Text>{value}</Typography.Text>
+    </div>
+  )
+}
+
+function FieldColumn({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <Typography.Text type="secondary" style={{ fontSize: 11, letterSpacing: 0.5, textTransform: 'uppercase' }}>
+        {label}
+      </Typography.Text>
+      <Typography.Text style={{ fontSize: 14 }}>{value}</Typography.Text>
     </div>
   )
 }
