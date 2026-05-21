@@ -417,7 +417,7 @@ describe('PlaytestDetailPage shell', () => {
     mockGetPublicConfig.mockReturnValue({ data: { playerBaseUrl: 'https://play.example.com/' } })
     const user = userEvent.setup()
     renderDetail('autumn-draft')
-    await user.click(screen.getByRole('button', { name: 'Copy share link' }))
+    await user.click(screen.getByRole('button', { name: /Playtest Link/ }))
     await waitFor(async () => {
       const text = await navigator.clipboard.readText()
       expect(text).toBe('https://play.example.com/#/playtest/autumn-draft')
@@ -428,7 +428,7 @@ describe('PlaytestDetailPage shell', () => {
     mockGetPublicConfig.mockReturnValue({ data: { playerBaseUrl: '' } })
     const user = userEvent.setup()
     renderDetail('autumn-draft')
-    await user.click(screen.getByRole('button', { name: 'Copy share link' }))
+    await user.click(screen.getByRole('button', { name: /Playtest Link/ }))
     expect(await screen.findByText(/PLAYER_BASE_URL/)).toBeInTheDocument()
     expect(await navigator.clipboard.readText()).toBe('')
   })

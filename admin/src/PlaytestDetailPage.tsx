@@ -1,9 +1,12 @@
+import { CopyOutlined } from '@ant-design/icons'
 import { useAppUIContext } from '@accelbyte/sdk-extend-app-ui'
 import { useQueryClient } from '@tanstack/react-query'
 import {
   Alert,
   Breadcrumb,
   Button,
+  Card,
+  Input,
   Modal,
   Space,
   Spin,
@@ -22,7 +25,7 @@ import {
   usePlaytesthubServiceAdminApi_GetPlaytests
 } from './playtesthubapi/generated-admin/queries/PlaytesthubServiceAdmin.query'
 import { usePlaytesthubServiceApi_GetConfig } from './playtesthubapi/generated-public/queries/PlaytesthubService.query'
-import { PlaytestStatus } from './shared/playtesthub-enums'
+import { DistributionModel, PlaytestStatus } from './shared/playtesthub-enums'
 import { toastError } from './shared/api-error'
 import { AuditTab } from './tabs/AuditTab'
 import { DiscordBotToolsTab } from './tabs/DiscordBotToolsTab'
@@ -158,7 +161,8 @@ export function PlaytestDetailPage() {
     <Space direction="vertical" style={{ width: '100%' }} data-testid="playtest-detail-page">
       <Breadcrumb
         items={[
-          { title: <a onClick={() => navigate('/')}>Playtests</a> },
+          { title: 'Extend App UI' },
+          { title: <a onClick={() => navigate('/')}>Playtest Hub</a> },
           { title: playtest.title ?? playtest.slug ?? '—' }
         ]}
       />
@@ -167,22 +171,31 @@ export function PlaytestDetailPage() {
           <Typography.Title level={2} style={{ margin: 0 }}>
             {playtest.title ?? '—'}
           </Typography.Title>
-          <Space style={{ marginTop: 4 }}>
-            <Tag color={pill.color} data-testid="playtest-status-pill">
-              {pill.text}
-            </Tag>
+          <Space size={12} style={{ marginTop: 4 }}>
             <Typography.Text type="secondary">{formatDateRange(playtest.startsAt, playtest.endsAt)}</Typography.Text>
+            <Button
+              type="link"
+              size="small"
+              icon={<CopyOutlined />}
+              iconPosition="end"
+              onClick={copyShareLink}
+              style={{ padding: 0, height: 'auto' }}
+            >
+              Playtest Link
+            </Button>
           </Space>
         </div>
         <Space wrap data-testid="playtest-header-actions">
-          <Button onClick={copyShareLink}>Copy share link</Button>
+          <Tag color={pill.color} data-testid="playtest-status-pill" style={{ marginInlineEnd: 0 }}>
+            {pill.text}
+          </Tag>
           {isDraft && (
             <Button type="primary" onClick={publish} data-testid="header-publish">
               Publish
             </Button>
           )}
           {isOpen && (
-            <Button danger onClick={stop} data-testid="header-stop">
+            <Button onClick={stop} data-testid="header-stop">
               Stop Playtest
             </Button>
           )}
@@ -193,7 +206,11 @@ export function PlaytestDetailPage() {
         activeKey={activeTab}
         onChange={handleTabChange}
         items={[
-          { key: 'info', label: 'Playtest Info', children: <PlaytestInfoTab playtest={playtest} /> },
+          {
+            key: 'info',
+            label: 'Playtest Info',
+            children: <PlaytestInfoTab playtest={playtest} playerBaseUrl={playerBaseUrl} />
+          },
           {
             key: 'distribution',
             label: 'Distribution',
@@ -210,45 +227,102 @@ export function PlaytestDetailPage() {
   )
 }
 
-function PlaytestInfoTab({ playtest }: { playtest: V1Playtest }) {
+const DISTRIBUTION_MODEL_LABEL: Record<string, string> = {
+  [DistributionModel.ADT]: 'Direct Download (ADT)',
+  [DistributionModel.STEAM_KEYS]: 'Steam Keys',
+  [DistributionModel.AGS_CAMPAIGN]: 'AGS Campaign'
+}
+
+function PlaytestInfoTab({ playtest, playerBaseUrl }: { playtest: V1Playtest; playerBaseUrl: string }) {
   const navigate = useNavigate()
+
+  const distributionLabel = playtest.distributionModel
+    ? (DISTRIBUTION_MODEL_LABEL[playtest.distributionModel] ?? playtest.distributionModel)
+    : '—'
 
   const rows: Array<[string, React.ReactNode]> = [
     ['Title', playtest.title ?? '—'],
-    ['Slug', playtest.slug ?? '—'],
+    ['Slug', <Typography.Text code>{playtest.slug ?? '—'}</Typography.Text>],
     ['Description', playtest.description ?? '—'],
-    ['Banner Image', playtest.bannerImageUrl ?? '—'],
-    ['Start Date', playtest.startsAt ? dayjs(playtest.startsAt).format('YYYY-MM-DD HH:mm Z') : '—'],
-    ['End Date', playtest.endsAt ? dayjs(playtest.endsAt).format('YYYY-MM-DD HH:mm Z') : '—'],
+    ['Start Date', playtest.startsAt ? dayjs(playtest.startsAt).format('MMMM D, YYYY') : '—'],
+    ['End Date', playtest.endsAt ? dayjs(playtest.endsAt).format('MMMM D, YYYY') : '—'],
     ['Platforms', (playtest.platforms ?? []).join(', ') || '—'],
     ['NDA Required', playtest.ndaRequired ? 'Yes' : 'No'],
-    ['Distribution Model', playtest.distributionModel ?? '—'],
-    ['Approval Method', playtest.autoApprove ? `Auto-approve (limit ${playtest.autoApproveLimit ?? '—'})` : 'Manual'],
+    ['Distribution Model', distributionLabel],
+    ['Approval Method', playtest.autoApprove ? 'Auto-Approve' : 'Manual'],
     ['Max Participants', playtest.autoApproveLimit ?? '—']
   ]
 
+  const shareLink = playerBaseUrl ? `${playerBaseUrl.replace(/\/$/, '')}/#/playtest/${playtest.slug ?? ''}` : ''
+
+  const copyShareLink = () => {
+    if (!shareLink) {
+      message.error('Player app URL not configured — set PLAYER_BASE_URL on the backend')
+      return
+    }
+    void navigator.clipboard?.writeText(shareLink).then(
+      () => message.success('Playtest link copied'),
+      () => message.error('Clipboard unavailable')
+    )
+  }
+
   return (
-    <Space direction="vertical" style={{ width: '100%' }} data-testid="playtest-info-tab">
-      <table style={{ borderCollapse: 'collapse', width: '100%' }}>
-        <tbody>
-          {rows.map(([label, value]) => (
-            <tr key={label}>
-              <td style={{ padding: '8px 12px', fontWeight: 500, width: 220, verticalAlign: 'top' }}>{label}</td>
-              <td style={{ padding: '8px 12px' }}>{value}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <Button onClick={() => navigate(`/${playtest.id ?? ''}/edit`)} data-testid="playtest-info-edit">
-        Edit
-      </Button>
+    <Space direction="vertical" size="middle" style={{ width: '100%' }} data-testid="playtest-info-tab">
+      <Card
+        title="Playtest Information"
+        extra={
+          <Button onClick={() => navigate(`/${playtest.id ?? ''}/edit`)} data-testid="playtest-info-edit">
+            Edit
+          </Button>
+        }
+        styles={{ body: { padding: 0 } }}
+      >
+        {rows.map(([label, value], idx) => (
+          <div
+            key={label}
+            style={{
+              display: 'flex',
+              padding: '14px 24px',
+              borderTop: idx === 0 ? 'none' : '1px solid #f0f0f0',
+              alignItems: 'flex-start',
+              fontSize: 14
+            }}
+          >
+            <div style={{ width: 200, color: 'rgba(0, 0, 0, 0.65)', flexShrink: 0 }}>{label}</div>
+            <div style={{ flex: 1, color: 'rgba(0, 0, 0, 0.88)' }}>{value}</div>
+          </div>
+        ))}
+      </Card>
+
+      <div data-testid="playtest-share-link">
+        <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
+          Shareable Sign-Up Link
+        </Typography.Text>
+        <Input
+          readOnly
+          value={shareLink}
+          style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, monospace' }}
+          suffix={
+            <Button type="link" size="small" onClick={copyShareLink} style={{ padding: 0 }}>
+              Copy
+            </Button>
+          }
+        />
+      </div>
     </Space>
   )
 }
 
 function formatDateRange(starts?: string | null, ends?: string | null): string {
   if (!starts && !ends) return 'No dates set'
-  const s = starts ? dayjs(starts).format('MMM D, YYYY') : '—'
-  const e = ends ? dayjs(ends).format('MMM D, YYYY') : '—'
-  return `${s} → ${e}`
+  if (!starts || !ends) {
+    const only = starts ? dayjs(starts) : dayjs(ends!)
+    return only.format('MMM D, YYYY')
+  }
+  const s = dayjs(starts)
+  const e = dayjs(ends)
+  if (s.year() === e.year()) {
+    return `${s.format('MMM D')} – ${e.format('MMM D, YYYY')}`
+  }
+  return `${s.format('MMM D, YYYY')} – ${e.format('MMM D, YYYY')}`
 }
