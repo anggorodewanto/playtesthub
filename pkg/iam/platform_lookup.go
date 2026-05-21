@@ -44,6 +44,19 @@ type AGSAdminPlatformLookup struct {
 
 const platformLookupTokenSkew = 60 * time.Second
 
+// AdminToken returns the cached client-credentials access token,
+// minting a fresh one on first call or after expiry skew. Exposed for
+// callers (e.g. pkg/adt HTTPClient) that need to attach the service
+// JWT as Authorization: Bearer … on every outbound request — ADT
+// validates it against AGS JWKS and derives studio identity from
+// iss / union_namespace.
+func (l *AGSAdminPlatformLookup) AdminToken(ctx context.Context) (string, error) {
+	if l == nil {
+		return "", fmt.Errorf("iam: platform lookup not configured")
+	}
+	return l.adminToken(ctx)
+}
+
 // GetStudioNamespace mints a client-credentials access token and
 // extracts the studio identity from its claims as
 // `union_namespace ?? namespace`. The token represents the playtesthub

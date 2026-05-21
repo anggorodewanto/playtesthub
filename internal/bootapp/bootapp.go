@@ -349,15 +349,27 @@ func buildPlaytesthubServer(cfg *config.Config, dbPool *pgxpool.Pool, httpClient
 	}
 
 	// ADT distribution model (M5.B / STATUS_M5.md Track B). The live
-	// SDK-backed adapter is gated on ADT-eng publishing endpoint URLs
-	// + the per-applicant URL surface (STATUS_M5.md Open Questions
-	// §1–2); B3 ships the in-memory MemClient only so the full ADT
-	// code path is exercised by tests + the smoke harness without an
-	// outbound ADT round-trip. MemClient is unconditional today —
-	// once the SDK adapter lands, the gate mirrors the AGS branch
-	// above (AuthEnabled + ADT_BASE_URL present → SDK; else mem).
-	adtClient := adt.NewMemClient()
-	logger.Info("adt client: in-memory (live adapter pending ADT-eng endpoint shapes)")
+	// HTTP-backed adapter is enabled when AuthEnabled && ADTBaseURL is
+	// set and AGS IAM creds are available — those creds mint the
+	// service JWT the adapter attaches to every ADT call. Otherwise
+	// (dev / smoke / e2e / boots without ADT config) we fall back to
+	// MemClient so the full ADT code path is still exercised without
+	// an outbound round-trip.
+	var adtClient adt.Client
+	if cfg.AuthEnabled && cfg.ADTBaseURL != "" && cfg.AGSBaseURL != "" && cfg.AGSIAMClientID != "" && cfg.AGSIAMClientSecret != "" {
+		adtLookup := &iampkg.AGSAdminPlatformLookup{
+			HTTPClient:   httpClient,
+			BaseURL:      cfg.AGSBaseURL,
+			Namespace:    cfg.AGSNamespace,
+			ClientID:     cfg.AGSIAMClientID,
+			ClientSecret: cfg.AGSIAMClientSecret,
+		}
+		adtClient = adt.NewHTTPClient(cfg.ADTBaseURL, httpClient, adtLookup.AdminToken)
+		logger.Info("adt client: HTTP-backed", "baseUrl", cfg.ADTBaseURL)
+	} else {
+		adtClient = adt.NewMemClient()
+		logger.Info("adt client: in-memory (set ADT_BASE_URL + enable auth to use the live HTTP adapter)")
+	}
 
 	adtLinkageStore := repo.NewPgADTLinkageStore(dbPool)
 	announcementStore := repo.NewPgAnnouncementStore(dbPool)

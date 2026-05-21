@@ -85,5 +85,5 @@ CLI alternative for §3 + the unlink in §2: `pth adt linkage unlink --id <adt_l
 
 ## 8. Open follow-ups
 
-- The SDK-backed adapter in `pkg/adt` ships in a follow-up sub-phase ([`STATUS_M5.md`](../STATUS_M5.md) B3); production deploys today wire the in-memory `MemClient` and the smoke harness pins request shapes.
-- The end-to-end e2e test (`e2e/golden_m5_test.go`) currently skips with a pointer to the same follow-up sub-phase; CLI dry-run coverage is in `scripts/smoke/pth.sh` and unit-level coverage is in `pkg/service/adt_*_test.go`.
+- The HTTP-backed adapter in `pkg/adt` (NewHTTPClient) is enabled in production when `AuthEnabled && ADT_BASE_URL` is set; dev / smoke / e2e boots fall back to `MemClient`. Live round-trip validation against `develop.blackbox.accelbyte.io` is gated on ADT-eng confirming the path shapes in `pkg/adt/http.go` match production.
+- The end-to-end e2e test (`e2e/golden_m5_test.go`) currently skips; CLI dry-run coverage is in `scripts/smoke/pth.sh` and unit-level coverage is in `pkg/service/adt_*_test.go` + `pkg/adt/http_test.go`.
