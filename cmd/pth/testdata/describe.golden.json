@@ -4,7 +4,7 @@
     {
       "name": "adt build list",
       "milestone": "M5.B",
-      "description": "Admin: list ADT builds under a linkage's game (cli.md §6.4, PRD §4.8).",
+      "description": "Admin: list ADT builds under a linkage's game (cli.md §6.5, PRD §4.8).",
       "requiredFlags": [
         {
           "name": "--linkage-id",
@@ -29,7 +29,7 @@
     {
       "name": "adt games list",
       "milestone": "M5.B",
-      "description": "Admin: list ADT games under a linkage's namespace (cli.md §6.4, PRD §4.8; STATUS_M5.md B12).",
+      "description": "Admin: list ADT games under a linkage's namespace (cli.md §6.5, PRD §4.8; STATUS_M5.md B12).",
       "requiredFlags": [
         {
           "name": "--linkage-id",
@@ -74,7 +74,7 @@
     {
       "name": "adt linkage list",
       "milestone": "M5.B",
-      "description": "Admin: list every ADT linkage scoped to the caller's studio (cli.md §6.4, PRD §4.8).",
+      "description": "Admin: list every ADT linkage scoped to the caller's studio (cli.md §6.5, PRD §4.8).",
       "requiredFlags": null,
       "optionalFlags": [
         {

@@ -137,7 +137,7 @@ Commands mirror PRD §4.7, grouped by domain. Each command lands **in the same m
 
 ### 6.5 M5.B — ADT distribution
 
-PRD §4.8 / [`docs/runbooks/adt-linking.md`](runbooks/adt-linking.md). All five RPCs require admin auth + `--namespace`; all accept `--dry-run` to print the request JSON without dialling.
+PRD §4.8 / [`docs/runbooks/adt-linking.md`](runbooks/adt-linking.md). All seven RPCs require admin auth + `--namespace`; all accept `--dry-run` to print the request JSON without dialling.
 
 | Command | Wraps RPC | Notes |
 | --- | --- | --- |
@@ -145,7 +145,9 @@ PRD §4.8 / [`docs/runbooks/adt-linking.md`](runbooks/adt-linking.md). All five 
 | `pth adt linkage start` | `StartADTLink` | Returns `{linkUrl, state}`. Open `linkUrl` in a browser, complete ADT-side sign-in, capture `state` + `adt_namespace` from the redirect, then run `complete`. |
 | `pth adt linkage complete --state <s> --adt-namespace <ns>` | `CompleteADTLink` | Idempotent on duplicate `(studio, adt_namespace)`; replay with a consumed `state` returns `InvalidArgument`. |
 | `pth adt linkage unlink --id <adt_linkage_id>` | `UnlinkADT` | Idempotent; best-effort `DELETE` against ADT to drop its side's flag. |
+| `pth adt linkage recover --adt-namespace <ns>` | `RecoverADTLinkage` | Adopts an orphan ADT-side flag (flag present on ADT, no local row) without an OAuth round-trip. Probes ADT first; `FailedPrecondition` if no flag exists, `AlreadyExists` if a non-deleted local row already covers `(studio, adt_namespace)`. |
 | `pth adt build list --linkage-id <id> --game-id <gid>` | `ListADTBuilds` | Defense-in-depth check: `CreatePlaytest` ADT branch reuses the same path to verify the picked `adt_build_id` belongs to `(adt_namespace, adt_game_id)`. |
+| `pth adt games list --linkage-id <id>` | `ListADTGames` | Drives the admin build-picker top-level dropdown so operators no longer type the `adt_game_id` by hand. STATUS_M5.md B12. |
 
 ### 6.6 M5.C — bulk announcement DM
 

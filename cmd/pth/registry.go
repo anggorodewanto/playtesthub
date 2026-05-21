@@ -43,7 +43,7 @@ var catalogue = []commandSpec{
 	{
 		Name:          "adt build list",
 		Milestone:     "M5.B",
-		Description:   "Admin: list ADT builds under a linkage's game (cli.md §6.4, PRD §4.8).",
+		Description:   "Admin: list ADT builds under a linkage's game (cli.md §6.5, PRD §4.8).",
 		RequiredFlags: []flagSpec{{Name: "--linkage-id", Description: "adt_linkage_id (from `adt linkage list`)", ValueType: "uuid"}, {Name: "--game-id", Description: "ADT-side game id", ValueType: "string"}},
 		OptionalFlags: []flagSpec{dryRunFlag()},
 		Example:       "pth --namespace mygame --profile admin adt build list --linkage-id 01J0... --game-id mygame",
@@ -51,7 +51,7 @@ var catalogue = []commandSpec{
 	{
 		Name:          "adt games list",
 		Milestone:     "M5.B",
-		Description:   "Admin: list ADT games under a linkage's namespace (cli.md §6.4, PRD §4.8; STATUS_M5.md B12).",
+		Description:   "Admin: list ADT games under a linkage's namespace (cli.md §6.5, PRD §4.8; STATUS_M5.md B12).",
 		RequiredFlags: []flagSpec{{Name: "--linkage-id", Description: "adt_linkage_id (from `adt linkage list`)", ValueType: "uuid"}},
 		OptionalFlags: []flagSpec{dryRunFlag()},
 		Example:       "pth --namespace mygame --profile admin adt games list --linkage-id 01J0...",
@@ -70,7 +70,7 @@ var catalogue = []commandSpec{
 	{
 		Name:          "adt linkage list",
 		Milestone:     "M5.B",
-		Description:   "Admin: list every ADT linkage scoped to the caller's studio (cli.md §6.4, PRD §4.8).",
+		Description:   "Admin: list every ADT linkage scoped to the caller's studio (cli.md §6.5, PRD §4.8).",
 		OptionalFlags: []flagSpec{dryRunFlag()},
 		Example:       "pth --namespace mygame --profile admin adt linkage list",
 	},
