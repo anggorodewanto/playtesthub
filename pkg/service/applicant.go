@@ -222,9 +222,9 @@ func (s *PlaytesthubServiceServer) enqueueAutoApproveDM(ctx context.Context, pt 
 	if s.dmQueue == nil {
 		return
 	}
-	adtURL := ""
+	var adtURLs []string
 	if pt.DistributionModel == distModelADT {
-		u, _, urlErr := s.resolveADTDownloadURL(ctx, pt, updated)
+		urls, _, urlErr := s.resolveADTDownloadURL(ctx, pt, updated)
 		if urlErr != nil {
 			slog.WarnContext(ctx, "auto-approve DM skipped: ADT URL resolution failed",
 				"playtestId", pt.ID.String(),
@@ -232,9 +232,9 @@ func (s *PlaytesthubServiceServer) enqueueAutoApproveDM(ctx context.Context, pt 
 				"error", urlErr.Error())
 			return
 		}
-		adtURL = u
+		adtURLs = urls
 	}
-	_ = s.dmQueue.Enqueue(ctx, buildDMJob(updated, pt, false, s.playerBaseURL, adtURL))
+	_ = s.dmQueue.Enqueue(ctx, buildDMJob(updated, pt, false, s.playerBaseURL, adtURLs))
 }
 
 // errAutoApproveCapHit is the in-tx sentinel raised when the

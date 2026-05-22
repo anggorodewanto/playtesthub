@@ -2710,9 +2710,12 @@
     "v1GetADTDownloadInfoResponse": {
       "type": "object",
       "properties": {
-        "url": {
-          "type": "string",
-          "description": "Resolved download URL. Issued via adt.Client.IssueDownloadURL when\nADT can mint a per-applicant URL; falls back to the playtest's\nstatic adtFallbackDownloadUrl when ADT 4xx/5xx but the linkage row\nis still present."
+        "urls": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Resolved download URLs in ADT's original order. Issued via\nadt.Client.IssueDownloadURL when ADT can mint URLs (one per build\nasset — single-file builds → one element, multi-asset builds →\nmany); falls back to a single-element list containing the\nplaytest's static adtFallbackDownloadUrl when ADT 4xx/5xx but the\nlinkage row is still present."
         },
         "expiresAt": {
           "type": "string",
@@ -2721,7 +2724,7 @@
         },
         "source": {
           "type": "string",
-          "description": "\"issued\" (per-applicant ADT URL) or \"fallback\" (static playtest URL)."
+          "description": "\"issued\" (ADT-minted URLs) or \"fallback\" (static playtest URL)."
         }
       }
     },

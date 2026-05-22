@@ -3726,14 +3726,16 @@ func (x *GetADTDownloadInfoRequest) GetPlaytestId() string {
 
 type GetADTDownloadInfoResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Resolved download URL. Issued via adt.Client.IssueDownloadURL when
-	// ADT can mint a per-applicant URL; falls back to the playtest's
-	// static adtFallbackDownloadUrl when ADT 4xx/5xx but the linkage row
-	// is still present.
-	Url string `protobuf:"bytes,1,opt,name=url,proto3" json:"url,omitempty"`
+	// Resolved download URLs in ADT's original order. Issued via
+	// adt.Client.IssueDownloadURL when ADT can mint URLs (one per build
+	// asset — single-file builds → one element, multi-asset builds →
+	// many); falls back to a single-element list containing the
+	// playtest's static adtFallbackDownloadUrl when ADT 4xx/5xx but the
+	// linkage row is still present.
+	Urls []string `protobuf:"bytes,1,rep,name=urls,proto3" json:"urls,omitempty"`
 	// Optional expiry; zero when ADT does not surface one.
 	ExpiresAt *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
-	// "issued" (per-applicant ADT URL) or "fallback" (static playtest URL).
+	// "issued" (ADT-minted URLs) or "fallback" (static playtest URL).
 	Source        string `protobuf:"bytes,3,opt,name=source,proto3" json:"source,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -3769,11 +3771,11 @@ func (*GetADTDownloadInfoResponse) Descriptor() ([]byte, []int) {
 	return file_playtesthub_v1_playtesthub_proto_rawDescGZIP(), []int{45}
 }
 
-func (x *GetADTDownloadInfoResponse) GetUrl() string {
+func (x *GetADTDownloadInfoResponse) GetUrls() []string {
 	if x != nil {
-		return x.Url
+		return x.Urls
 	}
-	return ""
+	return nil
 }
 
 func (x *GetADTDownloadInfoResponse) GetExpiresAt() *timestamppb.Timestamp {
@@ -7655,9 +7657,9 @@ const file_playtesthub_v1_playtesthub_proto_rawDesc = "" +
 	"\x12distribution_model\x18\x02 \x01(\x0e2!.playtesthub.v1.DistributionModelR\x11distributionModel\"<\n" +
 	"\x19GetADTDownloadInfoRequest\x12\x1f\n" +
 	"\vplaytest_id\x18\x01 \x01(\tR\n" +
-	"playtestId\"\x81\x01\n" +
-	"\x1aGetADTDownloadInfoResponse\x12\x10\n" +
-	"\x03url\x18\x01 \x01(\tR\x03url\x129\n" +
+	"playtestId\"\x83\x01\n" +
+	"\x1aGetADTDownloadInfoResponse\x12\x12\n" +
+	"\x04urls\x18\x01 \x03(\tR\x04urls\x129\n" +
 	"\n" +
 	"expires_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\x12\x16\n" +
 	"\x06source\x18\x03 \x01(\tR\x06source\"\x82\x02\n" +

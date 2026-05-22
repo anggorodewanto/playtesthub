@@ -256,16 +256,36 @@
               class="rounded-lg border border-slate-200 bg-slate-50 p-4"
               data-testid="adt-download-card"
             >
-              <a
-                href={adtDownload.url}
-                data-testid="adt-download-link"
-                class="break-all font-medium text-indigo-700 underline hover:text-indigo-900"
-              >
-                Download playtest build
-              </a>
+              {#if adtDownload.urls.length <= 1}
+                <a
+                  href={adtDownload.urls[0] ?? '#'}
+                  data-testid="adt-download-link"
+                  class="break-all font-medium text-indigo-700 underline hover:text-indigo-900"
+                >
+                  Download playtest build
+                </a>
+              {:else}
+                <p class="font-medium text-slate-900" data-testid="adt-download-multi-heading">
+                  Download playtest build ({adtDownload.urls.length} files)
+                </p>
+                <ol class="mt-2 list-decimal space-y-1 pl-5 text-sm">
+                  {#each adtDownload.urls as url, i}
+                    <li>
+                      <a
+                        href={url}
+                        data-testid={`adt-download-link-${i}`}
+                        class="break-all font-medium text-indigo-700 underline hover:text-indigo-900"
+                      >
+                        File {i + 1}
+                      </a>
+                    </li>
+                  {/each}
+                </ol>
+              {/if}
               {#if adtDownload.expiresAt}
                 <p class="mt-2 text-xs text-slate-500" data-testid="adt-download-expiry">
-                  Link expires at {new Date(adtDownload.expiresAt).toLocaleString()}.
+                  Link{adtDownload.urls.length > 1 ? 's expire' : ' expires'} at
+                  {new Date(adtDownload.expiresAt).toLocaleString()}.
                 </p>
               {/if}
               {#if adtDownload.source === 'fallback'}

@@ -6,7 +6,7 @@
 import { z } from 'zod'
 
 export const V1GetAdtDownloadInfoResponse = z.object({
-  url: z.string().nullish(),
+  urls: z.array(z.string()).nullish(),
   expiresAt: z.string().nullish(),
   source: z.string().nullish()
 })

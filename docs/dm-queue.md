@@ -59,6 +59,27 @@ On process restart the backend scans all `APPROVED` applicants and re-marks lost
 - Surface: `lastDmStatus='failed'` with `lastDmError='missing_recipient'` plus the standard `applicant.dm_failed` audit row.
 - Why nullable: `discord_user_id` lands in migration 0004; rows persisted before that (or signups from non-Discord-federated IAM tokens) carry NULL. The queue treats this as a permanent per-applicant failure rather than an outage. An operator backfilling `discord_user_id` can then run RetryDM to re-enqueue.
 
+## DM body shape — ADT distribution
+
+ADT-distribution playtests substitute the standard "your code is here" copy with a build-download body. ADT returns a list of URLs (one per build asset — single-file builds → one element, multi-asset builds → many) and the DM surfaces every URL in ADT's original order.
+
+- **Single-URL build** (the common case):
+
+  ```text
+  Download your playtest build for "Acme Closed Beta": https://cdn.example/build.zip
+  ```
+
+- **Multi-URL build** (multi-asset releases — game binary + patcher + manifest, etc.) renders a numbered list, one tappable URL per line so Discord renders each as a separate link:
+
+  ```text
+  Download your playtest build for "Acme Closed Beta":
+  1) https://cdn.example/build.zip
+  2) https://cdn.example/manifest.bin
+  3) https://cdn.example/patcher.exe
+  ```
+
+`RetryDM` re-mints fresh URLs via `adt.Client.IssueDownloadURL` on every call because the previous URLs may have expired (ADT bounds them with a 24h CDN TTL — PRD §4.8.3). The same numbered-list rendering applies to the re-sent body. The audit row's `adtUrls` array (schema.md `applicant.approve`) records the URL list as minted at approve time; RetryDM does NOT rewrite that audit row even when a fresh resolution returns different URLs.
+
 ## `lastDmError` truncation
 
 - `lastDmError` is byte-truncated to **500 chars** (PRD §5.2 — Applicant entity).

@@ -208,8 +208,8 @@ func TestGetADTDownloadInfo_HappyPath(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetADTDownloadInfo: %v", err)
 	}
-	if resp.GetUrl() == "" {
-		t.Error("expected non-empty URL")
+	if len(resp.GetUrls()) == 0 {
+		t.Error("expected non-empty URL list")
 	}
 	if resp.GetSource() != adtURLSourceIssued {
 		t.Errorf("source = %q, want %q", resp.GetSource(), adtURLSourceIssued)

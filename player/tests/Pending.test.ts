@@ -313,7 +313,7 @@ describe('Pending', () => {
         },
       }),
       adtDownload: json(200, {
-        url: 'https://cdn.example.com/builds/abc.zip',
+        urls: ['https://cdn.example.com/builds/abc.zip'],
         expiresAt: '2026-05-21T00:00:00Z',
         source: 'issued',
       }),
@@ -338,7 +338,7 @@ describe('Pending', () => {
         },
       }),
       adtDownload: json(200, {
-        url: 'https://cdn.example.com/builds/abc.zip',
+        urls: ['https://cdn.example.com/builds/abc.zip'],
         source: 'issued',
       }),
     });
@@ -366,13 +366,47 @@ describe('Pending', () => {
         },
       }),
       adtDownload: json(200, {
-        url: 'https://cdn.example.com/builds/abc.zip',
+        urls: ['https://cdn.example.com/builds/abc.zip'],
         source: 'issued',
       }),
     });
     render(Pending, { config, slug: 'demo' });
     await screen.findByTestId('adt-download-link');
     expect(screen.queryByTestId('discord-invite-link-approved')).toBeNull();
+  });
+
+  it('renders one link per URL when ADT returns a multi-asset build', async () => {
+    setAccessToken('tok');
+    stubFetchByUrl({
+      playerPlaytest: playtestADT('demo'),
+      applicant: json(200, {
+        applicant: {
+          id: 'a1',
+          playtestId: 'pt-1',
+          status: 'APPLICANT_STATUS_APPROVED',
+          ndaVersionHash: '',
+        },
+      }),
+      adtDownload: json(200, {
+        urls: [
+          'https://cdn.example.com/builds/main.zip',
+          'https://cdn.example.com/builds/patch.bin',
+          'https://cdn.example.com/builds/manifest.json',
+        ],
+        source: 'issued',
+      }),
+    });
+    render(Pending, { config, slug: 'demo' });
+    const first = (await screen.findByTestId('adt-download-link-0')) as HTMLAnchorElement;
+    expect(first.href).toBe('https://cdn.example.com/builds/main.zip');
+    const second = screen.getByTestId('adt-download-link-1') as HTMLAnchorElement;
+    expect(second.href).toBe('https://cdn.example.com/builds/patch.bin');
+    const third = screen.getByTestId('adt-download-link-2') as HTMLAnchorElement;
+    expect(third.href).toBe('https://cdn.example.com/builds/manifest.json');
+    expect(screen.getByTestId('adt-download-multi-heading')).toHaveTextContent('3 files');
+    // Single-URL test-id must NOT be present in multi-URL mode (the
+    // single-link branch is skipped when urls.length > 1).
+    expect(screen.queryByTestId('adt-download-link')).toBeNull();
   });
 
   it('labels the fallback source on ADT downloads', async () => {
@@ -388,7 +422,7 @@ describe('Pending', () => {
         },
       }),
       adtDownload: json(200, {
-        url: 'https://example.com/fallback.zip',
+        urls: ['https://example.com/fallback.zip'],
         source: 'fallback',
       }),
     });
@@ -524,7 +558,7 @@ describe('Pending', () => {
         },
       }),
       adtDownload: json(200, {
-        url: 'https://cdn.example.com/builds/abc.zip',
+        urls: ['https://cdn.example.com/builds/abc.zip'],
         source: 'issued',
       }),
     });

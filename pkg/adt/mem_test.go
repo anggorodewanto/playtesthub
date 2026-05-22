@@ -76,8 +76,11 @@ func TestMemClient_IssueDownloadURL_PerApplicantUnique(t *testing.T) {
 	if err != nil {
 		t.Fatalf("first IssueDownloadURL: %v", err)
 	}
-	if !strings.Contains(first.URL, "applicant=user-1") {
-		t.Fatalf("URL missing applicant ident: %q", first.URL)
+	if len(first.URLs) != 1 {
+		t.Fatalf("first.URLs len = %d, want 1 (MemClient mints single-element list)", len(first.URLs))
+	}
+	if !strings.Contains(first.URLs[0], "applicant=user-1") {
+		t.Fatalf("URL missing applicant ident: %q", first.URLs[0])
 	}
 
 	params.ApplicantIdent = "user-2"
@@ -85,7 +88,7 @@ func TestMemClient_IssueDownloadURL_PerApplicantUnique(t *testing.T) {
 	if err != nil {
 		t.Fatalf("second IssueDownloadURL: %v", err)
 	}
-	if first.URL == second.URL {
+	if first.URLs[0] == second.URLs[0] {
 		t.Fatal("expected per-applicant URL uniqueness")
 	}
 

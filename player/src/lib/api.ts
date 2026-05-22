@@ -237,11 +237,14 @@ export async function fetchGrantedCode(
 }
 
 // AdtDownloadInfo mirrors the GetADTDownloadInfoResponse proto shape.
-// `source` is "issued" (per-applicant ADT URL) or "fallback" (static
-// per-playtest URL) — surfaced in the UI so the player can tell the
-// two apart per dm-queue.md "DM body shape — ADT".
+// `urls` lists every download URL ADT minted in original order — a
+// single-element list for single-file builds, multiple elements for
+// multi-asset builds. `source` is "issued" (ADT-minted URLs) or
+// "fallback" (static per-playtest URL, single-element list) — surfaced
+// in the UI so the player can tell the two apart per dm-queue.md
+// "DM body shape — ADT".
 export type AdtDownloadInfo = {
-  url: string;
+  urls: string[];
   expiresAt?: string;
   source: 'issued' | 'fallback' | string;
 };

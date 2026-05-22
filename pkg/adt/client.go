@@ -90,11 +90,12 @@ type Client interface {
 	ListBuilds(ctx context.Context, studioNamespace, adtNamespace, adtGameID string) ([]Build, error)
 
 	// IssueDownloadURL asks ADT to mint a per-build, time-bounded
-	// download URL. Per the 2026-05-20 ADT spec, the URL is per-build
-	// (not per-applicant) and TTL is fixed at 24h on the CDN. Returns
-	// the first URL when ADT surfaces multiple files (build assets) —
-	// playtest builds are expected to be a single file but the API
-	// allows multiple. Linkage missing / revoked → ErrLinkageMissing.
+	// download URL list. Per the 2026-05-20 ADT spec the URLs are
+	// per-build (not per-applicant) and TTL is fixed at 24h on the CDN.
+	// ADT may return multiple URLs when a build is split into multiple
+	// assets (game binary + patcher + manifest, multi-platform drops,
+	// etc.); IssuedDownloadURL.URLs surfaces the full list in ADT's
+	// original order. Linkage missing / revoked → ErrLinkageMissing.
 	//
 	// Per STATUS_M5.md B6, the service layer falls back to the
 	// playtest's adtFallbackDownloadUrl when ADT returns a non-401
@@ -170,11 +171,14 @@ type IssueDownloadURLParams struct {
 	ApplicantIdent string
 }
 
-// IssuedDownloadURL carries the ADT-minted URL + its expiry. ExpiresAt
-// is zero when ADT does not surface an expiry (the DM body in
-// docs/dm-queue.md "ADT distribution" omits the expiry line in that
-// case).
+// IssuedDownloadURL carries the ADT-minted URL list + its expiry.
+// ADT returns one URL per build asset (single-file builds → one
+// element; multi-asset builds → many) in ADT's original order; the
+// service layer surfaces the full list end-to-end (DM body, audit
+// log, GetADTDownloadInfo response). ExpiresAt is zero when ADT does
+// not surface an expiry (the DM body in docs/dm-queue.md "ADT
+// distribution" omits the expiry line in that case).
 type IssuedDownloadURL struct {
-	URL       string
+	URLs      []string
 	ExpiresAt time.Time
 }

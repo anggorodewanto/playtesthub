@@ -374,7 +374,7 @@ func TestApproveApplicant_EnqueuesAutoSendDM(t *testing.T) {
 // running without a public player origin keep the existing behaviour.
 func TestBuildApprovalDMBody_NoBaseURL_FallsBackToLegacyCopy(t *testing.T) {
 	pt := &repo.Playtest{Title: "Acme Closed Beta", Slug: "acme-beta"}
-	got := buildApprovalDMBody(pt, "", "")
+	got := buildApprovalDMBody(pt, "", nil)
 	want := `You're approved for "Acme Closed Beta". Open the playtest to view your code.`
 	if got != want {
 		t.Fatalf("legacy DM body mismatch:\n  got:  %q\n  want: %q", got, want)
@@ -387,10 +387,42 @@ func TestBuildApprovalDMBody_NoBaseURL_FallsBackToLegacyCopy(t *testing.T) {
 // as tappable links so no markdown wrapping is needed.
 func TestBuildApprovalDMBody_WithBaseURL_EmbedsHashRouterDeepLink(t *testing.T) {
 	pt := &repo.Playtest{Title: "Acme Closed Beta", Slug: "acme-beta"}
-	got := buildApprovalDMBody(pt, "https://anggorodewanto.github.io/playtesthub", "")
+	got := buildApprovalDMBody(pt, "https://anggorodewanto.github.io/playtesthub", nil)
 	want := `You're approved for "Acme Closed Beta". View your code: https://anggorodewanto.github.io/playtesthub/#/playtest/acme-beta/pending`
 	if got != want {
 		t.Fatalf("deep-link DM body mismatch:\n  got:  %q\n  want: %q", got, want)
+	}
+}
+
+// TestBuildApprovalDMBody_ADT_SingleURL pins the historical one-line
+// copy for the single-asset build case so existing operators see no
+// shape change.
+func TestBuildApprovalDMBody_ADT_SingleURL(t *testing.T) {
+	pt := &repo.Playtest{Title: "Acme Closed Beta", Slug: "acme-beta", DistributionModel: distModelADT}
+	got := buildApprovalDMBody(pt, "", []string{"https://cdn.example/build.zip"})
+	want := `Download your playtest build for "Acme Closed Beta": https://cdn.example/build.zip`
+	if got != want {
+		t.Fatalf("ADT single-URL DM body mismatch:\n  got:  %q\n  want: %q", got, want)
+	}
+}
+
+// TestBuildApprovalDMBody_ADT_MultiURL pins the numbered-list rendering
+// for multi-asset builds (game binary + patcher + manifest, etc.). Each
+// URL renders on its own line as "N) <url>" so Discord shows one
+// tappable link per asset.
+func TestBuildApprovalDMBody_ADT_MultiURL(t *testing.T) {
+	pt := &repo.Playtest{Title: "Acme Closed Beta", Slug: "acme-beta", DistributionModel: distModelADT}
+	got := buildApprovalDMBody(pt, "", []string{
+		"https://cdn.example/build.zip",
+		"https://cdn.example/manifest.bin",
+		"https://cdn.example/patcher.exe",
+	})
+	want := "Download your playtest build for \"Acme Closed Beta\":\n" +
+		"1) https://cdn.example/build.zip\n" +
+		"2) https://cdn.example/manifest.bin\n" +
+		"3) https://cdn.example/patcher.exe"
+	if got != want {
+		t.Fatalf("ADT multi-URL DM body mismatch:\n  got:  %q\n  want: %q", got, want)
 	}
 }
 

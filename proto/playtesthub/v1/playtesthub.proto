@@ -1258,14 +1258,16 @@ message GetADTDownloadInfoRequest {
   string playtest_id = 1;
 }
 message GetADTDownloadInfoResponse {
-  // Resolved download URL. Issued via adt.Client.IssueDownloadURL when
-  // ADT can mint a per-applicant URL; falls back to the playtest's
-  // static adtFallbackDownloadUrl when ADT 4xx/5xx but the linkage row
-  // is still present.
-  string url = 1;
+  // Resolved download URLs in ADT's original order. Issued via
+  // adt.Client.IssueDownloadURL when ADT can mint URLs (one per build
+  // asset — single-file builds → one element, multi-asset builds →
+  // many); falls back to a single-element list containing the
+  // playtest's static adtFallbackDownloadUrl when ADT 4xx/5xx but the
+  // linkage row is still present.
+  repeated string urls = 1;
   // Optional expiry; zero when ADT does not surface one.
   google.protobuf.Timestamp expires_at = 2;
-  // "issued" (per-applicant ADT URL) or "fallback" (static playtest URL).
+  // "issued" (ADT-minted URLs) or "fallback" (static playtest URL).
   string source = 3;
 }
 

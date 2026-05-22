@@ -2449,6 +2449,11 @@
         "autoApproved": {
           "type": "boolean",
           "description": "PRD §5.4 auto-approve (M5.A). True when this applicant was\napproved via the auto-approve signup chain rather than a manual\nApproveApplicant click. Used for cap accounting."
+        },
+        "surveyResponseSubmittedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Player-visible. Set when the caller has already submitted a survey\nresponse for this playtest (PRD §5.6 one-shot). Powers the\npost-submit \"Feedback submitted ✓\" affordance on the Pending page so\nthe client can flip CTA state without an extra round-trip. Unset\nwhen no response exists or surveys aren't configured."
         }
       },
       "description": "Applicant is the full admin-visible entity (schema.md §\"Applicant entity\").\nPlayer-visible responses carry the same message with restricted fields\npopulated — the handler layer enforces the visibility split (schema.md\nL86–88). Player-visible: status, granted_code_id (presence), approved_at,\nnda_version_hash."
@@ -2705,9 +2710,12 @@
     "v1GetADTDownloadInfoResponse": {
       "type": "object",
       "properties": {
-        "url": {
-          "type": "string",
-          "description": "Resolved download URL. Issued via adt.Client.IssueDownloadURL when\nADT can mint a per-applicant URL; falls back to the playtest's\nstatic adtFallbackDownloadUrl when ADT 4xx/5xx but the linkage row\nis still present."
+        "urls": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Resolved download URLs in ADT's original order. Issued via\nadt.Client.IssueDownloadURL when ADT can mint URLs (one per build\nasset — single-file builds → one element, multi-asset builds →\nmany); falls back to a single-element list containing the\nplaytest's static adtFallbackDownloadUrl when ADT 4xx/5xx but the\nlinkage row is still present."
         },
         "expiresAt": {
           "type": "string",
@@ -2716,7 +2724,7 @@
         },
         "source": {
           "type": "string",
-          "description": "\"issued\" (per-applicant ADT URL) or \"fallback\" (static playtest URL)."
+          "description": "\"issued\" (ADT-minted URLs) or \"fallback\" (static playtest URL)."
         }
       }
     },

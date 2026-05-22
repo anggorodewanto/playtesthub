@@ -64,11 +64,11 @@ CLI alternative: `pth playtest create --distribution-model=ADT --adt-namespace=�
 - Skips code reservation entirely.
 - Calls `GET <ADT_BASE>/profiling/namespaces/<adt_namespace>/agsplaytesthub/games/<adt_game_id>/builds/<adt_build_id>/downloadUrls?limit=20`.
 - On ADT 401 (linkage missing or revoked on the ADT side): the applicant stays `PENDING`; the admin sees `FailedPrecondition` "adt linkage no longer exists or service token rejected, re-link required". See §7 for recovery.
-- On ADT 4xx/5xx with the linkage row still present: falls back to `adt_fallback_download_url` if set (audit records `{adtUrlSource: 'fallback'}`); otherwise the applicant stays `PENDING` with `Unavailable`.
-- On success the welcome DM body reads `Download your playtest build for "<title>": <url>` (single line, no markdown). The URL is **per-build**, not per-applicant — every approved applicant for a given playtest receives the same URL, and ADT bounds it with a fixed 24-hour CDN TTL.
-- The `applicant.approve` audit row carries `{adtUrl, adtUrlSource}`. URLs are not redacted (URLs ≠ codes; forensics require the URL).
+- On ADT 4xx/5xx with the linkage row still present: falls back to a single-element list containing `adt_fallback_download_url` if set (audit records `{adtUrlSource: 'fallback'}`); otherwise the applicant stays `PENDING` with `Unavailable`.
+- On success the welcome DM body lists every URL ADT returned. Single-file builds → `Download your playtest build for "<title>": <url>` (one line, no markdown). Multi-asset builds → the same heading followed by `1) <url>` / `2) <url>` / … one URL per line. See [`dm-queue.md`](../dm-queue.md) §"DM body shape — ADT distribution" for examples. URLs are **per-build**, not per-applicant — every approved applicant for a given playtest receives the same URL list, and ADT bounds them with a fixed 24-hour CDN TTL.
+- The `applicant.approve` audit row carries `{adtUrls, adtUrlSource}` where `adtUrls` is a JSON array of every URL minted at approve time. URLs are not redacted (URLs ≠ codes; forensics require the URL list).
 
-`RetryDM` and `RetryFailedDms` re-mint a fresh URL because the prior 24h TTL may have expired.
+`RetryDM` and `RetryFailedDms` re-mint fresh URLs because the prior 24h TTL may have expired. The audit row's `adtUrls` snapshot is **not** rewritten on retry — it reflects the URLs minted at the original approve time.
 
 ## 6. Revocation
 

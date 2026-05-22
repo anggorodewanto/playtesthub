@@ -23,7 +23,8 @@ export const V1Applicant = z.object({
   lastDmAttemptAt: z.string().nullish(),
   lastDmError: z.string().nullish(),
   createdAt: z.string().nullish(),
-  autoApproved: z.boolean().nullish()
+  autoApproved: z.boolean().nullish(),
+  surveyResponseSubmittedAt: z.string().nullish()
 })
 
 export interface V1Applicant extends z.TypeOf<typeof V1Applicant> {}

@@ -65,14 +65,17 @@ type buildsKey struct {
 	game string
 }
 
-// IssuedDownloadURLLog records one minted URL for test assertions.
+// IssuedDownloadURLLog records one minted URL list for test
+// assertions. URLs mirrors IssuedDownloadURL.URLs (MemClient mints a
+// single-element list per call; the field is a slice so tests can
+// assert the multi-URL HTTPClient surface without diverging shape).
 type IssuedDownloadURLLog struct {
 	StudioNamespace string
 	ADTNamespace    string
 	ADTGameID       string
 	ADTBuildID      string
 	ApplicantIdent  string
-	URL             string
+	URLs            []string
 	IssuedAt        time.Time
 }
 
@@ -229,10 +232,10 @@ func (c *MemClient) IssueDownloadURL(_ context.Context, params IssueDownloadURLP
 		ADTGameID:       params.ADTGameID,
 		ADTBuildID:      params.ADTBuildID,
 		ApplicantIdent:  params.ApplicantIdent,
-		URL:             url,
+		URLs:            []string{url},
 		IssuedAt:        time.Now(),
 	})
-	return IssuedDownloadURL{URL: url, ExpiresAt: expires}, nil
+	return IssuedDownloadURL{URLs: []string{url}, ExpiresAt: expires}, nil
 }
 
 // DeleteLinkage best-effort clears the linkage flag for (studio,

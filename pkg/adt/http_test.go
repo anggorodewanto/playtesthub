@@ -276,8 +276,17 @@ func TestHTTPClient_IssueDownloadURL_HappyPath(t *testing.T) {
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}
-	if got.URL != "https://cdn.example/build.zip" {
-		t.Errorf("URL = %q", got.URL)
+	want := []string{
+		"https://cdn.example/build.zip",
+		"https://cdn.example/build-asset-2.bin",
+	}
+	if len(got.URLs) != len(want) {
+		t.Fatalf("URLs len = %d, want %d", len(got.URLs), len(want))
+	}
+	for i, u := range want {
+		if got.URLs[i] != u {
+			t.Errorf("URLs[%d] = %q, want %q", i, got.URLs[i], u)
+		}
 	}
 	if got.ExpiresAt.IsZero() {
 		t.Errorf("ExpiresAt zero, want parsed")
@@ -329,8 +338,8 @@ func TestHTTPClient_IssueDownloadURL_TopLevelExpiresAt(t *testing.T) {
 	if !got.ExpiresAt.Equal(wantExpiry) {
 		t.Fatalf("ExpiresAt = %v, want %v", got.ExpiresAt, wantExpiry)
 	}
-	if got.URL != "https://cdn.example/build.zip" {
-		t.Errorf("URL = %q", got.URL)
+	if len(got.URLs) != 1 || got.URLs[0] != "https://cdn.example/build.zip" {
+		t.Errorf("URLs = %v, want single [build.zip]", got.URLs)
 	}
 }
 

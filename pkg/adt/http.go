@@ -163,10 +163,11 @@ func (c *HTTPClient) ListBuilds(ctx context.Context, studioNamespace, adtNamespa
 }
 
 // IssueDownloadURL implements Client.IssueDownloadURL. ADT returns a
-// list of download URLs (one per build asset); per the 2026-05-20 spec
-// playtest builds are expected to be a single file, so we surface the
-// first URL. ApplicantIdent is forwarded as a query param for ADT-side
-// audit attribution but ADT does not scope the URL by it.
+// list of download URLs (one per build asset); the full list is
+// surfaced in IssuedDownloadURL.URLs in ADT's original order so
+// multi-asset builds round-trip without data loss. ApplicantIdent is
+// forwarded as a query param for ADT-side audit attribution but ADT
+// does not scope the URLs by it.
 func (c *HTTPClient) IssueDownloadURL(ctx context.Context, params IssueDownloadURLParams) (IssuedDownloadURL, error) {
 	if c.BaseURL == "" {
 		return IssuedDownloadURL{}, fmt.Errorf("adt: HTTPClient BaseURL is empty")
@@ -193,7 +194,9 @@ func (c *HTTPClient) IssueDownloadURL(ctx context.Context, params IssueDownloadU
 			expires = t
 		}
 	}
-	return IssuedDownloadURL{URL: raw.URLs[0], ExpiresAt: expires}, nil
+	urls := make([]string, len(raw.URLs))
+	copy(urls, raw.URLs)
+	return IssuedDownloadURL{URLs: urls, ExpiresAt: expires}, nil
 }
 
 // DeleteLinkage best-effort drops the ADT-side linkage flag — the

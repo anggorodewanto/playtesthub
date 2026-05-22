@@ -92,7 +92,7 @@ func (s *PlaytesthubServiceServer) ApproveApplicant(ctx context.Context, req *pb
 	// the approve RPC stays non-blocking on DM behaviour, matching the
 	// "approval RPC returns immediately" rule from dm-queue.md.
 	if s.dmQueue != nil {
-		_ = s.dmQueue.Enqueue(ctx, buildDMJob(updated, playtest, false, s.playerBaseURL, ""))
+		_ = s.dmQueue.Enqueue(ctx, buildDMJob(updated, playtest, false, s.playerBaseURL, nil))
 	}
 
 	return &pb.ApproveApplicantResponse{Applicant: adminApplicantToProto(updated)}, nil
@@ -103,7 +103,7 @@ func (s *PlaytesthubServiceServer) ApproveApplicant(ctx context.Context, req *pb
 // the playtest's static fallback), marks the applicant APPROVED with
 // no granted_code_id, writes the audit row + enqueues the DM.
 func (s *PlaytesthubServiceServer) approveADT(ctx context.Context, actorID uuid.UUID, applicant *repo.Applicant, playtest *repo.Playtest) (*pb.ApproveApplicantResponse, error) {
-	downloadURL, source, resolveErr := s.resolveADTDownloadURL(ctx, playtest, applicant)
+	downloadURLs, source, resolveErr := s.resolveADTDownloadURL(ctx, playtest, applicant)
 	if resolveErr != nil {
 		return nil, resolveErr
 	}
@@ -125,13 +125,13 @@ func (s *PlaytesthubServiceServer) approveADT(ctx context.Context, actorID uuid.
 	}
 
 	if s.audit != nil {
-		if auditErr := repo.AppendApplicantApproveADT(ctx, s.audit, s.namespace, playtest.ID, actorID, updated.ID, downloadURL, source); auditErr != nil {
+		if auditErr := repo.AppendApplicantApproveADT(ctx, s.audit, s.namespace, playtest.ID, actorID, updated.ID, downloadURLs, source); auditErr != nil {
 			return nil, status.Errorf(codes.Internal, "appending applicant.approve audit: %v", auditErr)
 		}
 	}
 
 	if s.dmQueue != nil {
-		_ = s.dmQueue.Enqueue(ctx, buildDMJob(updated, playtest, false, s.playerBaseURL, downloadURL))
+		_ = s.dmQueue.Enqueue(ctx, buildDMJob(updated, playtest, false, s.playerBaseURL, downloadURLs))
 	}
 	return &pb.ApproveApplicantResponse{Applicant: adminApplicantToProto(updated)}, nil
 }
@@ -144,21 +144,24 @@ const (
 	adtURLSourceFallback = "fallback"
 )
 
-// resolveADTDownloadURL is the shared ADT-URL resolver used by approve
-// and the RetryDM paths. ADT 4xx/5xx with the linkage row still present
-// fall back to playtest.adtFallbackDownloadUrl when set. Linkage missing
-// surfaces as FailedPrecondition with the byte-exact errors.md message.
-// No fallback + no linkage + Unavailable → leaves applicant PENDING.
-func (s *PlaytesthubServiceServer) resolveADTDownloadURL(ctx context.Context, playtest *repo.Playtest, applicant *repo.Applicant) (string, string, error) {
+// resolveADTDownloadURL is the shared ADT URL-list resolver used by
+// approve and the RetryDM paths. ADT 4xx/5xx with the linkage row
+// still present falls back to a single-element list containing
+// playtest.adtFallbackDownloadUrl when set. Linkage missing surfaces
+// as FailedPrecondition with the byte-exact errors.md message. No
+// fallback + no linkage + Unavailable → leaves applicant PENDING.
+// Returns the full URL list ADT minted (one element per build asset)
+// in ADT's original order.
+func (s *PlaytesthubServiceServer) resolveADTDownloadURL(ctx context.Context, playtest *repo.Playtest, applicant *repo.Applicant) ([]string, string, error) {
 	if s.adtClient == nil {
-		return "", "", status.Error(codes.Internal, "ADT client not configured")
+		return nil, "", status.Error(codes.Internal, "ADT client not configured")
 	}
 	if playtest.ADTNamespace == nil || playtest.ADTGameID == nil || playtest.ADTBuildID == nil {
-		return "", "", status.Error(codes.Internal, "ADT playtest missing identifiers")
+		return nil, "", status.Error(codes.Internal, "ADT playtest missing identifiers")
 	}
 	studio, err := s.resolveStudioNamespace(ctx)
 	if err != nil {
-		return "", "", err
+		return nil, "", err
 	}
 	issued, issueErr := s.adtClient.IssueDownloadURL(ctx, adt.IssueDownloadURLParams{
 		StudioNamespace: studio,
@@ -168,15 +171,15 @@ func (s *PlaytesthubServiceServer) resolveADTDownloadURL(ctx context.Context, pl
 		ApplicantIdent:  applicant.ID.String(),
 	})
 	if issueErr == nil {
-		return issued.URL, adtURLSourceIssued, nil
+		return issued.URLs, adtURLSourceIssued, nil
 	}
 	if errors.Is(issueErr, adt.ErrLinkageMissing) {
-		return "", "", status.Error(codes.FailedPrecondition, "adt linkage no longer exists or service token rejected, re-link required")
+		return nil, "", status.Error(codes.FailedPrecondition, "adt linkage no longer exists or service token rejected, re-link required")
 	}
 	if playtest.ADTFallbackDownloadURL != nil && *playtest.ADTFallbackDownloadURL != "" {
-		return *playtest.ADTFallbackDownloadURL, adtURLSourceFallback, nil
+		return []string{*playtest.ADTFallbackDownloadURL}, adtURLSourceFallback, nil
 	}
-	return "", "", status.Errorf(codes.Unavailable, "calling ADT IssueDownloadURL: %v", issueErr)
+	return nil, "", status.Errorf(codes.Unavailable, "calling ADT IssueDownloadURL: %v", issueErr)
 }
 
 // resolveApproveContext loads the applicant + playtest and returns
@@ -499,12 +502,12 @@ func (s *PlaytesthubServiceServer) GetADTDownloadInfo(ctx context.Context, req *
 	if a.Status != applicantStatusApproved {
 		return nil, status.Error(codes.NotFound, "no granted download")
 	}
-	url, source, resolveErr := s.resolveADTDownloadURL(ctx, pt, a)
+	urls, source, resolveErr := s.resolveADTDownloadURL(ctx, pt, a)
 	if resolveErr != nil {
 		return nil, resolveErr
 	}
 	out := &pb.GetADTDownloadInfoResponse{
-		Url:    url,
+		Urls:   urls,
 		Source: source,
 	}
 	return out, nil
