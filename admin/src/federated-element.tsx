@@ -542,7 +542,6 @@ type FormValues = {
   adtNamespace?: string
   adtGameId?: string
   adtBuildId?: string
-  adtFallbackDownloadUrl?: string
 }
 
 const AUTO_APPROVE_LIMIT_MIN = 1
@@ -679,12 +678,7 @@ function LinkADTModal({ open, onClose }: { open: boolean; onClose: () => void })
   )
 }
 
-// ADTCreateFields renders the ADT-only fields inside PlaytestCreatePage
-// when distribution_model = ADT. Pulls the studio's linkages + the
-// build list for the picked linkage; the build picker modal (B13) drives
-// adtGameId + adtBuildId together. Falls back to the legacy B7 inline
-// behaviour (typed adtGameId Input + flat build Select) when
-// ListADTGames is unavailable (5xx or empty list).
+// ADTCreateFields renders the ADT linkage Select + Select Game Build picker affordance inside the Distribution Model section. adtGameId + adtBuildId are written via the picker modal (B13).
 function ADTCreateFields({
   form,
   linkageId,
@@ -704,24 +698,8 @@ function ADTCreateFields({
     { adtLinkageId: linkageId },
     { enabled: !!linkageId, retry: false }
   )
-  const buildsQuery = usePlaytesthubServiceAdminApi_GetBuildsAdt_ByAdtLinkageId(
-    sdk,
-    { adtLinkageId: linkageId, queryParams: { adtGameId } },
-    { enabled: !!linkageId && !!adtGameId }
-  )
   const linkages = (linkagesQuery.data?.linkages ?? []) as V1AdtLinkage[]
   const games = (gamesQuery.data?.games ?? []) as V1AdtGame[]
-  const builds = (buildsQuery.data?.builds ?? []) as V1AdtBuild[]
-
-  // Picker-mode resolution:
-  //   no linkage picked yet → "picker" (button-only, disabled state); we
-  //     don't know yet whether games are available, but the modal flow is
-  //     the default UI.
-  //   linkage picked + games-list errored or returned empty → "fallback"
-  //     (typed adtGameId Input + flat build Select per B7).
-  //   linkage picked + games available → "picker" (modal flow).
-  const gamesUnavailable = !!gamesQuery.error || (!gamesQuery.isLoading && games.length === 0 && !!linkageId)
-  const mode: 'picker' | 'fallback' = linkageId && gamesUnavailable ? 'fallback' : 'picker'
 
   const linkageSelect = (
     <Form.Item label="ADT linkage" name="adtLinkageId" rules={[{ required: true, message: 'Pick a linked ADT namespace' }]}>
@@ -740,88 +718,45 @@ function ADTCreateFields({
     </Form.Item>
   )
 
-  const fallbackUrlField = (
-    <Form.Item
-      label="Static fallback download URL"
-      name="adtFallbackDownloadUrl"
-      rules={[{ type: 'url', message: 'Must be a URL' }]}
-      extra="Used when ADT cannot mint a per-applicant URL. https only.">
-      <Input placeholder="https://..." />
-    </Form.Item>
-  )
-
-  if (mode === 'picker') {
-    const pickedGame = games.find(g => g.id === adtGameId)
-    const pickedSummary =
-      adtGameId && adtBuildId ? (
-        <Typography.Text type="secondary">
-          Picked: <Typography.Text strong>{pickedGame?.name ?? adtGameId}</Typography.Text> /{' '}
-          <Typography.Text code>{adtBuildId}</Typography.Text>
-        </Typography.Text>
-      ) : (
-        <Typography.Text type="secondary">No build picked yet.</Typography.Text>
-      )
-    return (
-      <>
-        {linkageSelect}
-        <Form.Item label="ADT game id" name="adtGameId" rules={[{ required: true, message: 'Pick a game build via the picker' }]}>
-          <Input type="hidden" readOnly aria-hidden="true" />
-        </Form.Item>
-        <Form.Item label="ADT build id" name="adtBuildId" rules={[{ required: true, message: 'Pick a build via the picker' }]}>
-          <Input type="hidden" readOnly aria-hidden="true" />
-        </Form.Item>
-        <Form.Item label="Game build">
-          <Space direction="vertical" style={{ width: '100%' }}>
-            <Button onClick={() => setPickerOpen(true)} disabled={!linkageId} data-testid="adt-open-picker">
-              Select Game Build
-            </Button>
-            {pickedSummary}
-          </Space>
-        </Form.Item>
-        {fallbackUrlField}
-        <ADTBuildPickerModal
-          open={pickerOpen}
-          adtLinkageId={linkageId}
-          initialGameId={adtGameId || (games[0]?.id ?? '')}
-          games={games}
-          onCancel={() => setPickerOpen(false)}
-          onPick={(gameId, buildId) => {
-            form.setFieldValue('adtGameId', gameId)
-            form.setFieldValue('adtBuildId', buildId)
-            setPickerOpen(false)
-          }}
-        />
-      </>
+  const pickedGame = games.find(g => g.id === adtGameId)
+  const pickedSummary =
+    adtGameId && adtBuildId ? (
+      <Typography.Text type="secondary">
+        Picked: <Typography.Text strong>{pickedGame?.name ?? adtGameId}</Typography.Text> /{' '}
+        <Typography.Text code>{adtBuildId}</Typography.Text>
+      </Typography.Text>
+    ) : (
+      <Typography.Text type="secondary">No build picked yet.</Typography.Text>
     )
-  }
-
   return (
     <>
       {linkageSelect}
-      {gamesUnavailable && linkageId && (
-        <Form.Item>
-          <Alert
-            type="warning"
-            showIcon
-            message="ADT games list unavailable"
-            description="Falling back to typed game id + flat build list. Paste the ADT game id and pick a build below."
-          />
-        </Form.Item>
-      )}
-      <Form.Item label="ADT game id" name="adtGameId" rules={[{ required: true, message: 'ADT game id is required' }]}>
-        <Input placeholder="e.g. mygame" />
+      <Form.Item label="ADT game id" name="adtGameId" rules={[{ required: true, message: 'Pick a game build via the picker' }]}>
+        <Input type="hidden" readOnly aria-hidden="true" />
       </Form.Item>
-      <Form.Item label="ADT build id" name="adtBuildId" rules={[{ required: true, message: 'Pick a build' }]}>
-        {builds.length > 0 ? (
-          <Select
-            placeholder="Pick a build"
-            options={builds.map(b => ({ value: b.id, label: `${b.name ?? b.id} (${b.version ?? '—'})` }))}
-          />
-        ) : (
-          <Input placeholder="Build id (paste from ADT Hub)" disabled={!linkageId || !adtGameId} />
-        )}
+      <Form.Item label="ADT build id" name="adtBuildId" rules={[{ required: true, message: 'Pick a build via the picker' }]}>
+        <Input type="hidden" readOnly aria-hidden="true" />
       </Form.Item>
-      {fallbackUrlField}
+      <Form.Item label="Game build">
+        <Space direction="vertical" style={{ width: '100%' }}>
+          <Button onClick={() => setPickerOpen(true)} disabled={!linkageId} data-testid="adt-open-picker">
+            Select Game Build
+          </Button>
+          {pickedSummary}
+        </Space>
+      </Form.Item>
+      <ADTBuildPickerModal
+        open={pickerOpen}
+        adtLinkageId={linkageId}
+        initialGameId={adtGameId || (games[0]?.id ?? '')}
+        games={games}
+        onCancel={() => setPickerOpen(false)}
+        onPick={(gameId, buildId) => {
+          form.setFieldValue('adtGameId', gameId)
+          form.setFieldValue('adtBuildId', buildId)
+          setPickerOpen(false)
+        }}
+      />
     </>
   )
 }
@@ -1215,8 +1150,7 @@ function PlaytestCreatePage() {
         autoApproveLimit: values.autoApprove ? values.autoApproveLimit : undefined,
         adtNamespace: isADT ? values.adtNamespace : undefined,
         adtGameId: isADT ? values.adtGameId : undefined,
-        adtBuildId: isADT ? values.adtBuildId : undefined,
-        adtFallbackDownloadUrl: isADT ? values.adtFallbackDownloadUrl : undefined
+        adtBuildId: isADT ? values.adtBuildId : undefined
       }
     })
   }

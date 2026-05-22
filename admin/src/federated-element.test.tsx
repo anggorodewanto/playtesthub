@@ -403,9 +403,8 @@ describe('PlaytestCreatePage', () => {
     expect(await screen.findByLabelText(/adt linkage/i)).toBeInTheDocument()
     // The build picker modal (B13) is the canonical UX; the typed adt game
     // id Input only renders in the fallback path. Confirm the picker button
-    // is offered alongside the static fallback URL.
+    // is offered.
     expect(screen.getByRole('button', { name: /select game build/i })).toBeInTheDocument()
-    expect(screen.getByLabelText(/static fallback download url/i)).toBeInTheDocument()
   })
 
   describe('Build picker modal (M5.B-13)', () => {
@@ -504,33 +503,6 @@ describe('PlaytestCreatePage', () => {
       expect(within(dialog).getByText(/macos/i)).toBeInTheDocument()
       expect(within(dialog).getByText('b1')).toBeInTheDocument()
       expect(within(dialog).getByText('b2')).toBeInTheDocument()
-    })
-
-    it('falls back to typed game id + flat build select when ListADTGames returns 5xx', async () => {
-      setLinkages()
-      mockGetAdtGames.mockReturnValue({
-        data: undefined,
-        isLoading: false,
-        error: { response: { status: 503 } }
-      })
-      mockGetAdtBuilds.mockReturnValue({
-        data: { builds: [{ id: 'b1', name: 'v1.0', version: 'v1.0', platform: 'windows', uploadedAt: '2026-04-01T00:00:00Z' }] },
-        isLoading: false,
-        error: null
-      })
-      renderAt('/new')
-      const user = userEvent.setup()
-      await user.click(screen.getByRole('radio', { name: /^ADT$/i }))
-      // Picking the linkage is what triggers the games-list lookup; the 5xx
-      // response (mocked) is what flips us into fallback mode.
-      await user.click(screen.getByLabelText(/adt linkage/i))
-      await user.click(await screen.findByText(/adt-ns-1/i))
-      // Fallback retains the typed Input for adt game id + a flat build select.
-      expect(await screen.findByLabelText(/adt game id/i)).toBeInTheDocument()
-      expect(screen.getByLabelText(/adt build id/i)).toBeInTheDocument()
-      expect(screen.queryByRole('button', { name: /select game build/i })).not.toBeInTheDocument()
-      // ADT outage banner must surface so operators know why the picker is unavailable.
-      expect(screen.getByText(/adt games list unavailable/i)).toBeInTheDocument()
     })
 
     it('wires both adtGameId and adtBuildId on the parent form when Use This Build is clicked', async () => {
