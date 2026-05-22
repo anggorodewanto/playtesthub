@@ -822,7 +822,7 @@ function ADTBuildPickerModal({
       okButtonProps={{ disabled: !gameId || !pickedBuildId }}
       onOk={handleUseBuild}>
       <Typography.Paragraph type="secondary">
-        Choose a namespace, select a version, then pick a specific build to use for this playtest.
+        Choose a game, select a version, then pick a specific build to use for this playtest.
       </Typography.Paragraph>
       <div style={{ display: 'flex', gap: 16 }}>
         <div style={{ width: 280 }}>
