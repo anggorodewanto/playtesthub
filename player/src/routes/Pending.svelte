@@ -237,6 +237,20 @@
               Check your Discord DMs from
               <strong class="font-semibold">PlaytestHub Bot</strong>. Make sure your DMs are open
               so the bot can reach you.
+              {#if config.discordInviteUrl}
+                <span class="mt-2 block">
+                  You must also join our Discord server so the bot can reach you —
+                  <a
+                    href={config.discordInviteUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    data-testid="discord-invite-link-approved"
+                    class="font-medium text-indigo-700 underline hover:text-indigo-900"
+                  >
+                    Open Discord invite →
+                  </a>
+                </span>
+              {/if}
             </Banner>
             <div
               class="rounded-lg border border-slate-200 bg-slate-50 p-4"
@@ -274,6 +288,25 @@
             <p class="text-sm text-slate-500">Loading your download link…</p>
           {/if}
         {:else if grantedCode}
+          <Banner tone="info">
+            Check your Discord DMs from
+            <strong class="font-semibold">PlaytestHub Bot</strong>. Make sure your DMs are open
+            so the bot can reach you.
+            {#if config.discordInviteUrl}
+              <span class="mt-2 block">
+                You must also join our Discord server so the bot can reach you —
+                <a
+                  href={config.discordInviteUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  data-testid="discord-invite-link-approved"
+                  class="font-medium text-indigo-700 underline hover:text-indigo-900"
+                >
+                  Open Discord invite →
+                </a>
+              </span>
+            {/if}
+          </Banner>
           <div class="flex items-center gap-2">
             <input
               type="text"

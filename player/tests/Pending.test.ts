@@ -124,7 +124,7 @@ describe('Pending', () => {
     expect(link.rel).toContain('noopener');
   });
 
-  it('does not show the Discord invite link on APPROVED even when configured', async () => {
+  it('shows the Discord-server join link on APPROVED code-distribution when discordInviteUrl is configured', async () => {
     setAccessToken('tok');
     stubFetchByUrl({
       playerPlaytest: playtestNoNda('demo'),
@@ -141,12 +141,41 @@ describe('Pending', () => {
         distributionModel: 'DISTRIBUTION_MODEL_STEAM_KEYS',
       }),
     });
+    const inviteUrl = 'https://discord.gg/playtesthub-demo';
     render(Pending, {
-      config: { ...config, discordInviteUrl: 'https://discord.gg/playtesthub-demo' },
+      config: { ...config, discordInviteUrl: inviteUrl },
       slug: 'demo',
     });
     await screen.findByText(/you're approved/i);
+    const link = (await screen.findByTestId('discord-invite-link-approved')) as HTMLAnchorElement;
+    expect(link.href).toBe(inviteUrl);
+    expect(link.target).toBe('_blank');
+    expect(link.rel).toContain('noopener');
+    // PENDING-specific invite link must not appear on APPROVED — it uses a
+    // different testid.
     expect(screen.queryByTestId('discord-invite-link')).toBeNull();
+  });
+
+  it('omits the Discord-server join link on APPROVED code-distribution when discordInviteUrl is not configured', async () => {
+    setAccessToken('tok');
+    stubFetchByUrl({
+      playerPlaytest: playtestNoNda('demo'),
+      applicant: json(200, {
+        applicant: {
+          id: 'a1',
+          playtestId: 'pt-1',
+          status: 'APPLICANT_STATUS_APPROVED',
+          ndaVersionHash: '',
+        },
+      }),
+      grantedCode: json(200, {
+        value: 'STEAM-AAAA-BBBB-CCCC',
+        distributionModel: 'DISTRIBUTION_MODEL_STEAM_KEYS',
+      }),
+    });
+    render(Pending, { config, slug: 'demo' });
+    await screen.findByText(/you're approved/i);
+    expect(screen.queryByTestId('discord-invite-link-approved')).toBeNull();
   });
 
   it('shows generic not-selected copy on REJECTED (no rejection reason shown)', async () => {
@@ -292,6 +321,56 @@ describe('Pending', () => {
     expect(link.href).toBe('https://cdn.example.com/builds/abc.zip');
     expect(screen.getByTestId('adt-download-expiry')).toHaveTextContent(/Link expires/);
     expect(screen.queryByTestId('adt-download-source')).toBeNull();
+  });
+
+  it('shows the Discord-server join link on APPROVED ADT when discordInviteUrl is configured', async () => {
+    setAccessToken('tok');
+    stubFetchByUrl({
+      playerPlaytest: playtestADT('demo'),
+      applicant: json(200, {
+        applicant: {
+          id: 'a1',
+          playtestId: 'pt-1',
+          status: 'APPLICANT_STATUS_APPROVED',
+          ndaVersionHash: '',
+        },
+      }),
+      adtDownload: json(200, {
+        url: 'https://cdn.example.com/builds/abc.zip',
+        source: 'issued',
+      }),
+    });
+    const inviteUrl = 'https://discord.gg/playtesthub-demo';
+    render(Pending, {
+      config: { ...config, discordInviteUrl: inviteUrl },
+      slug: 'demo',
+    });
+    const link = (await screen.findByTestId('discord-invite-link-approved')) as HTMLAnchorElement;
+    expect(link.href).toBe(inviteUrl);
+    expect(link.target).toBe('_blank');
+    expect(link.rel).toContain('noopener');
+  });
+
+  it('omits the Discord-server join link on APPROVED ADT when discordInviteUrl is not configured', async () => {
+    setAccessToken('tok');
+    stubFetchByUrl({
+      playerPlaytest: playtestADT('demo'),
+      applicant: json(200, {
+        applicant: {
+          id: 'a1',
+          playtestId: 'pt-1',
+          status: 'APPLICANT_STATUS_APPROVED',
+          ndaVersionHash: '',
+        },
+      }),
+      adtDownload: json(200, {
+        url: 'https://cdn.example.com/builds/abc.zip',
+        source: 'issued',
+      }),
+    });
+    render(Pending, { config, slug: 'demo' });
+    await screen.findByTestId('adt-download-link');
+    expect(screen.queryByTestId('discord-invite-link-approved')).toBeNull();
   });
 
   it('labels the fallback source on ADT downloads', async () => {
