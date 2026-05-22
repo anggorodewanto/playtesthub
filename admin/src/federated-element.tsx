@@ -731,6 +731,9 @@ function ADTCreateFields({
   return (
     <>
       {linkageSelect}
+      <Form.Item name="adtNamespace" hidden rules={[{ required: true, message: 'Pick an ADT linkage' }]}>
+        <Input />
+      </Form.Item>
       <Form.Item name="adtGameId" hidden rules={[{ required: true, message: 'Pick a game build via the picker' }]}>
         <Input />
       </Form.Item>
