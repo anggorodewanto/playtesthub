@@ -39,7 +39,7 @@ const stubFetchByUrl = (routes: Routes) => {
   return fn;
 };
 
-const playtestNoNda = (slug: string) =>
+const playtestNoNda = (slug: string, extras: Record<string, unknown> = {}) =>
   json(200, {
     playtest: {
       slug,
@@ -50,10 +50,11 @@ const playtestNoNda = (slug: string) =>
       ndaText: '',
       currentNdaVersionHash: '',
       distributionModel: 'DISTRIBUTION_MODEL_STEAM_KEYS',
+      ...extras,
     },
   });
 
-const playtestADT = (slug: string) =>
+const playtestADT = (slug: string, extras: Record<string, unknown> = {}) =>
   json(200, {
     playtest: {
       slug,
@@ -64,6 +65,7 @@ const playtestADT = (slug: string) =>
       ndaText: '',
       currentNdaVersionHash: '',
       distributionModel: 'DISTRIBUTION_MODEL_ADT',
+      ...extras,
     },
   });
 
@@ -428,5 +430,163 @@ describe('Pending', () => {
     });
     render(Pending, { config, slug: 'demo' });
     expect(await screen.findByRole('alert')).toHaveTextContent(/not available yet/i);
+  });
+
+  // Survey-discovery phase 1 (PRD §5.6): the Pending page surfaces a CTA
+  // for the survey when the playtest is configured with one. The CTA
+  // flips between "Submit feedback" and "Feedback submitted ✓" based on
+  // the server-supplied `surveyResponseSubmittedAt` field so the player
+  // sees the right affordance without an extra round-trip.
+  it('omits the survey CTA when playtest has no surveyId (STEAM_KEYS)', async () => {
+    setAccessToken('tok');
+    stubFetchByUrl({
+      playerPlaytest: playtestNoNda('demo'),
+      applicant: json(200, {
+        applicant: {
+          id: 'a1',
+          playtestId: 'pt-1',
+          status: 'APPLICANT_STATUS_APPROVED',
+          ndaVersionHash: '',
+        },
+      }),
+      grantedCode: json(200, {
+        value: 'STEAM-AAAA',
+        distributionModel: 'DISTRIBUTION_MODEL_STEAM_KEYS',
+      }),
+    });
+    render(Pending, { config, slug: 'demo' });
+    await screen.findByTestId('granted-code-value');
+    expect(screen.queryByTestId('survey-cta-link')).toBeNull();
+    expect(screen.queryByTestId('survey-cta-submitted')).toBeNull();
+  });
+
+  it('renders the survey CTA link when surveyId is set and no response is recorded', async () => {
+    setAccessToken('tok');
+    stubFetchByUrl({
+      playerPlaytest: playtestNoNda('demo', { surveyId: 'srv-1' }),
+      applicant: json(200, {
+        applicant: {
+          id: 'a1',
+          playtestId: 'pt-1',
+          status: 'APPLICANT_STATUS_APPROVED',
+          ndaVersionHash: '',
+        },
+      }),
+      grantedCode: json(200, {
+        value: 'STEAM-AAAA',
+        distributionModel: 'DISTRIBUTION_MODEL_STEAM_KEYS',
+      }),
+    });
+    render(Pending, { config, slug: 'demo' });
+    const cta = (await screen.findByTestId('survey-cta-link')) as HTMLAnchorElement;
+    // surveyPath is hash-routed — link must include the hash prefix so a
+    // plain anchor click triggers a route change.
+    expect(cta.getAttribute('href')).toBe('#/playtest/demo/survey');
+    expect(screen.queryByTestId('survey-cta-submitted')).toBeNull();
+  });
+
+  it('renders the survey CTA submitted label with timestamp when surveyResponseSubmittedAt is set', async () => {
+    setAccessToken('tok');
+    stubFetchByUrl({
+      playerPlaytest: playtestNoNda('demo', { surveyId: 'srv-1' }),
+      applicant: json(200, {
+        applicant: {
+          id: 'a1',
+          playtestId: 'pt-1',
+          status: 'APPLICANT_STATUS_APPROVED',
+          ndaVersionHash: '',
+          surveyResponseSubmittedAt: '2026-05-22T09:00:00Z',
+        },
+      }),
+      grantedCode: json(200, {
+        value: 'STEAM-AAAA',
+        distributionModel: 'DISTRIBUTION_MODEL_STEAM_KEYS',
+      }),
+    });
+    render(Pending, { config, slug: 'demo' });
+    const submitted = await screen.findByTestId('survey-cta-submitted');
+    expect(submitted).toHaveTextContent(/Feedback submitted/);
+    expect(screen.queryByTestId('survey-cta-link')).toBeNull();
+    const time = submitted.parentElement?.querySelector('time');
+    expect(time?.getAttribute('datetime')).toBe('2026-05-22T09:00:00Z');
+  });
+
+  it('also shows the survey CTA on ADT-distribution playtests', async () => {
+    setAccessToken('tok');
+    stubFetchByUrl({
+      playerPlaytest: playtestADT('demo', { surveyId: 'srv-1' }),
+      applicant: json(200, {
+        applicant: {
+          id: 'a1',
+          playtestId: 'pt-1',
+          status: 'APPLICANT_STATUS_APPROVED',
+          ndaVersionHash: '',
+        },
+      }),
+      adtDownload: json(200, {
+        url: 'https://cdn.example.com/builds/abc.zip',
+        source: 'issued',
+      }),
+    });
+    render(Pending, { config, slug: 'demo' });
+    await screen.findByTestId('adt-download-link');
+    const cta = (await screen.findByTestId('survey-cta-link')) as HTMLAnchorElement;
+    expect(cta.getAttribute('href')).toBe('#/playtest/demo/survey');
+  });
+
+  it('hides the survey CTA when NDA re-accept is required (server bounces submits)', async () => {
+    setAccessToken('tok');
+    stubFetchByUrl({
+      playerPlaytest: playtestNdaV2('demo'),
+      applicant: json(200, {
+        applicant: {
+          id: 'a1',
+          playtestId: 'pt-1',
+          status: 'APPLICANT_STATUS_APPROVED',
+          ndaVersionHash: 'sha-v1', // diverges from current sha-v2
+          // Server would attach surveyId on the playtest, but the
+          // re-accept-required client guard should hide the CTA
+          // anyway.
+        },
+      }),
+      grantedCode: json(200, {
+        value: 'STILL-VISIBLE-CODE',
+        distributionModel: 'DISTRIBUTION_MODEL_STEAM_KEYS',
+      }),
+    });
+    // playtestNdaV2 does not carry surveyId; emulate a surveyed playtest
+    // by overriding the response.
+    const surveyedNdaV2 = json(200, {
+      playtest: {
+        slug: 'demo',
+        title: 't',
+        description: 'd',
+        status: 'PLAYTEST_STATUS_OPEN',
+        ndaRequired: true,
+        ndaText: 'v2',
+        currentNdaVersionHash: 'sha-v2',
+        distributionModel: 'DISTRIBUTION_MODEL_STEAM_KEYS',
+        surveyId: 'srv-1',
+      },
+    });
+    stubFetchByUrl({
+      playerPlaytest: surveyedNdaV2,
+      applicant: json(200, {
+        applicant: {
+          id: 'a1',
+          playtestId: 'pt-1',
+          status: 'APPLICANT_STATUS_APPROVED',
+          ndaVersionHash: 'sha-v1',
+        },
+      }),
+      grantedCode: json(200, {
+        value: 'STILL-VISIBLE-CODE',
+        distributionModel: 'DISTRIBUTION_MODEL_STEAM_KEYS',
+      }),
+    });
+    render(Pending, { config, slug: 'demo' });
+    await screen.findByTestId('granted-code-value');
+    expect(screen.queryByTestId('survey-cta-link')).toBeNull();
+    expect(screen.queryByTestId('survey-cta-submitted')).toBeNull();
   });
 });

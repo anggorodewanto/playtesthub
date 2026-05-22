@@ -1033,9 +1033,15 @@ type Applicant struct {
 	// PRD §5.4 auto-approve (M5.A). True when this applicant was
 	// approved via the auto-approve signup chain rather than a manual
 	// ApproveApplicant click. Used for cap accounting.
-	AutoApproved  bool `protobuf:"varint,15,opt,name=auto_approved,json=autoApproved,proto3" json:"auto_approved,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	AutoApproved bool `protobuf:"varint,15,opt,name=auto_approved,json=autoApproved,proto3" json:"auto_approved,omitempty"`
+	// Player-visible. Set when the caller has already submitted a survey
+	// response for this playtest (PRD §5.6 one-shot). Powers the
+	// post-submit "Feedback submitted ✓" affordance on the Pending page so
+	// the client can flip CTA state without an extra round-trip. Unset
+	// when no response exists or surveys aren't configured.
+	SurveyResponseSubmittedAt *timestamppb.Timestamp `protobuf:"bytes,16,opt,name=survey_response_submitted_at,json=surveyResponseSubmittedAt,proto3" json:"survey_response_submitted_at,omitempty"`
+	unknownFields             protoimpl.UnknownFields
+	sizeCache                 protoimpl.SizeCache
 }
 
 func (x *Applicant) Reset() {
@@ -1171,6 +1177,13 @@ func (x *Applicant) GetAutoApproved() bool {
 		return x.AutoApproved
 	}
 	return false
+}
+
+func (x *Applicant) GetSurveyResponseSubmittedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.SurveyResponseSubmittedAt
+	}
+	return nil
 }
 
 // NDAAcceptance — append-only acceptance row (schema.md §"NDA"). PK is
@@ -7416,7 +7429,7 @@ const file_playtesthub_v1_playtesthub_proto_rawDesc = "" +
 	"\tsurvey_id\x18\f \x01(\tH\x00R\bsurveyId\x88\x01\x01\x12P\n" +
 	"\x12distribution_model\x18\r \x01(\x0e2!.playtesthub.v1.DistributionModelR\x11distributionModelB\f\n" +
 	"\n" +
-	"_survey_id\"\x98\x06\n" +
+	"_survey_id\"\xf5\x06\n" +
 	"\tApplicant\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1f\n" +
 	"\vplaytest_id\x18\x02 \x01(\tR\n" +
@@ -7436,7 +7449,8 @@ const file_playtesthub_v1_playtesthub_proto_rawDesc = "" +
 	"\rlast_dm_error\x18\r \x01(\tH\x03R\vlastDmError\x88\x01\x01\x129\n" +
 	"\n" +
 	"created_at\x18\x0e \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x12#\n" +
-	"\rauto_approved\x18\x0f \x01(\bR\fautoApprovedB\x13\n" +
+	"\rauto_approved\x18\x0f \x01(\bR\fautoApproved\x12[\n" +
+	"\x1csurvey_response_submitted_at\x18\x10 \x01(\v2\x1a.google.protobuf.TimestampR\x19surveyResponseSubmittedAtB\x13\n" +
 	"\x11_nda_version_hashB\x12\n" +
 	"\x10_granted_code_idB\x13\n" +
 	"\x11_rejection_reasonB\x10\n" +
@@ -8278,176 +8292,177 @@ var file_playtesthub_v1_playtesthub_proto_depIdxs = []int32{
 	4,   // 19: playtesthub.v1.Applicant.last_dm_status:type_name -> playtesthub.v1.DmStatus
 	116, // 20: playtesthub.v1.Applicant.last_dm_attempt_at:type_name -> google.protobuf.Timestamp
 	116, // 21: playtesthub.v1.Applicant.created_at:type_name -> google.protobuf.Timestamp
-	116, // 22: playtesthub.v1.NDAAcceptance.accepted_at:type_name -> google.protobuf.Timestamp
-	5,   // 23: playtesthub.v1.Code.state:type_name -> playtesthub.v1.CodeState
-	116, // 24: playtesthub.v1.Code.reserved_at:type_name -> google.protobuf.Timestamp
-	116, // 25: playtesthub.v1.Code.granted_at:type_name -> google.protobuf.Timestamp
-	116, // 26: playtesthub.v1.Code.created_at:type_name -> google.protobuf.Timestamp
-	8,   // 27: playtesthub.v1.SurveyQuestion.type:type_name -> playtesthub.v1.SurveyQuestionType
-	16,  // 28: playtesthub.v1.SurveyQuestion.options:type_name -> playtesthub.v1.MultiChoiceOption
-	17,  // 29: playtesthub.v1.Survey.questions:type_name -> playtesthub.v1.SurveyQuestion
-	116, // 30: playtesthub.v1.Survey.created_at:type_name -> google.protobuf.Timestamp
-	19,  // 31: playtesthub.v1.SurveyAnswer.multi_choice:type_name -> playtesthub.v1.SurveyMultiChoiceAnswer
-	20,  // 32: playtesthub.v1.SurveyResponse.answers:type_name -> playtesthub.v1.SurveyAnswer
-	116, // 33: playtesthub.v1.SurveyResponse.submitted_at:type_name -> google.protobuf.Timestamp
-	116, // 34: playtesthub.v1.AuditLogEntry.created_at:type_name -> google.protobuf.Timestamp
-	10,  // 35: playtesthub.v1.GetPublicPlaytestResponse.playtest:type_name -> playtesthub.v1.PublicPlaytest
-	11,  // 36: playtesthub.v1.GetPlaytestForPlayerResponse.playtest:type_name -> playtesthub.v1.PlayerPlaytest
-	9,   // 37: playtesthub.v1.AdminGetPlaytestResponse.playtest:type_name -> playtesthub.v1.Playtest
-	9,   // 38: playtesthub.v1.ListPlaytestsResponse.playtests:type_name -> playtesthub.v1.Playtest
-	0,   // 39: playtesthub.v1.CreatePlaytestRequest.platforms:type_name -> playtesthub.v1.Platform
-	116, // 40: playtesthub.v1.CreatePlaytestRequest.starts_at:type_name -> google.protobuf.Timestamp
-	116, // 41: playtesthub.v1.CreatePlaytestRequest.ends_at:type_name -> google.protobuf.Timestamp
-	2,   // 42: playtesthub.v1.CreatePlaytestRequest.distribution_model:type_name -> playtesthub.v1.DistributionModel
-	9,   // 43: playtesthub.v1.CreatePlaytestResponse.playtest:type_name -> playtesthub.v1.Playtest
-	0,   // 44: playtesthub.v1.EditPlaytestRequest.platforms:type_name -> playtesthub.v1.Platform
-	116, // 45: playtesthub.v1.EditPlaytestRequest.starts_at:type_name -> google.protobuf.Timestamp
-	116, // 46: playtesthub.v1.EditPlaytestRequest.ends_at:type_name -> google.protobuf.Timestamp
-	9,   // 47: playtesthub.v1.EditPlaytestResponse.playtest:type_name -> playtesthub.v1.Playtest
-	1,   // 48: playtesthub.v1.TransitionPlaytestStatusRequest.target_status:type_name -> playtesthub.v1.PlaytestStatus
-	9,   // 49: playtesthub.v1.TransitionPlaytestStatusResponse.playtest:type_name -> playtesthub.v1.Playtest
-	0,   // 50: playtesthub.v1.SignupRequest.platforms:type_name -> playtesthub.v1.Platform
-	12,  // 51: playtesthub.v1.SignupResponse.applicant:type_name -> playtesthub.v1.Applicant
-	12,  // 52: playtesthub.v1.GetApplicantStatusResponse.applicant:type_name -> playtesthub.v1.Applicant
-	13,  // 53: playtesthub.v1.AcceptNDAResponse.acceptance:type_name -> playtesthub.v1.NDAAcceptance
-	2,   // 54: playtesthub.v1.GetGrantedCodeResponse.distribution_model:type_name -> playtesthub.v1.DistributionModel
-	116, // 55: playtesthub.v1.GetADTDownloadInfoResponse.expires_at:type_name -> google.protobuf.Timestamp
-	3,   // 56: playtesthub.v1.ListApplicantsRequest.status_filter:type_name -> playtesthub.v1.ApplicantStatus
-	12,  // 57: playtesthub.v1.ListApplicantsResponse.applicants:type_name -> playtesthub.v1.Applicant
-	12,  // 58: playtesthub.v1.ApproveApplicantResponse.applicant:type_name -> playtesthub.v1.Applicant
-	12,  // 59: playtesthub.v1.RejectApplicantResponse.applicant:type_name -> playtesthub.v1.Applicant
-	12,  // 60: playtesthub.v1.RetryDMResponse.applicant:type_name -> playtesthub.v1.Applicant
-	64,  // 61: playtesthub.v1.UploadCodesResponse.rejections:type_name -> playtesthub.v1.UploadCodesRejection
-	15,  // 62: playtesthub.v1.TopUpCodesResponse.pool:type_name -> playtesthub.v1.CodePoolStats
-	15,  // 63: playtesthub.v1.SyncFromAGSResponse.pool:type_name -> playtesthub.v1.CodePoolStats
-	15,  // 64: playtesthub.v1.GetCodePoolResponse.stats:type_name -> playtesthub.v1.CodePoolStats
-	14,  // 65: playtesthub.v1.GetCodePoolResponse.codes:type_name -> playtesthub.v1.Code
-	17,  // 66: playtesthub.v1.CreateSurveyRequest.questions:type_name -> playtesthub.v1.SurveyQuestion
-	18,  // 67: playtesthub.v1.CreateSurveyResponse.survey:type_name -> playtesthub.v1.Survey
-	17,  // 68: playtesthub.v1.EditSurveyRequest.questions:type_name -> playtesthub.v1.SurveyQuestion
-	18,  // 69: playtesthub.v1.EditSurveyResponse.survey:type_name -> playtesthub.v1.Survey
-	18,  // 70: playtesthub.v1.GetSurveyResponse.survey:type_name -> playtesthub.v1.Survey
-	20,  // 71: playtesthub.v1.SubmitSurveyResponseRequest.answers:type_name -> playtesthub.v1.SurveyAnswer
-	21,  // 72: playtesthub.v1.SubmitSurveyResponseResponse.response:type_name -> playtesthub.v1.SurveyResponse
-	21,  // 73: playtesthub.v1.ListSurveyResponsesResponse.responses:type_name -> playtesthub.v1.SurveyResponse
-	22,  // 74: playtesthub.v1.ListAuditLogResponse.entries:type_name -> playtesthub.v1.AuditLogEntry
-	116, // 75: playtesthub.v1.WorkerHealthEntry.last_tick_at:type_name -> google.protobuf.Timestamp
-	116, // 76: playtesthub.v1.WorkerHealthEntry.expires_at:type_name -> google.protobuf.Timestamp
-	87,  // 77: playtesthub.v1.GetWorkerHealthResponse.workers:type_name -> playtesthub.v1.WorkerHealthEntry
-	116, // 78: playtesthub.v1.ADTLinkage.linked_at:type_name -> google.protobuf.Timestamp
-	116, // 79: playtesthub.v1.ADTLinkage.deleted_at:type_name -> google.protobuf.Timestamp
-	116, // 80: playtesthub.v1.ADTBuild.uploaded_at:type_name -> google.protobuf.Timestamp
-	89,  // 81: playtesthub.v1.ListADTLinkagesResponse.linkages:type_name -> playtesthub.v1.ADTLinkage
-	116, // 82: playtesthub.v1.StartADTLinkResponse.expires_at:type_name -> google.protobuf.Timestamp
-	89,  // 83: playtesthub.v1.CompleteADTLinkResponse.linkage:type_name -> playtesthub.v1.ADTLinkage
-	89,  // 84: playtesthub.v1.RecoverADTLinkageResponse.linkage:type_name -> playtesthub.v1.ADTLinkage
-	90,  // 85: playtesthub.v1.ListADTBuildsResponse.builds:type_name -> playtesthub.v1.ADTBuild
-	116, // 86: playtesthub.v1.ADTGame.created_at:type_name -> google.protobuf.Timestamp
-	103, // 87: playtesthub.v1.ListADTGamesResponse.games:type_name -> playtesthub.v1.ADTGame
-	116, // 88: playtesthub.v1.ParticipantRow.signup_at:type_name -> google.protobuf.Timestamp
-	116, // 89: playtesthub.v1.ParticipantRow.nda_accepted_at:type_name -> google.protobuf.Timestamp
-	116, // 90: playtesthub.v1.ParticipantRow.code_sent_at:type_name -> google.protobuf.Timestamp
-	3,   // 91: playtesthub.v1.ParticipantRow.status:type_name -> playtesthub.v1.ApplicantStatus
-	116, // 92: playtesthub.v1.ParticipantRow.adt_download_at:type_name -> google.protobuf.Timestamp
-	3,   // 93: playtesthub.v1.GetPlaytestParticipantsRequest.status_filter:type_name -> playtesthub.v1.ApplicantStatus
-	108, // 94: playtesthub.v1.GetPlaytestParticipantsResponse.participants:type_name -> playtesthub.v1.ParticipantRow
-	6,   // 95: playtesthub.v1.Announcement.send_to_filter:type_name -> playtesthub.v1.AnnouncementSendToFilter
-	7,   // 96: playtesthub.v1.Announcement.status:type_name -> playtesthub.v1.AnnouncementStatus
-	116, // 97: playtesthub.v1.Announcement.created_at:type_name -> google.protobuf.Timestamp
-	6,   // 98: playtesthub.v1.CreateAnnouncementRequest.send_to_filter:type_name -> playtesthub.v1.AnnouncementSendToFilter
-	111, // 99: playtesthub.v1.CreateAnnouncementResponse.announcement:type_name -> playtesthub.v1.Announcement
-	111, // 100: playtesthub.v1.ListAnnouncementsResponse.announcements:type_name -> playtesthub.v1.Announcement
-	23,  // 101: playtesthub.v1.PlaytesthubService.GetPublicPlaytest:input_type -> playtesthub.v1.GetPublicPlaytestRequest
-	25,  // 102: playtesthub.v1.PlaytesthubService.GetPublicConfig:input_type -> playtesthub.v1.GetPublicConfigRequest
-	27,  // 103: playtesthub.v1.PlaytesthubService.GetPlaytestForPlayer:input_type -> playtesthub.v1.GetPlaytestForPlayerRequest
-	29,  // 104: playtesthub.v1.PlaytesthubService.WhoAmI:input_type -> playtesthub.v1.WhoAmIRequest
-	31,  // 105: playtesthub.v1.PlaytesthubService.AdminGetPlaytest:input_type -> playtesthub.v1.AdminGetPlaytestRequest
-	33,  // 106: playtesthub.v1.PlaytesthubService.ListPlaytests:input_type -> playtesthub.v1.ListPlaytestsRequest
-	35,  // 107: playtesthub.v1.PlaytesthubService.CreatePlaytest:input_type -> playtesthub.v1.CreatePlaytestRequest
-	37,  // 108: playtesthub.v1.PlaytesthubService.EditPlaytest:input_type -> playtesthub.v1.EditPlaytestRequest
-	39,  // 109: playtesthub.v1.PlaytesthubService.SoftDeletePlaytest:input_type -> playtesthub.v1.SoftDeletePlaytestRequest
-	41,  // 110: playtesthub.v1.PlaytesthubService.TransitionPlaytestStatus:input_type -> playtesthub.v1.TransitionPlaytestStatusRequest
-	47,  // 111: playtesthub.v1.PlaytesthubService.ExchangeDiscordCode:input_type -> playtesthub.v1.ExchangeDiscordCodeRequest
-	43,  // 112: playtesthub.v1.PlaytesthubService.Signup:input_type -> playtesthub.v1.SignupRequest
-	45,  // 113: playtesthub.v1.PlaytesthubService.GetApplicantStatus:input_type -> playtesthub.v1.GetApplicantStatusRequest
-	49,  // 114: playtesthub.v1.PlaytesthubService.AcceptNDA:input_type -> playtesthub.v1.AcceptNDARequest
-	51,  // 115: playtesthub.v1.PlaytesthubService.GetGrantedCode:input_type -> playtesthub.v1.GetGrantedCodeRequest
-	53,  // 116: playtesthub.v1.PlaytesthubService.GetADTDownloadInfo:input_type -> playtesthub.v1.GetADTDownloadInfoRequest
-	55,  // 117: playtesthub.v1.PlaytesthubService.ListApplicants:input_type -> playtesthub.v1.ListApplicantsRequest
-	57,  // 118: playtesthub.v1.PlaytesthubService.ApproveApplicant:input_type -> playtesthub.v1.ApproveApplicantRequest
-	59,  // 119: playtesthub.v1.PlaytesthubService.RejectApplicant:input_type -> playtesthub.v1.RejectApplicantRequest
-	61,  // 120: playtesthub.v1.PlaytesthubService.RetryDM:input_type -> playtesthub.v1.RetryDMRequest
-	63,  // 121: playtesthub.v1.PlaytesthubService.UploadCodes:input_type -> playtesthub.v1.UploadCodesRequest
-	66,  // 122: playtesthub.v1.PlaytesthubService.TopUpCodes:input_type -> playtesthub.v1.TopUpCodesRequest
-	68,  // 123: playtesthub.v1.PlaytesthubService.SyncFromAGS:input_type -> playtesthub.v1.SyncFromAGSRequest
-	70,  // 124: playtesthub.v1.PlaytesthubService.GetCodePool:input_type -> playtesthub.v1.GetCodePoolRequest
-	72,  // 125: playtesthub.v1.PlaytesthubService.CreateSurvey:input_type -> playtesthub.v1.CreateSurveyRequest
-	74,  // 126: playtesthub.v1.PlaytesthubService.EditSurvey:input_type -> playtesthub.v1.EditSurveyRequest
-	76,  // 127: playtesthub.v1.PlaytesthubService.GetSurvey:input_type -> playtesthub.v1.GetSurveyRequest
-	78,  // 128: playtesthub.v1.PlaytesthubService.SubmitSurveyResponse:input_type -> playtesthub.v1.SubmitSurveyResponseRequest
-	80,  // 129: playtesthub.v1.PlaytesthubService.ListSurveyResponses:input_type -> playtesthub.v1.ListSurveyResponsesRequest
-	82,  // 130: playtesthub.v1.PlaytesthubService.ListAuditLog:input_type -> playtesthub.v1.ListAuditLogRequest
-	84,  // 131: playtesthub.v1.PlaytesthubService.RetryFailedDms:input_type -> playtesthub.v1.RetryFailedDmsRequest
-	86,  // 132: playtesthub.v1.PlaytesthubService.GetWorkerHealth:input_type -> playtesthub.v1.GetWorkerHealthRequest
-	91,  // 133: playtesthub.v1.PlaytesthubService.ListADTLinkages:input_type -> playtesthub.v1.ListADTLinkagesRequest
-	93,  // 134: playtesthub.v1.PlaytesthubService.StartADTLink:input_type -> playtesthub.v1.StartADTLinkRequest
-	95,  // 135: playtesthub.v1.PlaytesthubService.CompleteADTLink:input_type -> playtesthub.v1.CompleteADTLinkRequest
-	97,  // 136: playtesthub.v1.PlaytesthubService.UnlinkADT:input_type -> playtesthub.v1.UnlinkADTRequest
-	99,  // 137: playtesthub.v1.PlaytesthubService.RecoverADTLinkage:input_type -> playtesthub.v1.RecoverADTLinkageRequest
-	101, // 138: playtesthub.v1.PlaytesthubService.ListADTBuilds:input_type -> playtesthub.v1.ListADTBuildsRequest
-	104, // 139: playtesthub.v1.PlaytesthubService.ListADTGames:input_type -> playtesthub.v1.ListADTGamesRequest
-	106, // 140: playtesthub.v1.PlaytesthubService.GetADTClientDiagnostics:input_type -> playtesthub.v1.GetADTClientDiagnosticsRequest
-	109, // 141: playtesthub.v1.PlaytesthubService.GetPlaytestParticipants:input_type -> playtesthub.v1.GetPlaytestParticipantsRequest
-	112, // 142: playtesthub.v1.PlaytesthubService.CreateAnnouncement:input_type -> playtesthub.v1.CreateAnnouncementRequest
-	114, // 143: playtesthub.v1.PlaytesthubService.ListAnnouncements:input_type -> playtesthub.v1.ListAnnouncementsRequest
-	24,  // 144: playtesthub.v1.PlaytesthubService.GetPublicPlaytest:output_type -> playtesthub.v1.GetPublicPlaytestResponse
-	26,  // 145: playtesthub.v1.PlaytesthubService.GetPublicConfig:output_type -> playtesthub.v1.GetPublicConfigResponse
-	28,  // 146: playtesthub.v1.PlaytesthubService.GetPlaytestForPlayer:output_type -> playtesthub.v1.GetPlaytestForPlayerResponse
-	30,  // 147: playtesthub.v1.PlaytesthubService.WhoAmI:output_type -> playtesthub.v1.WhoAmIResponse
-	32,  // 148: playtesthub.v1.PlaytesthubService.AdminGetPlaytest:output_type -> playtesthub.v1.AdminGetPlaytestResponse
-	34,  // 149: playtesthub.v1.PlaytesthubService.ListPlaytests:output_type -> playtesthub.v1.ListPlaytestsResponse
-	36,  // 150: playtesthub.v1.PlaytesthubService.CreatePlaytest:output_type -> playtesthub.v1.CreatePlaytestResponse
-	38,  // 151: playtesthub.v1.PlaytesthubService.EditPlaytest:output_type -> playtesthub.v1.EditPlaytestResponse
-	40,  // 152: playtesthub.v1.PlaytesthubService.SoftDeletePlaytest:output_type -> playtesthub.v1.SoftDeletePlaytestResponse
-	42,  // 153: playtesthub.v1.PlaytesthubService.TransitionPlaytestStatus:output_type -> playtesthub.v1.TransitionPlaytestStatusResponse
-	48,  // 154: playtesthub.v1.PlaytesthubService.ExchangeDiscordCode:output_type -> playtesthub.v1.ExchangeDiscordCodeResponse
-	44,  // 155: playtesthub.v1.PlaytesthubService.Signup:output_type -> playtesthub.v1.SignupResponse
-	46,  // 156: playtesthub.v1.PlaytesthubService.GetApplicantStatus:output_type -> playtesthub.v1.GetApplicantStatusResponse
-	50,  // 157: playtesthub.v1.PlaytesthubService.AcceptNDA:output_type -> playtesthub.v1.AcceptNDAResponse
-	52,  // 158: playtesthub.v1.PlaytesthubService.GetGrantedCode:output_type -> playtesthub.v1.GetGrantedCodeResponse
-	54,  // 159: playtesthub.v1.PlaytesthubService.GetADTDownloadInfo:output_type -> playtesthub.v1.GetADTDownloadInfoResponse
-	56,  // 160: playtesthub.v1.PlaytesthubService.ListApplicants:output_type -> playtesthub.v1.ListApplicantsResponse
-	58,  // 161: playtesthub.v1.PlaytesthubService.ApproveApplicant:output_type -> playtesthub.v1.ApproveApplicantResponse
-	60,  // 162: playtesthub.v1.PlaytesthubService.RejectApplicant:output_type -> playtesthub.v1.RejectApplicantResponse
-	62,  // 163: playtesthub.v1.PlaytesthubService.RetryDM:output_type -> playtesthub.v1.RetryDMResponse
-	65,  // 164: playtesthub.v1.PlaytesthubService.UploadCodes:output_type -> playtesthub.v1.UploadCodesResponse
-	67,  // 165: playtesthub.v1.PlaytesthubService.TopUpCodes:output_type -> playtesthub.v1.TopUpCodesResponse
-	69,  // 166: playtesthub.v1.PlaytesthubService.SyncFromAGS:output_type -> playtesthub.v1.SyncFromAGSResponse
-	71,  // 167: playtesthub.v1.PlaytesthubService.GetCodePool:output_type -> playtesthub.v1.GetCodePoolResponse
-	73,  // 168: playtesthub.v1.PlaytesthubService.CreateSurvey:output_type -> playtesthub.v1.CreateSurveyResponse
-	75,  // 169: playtesthub.v1.PlaytesthubService.EditSurvey:output_type -> playtesthub.v1.EditSurveyResponse
-	77,  // 170: playtesthub.v1.PlaytesthubService.GetSurvey:output_type -> playtesthub.v1.GetSurveyResponse
-	79,  // 171: playtesthub.v1.PlaytesthubService.SubmitSurveyResponse:output_type -> playtesthub.v1.SubmitSurveyResponseResponse
-	81,  // 172: playtesthub.v1.PlaytesthubService.ListSurveyResponses:output_type -> playtesthub.v1.ListSurveyResponsesResponse
-	83,  // 173: playtesthub.v1.PlaytesthubService.ListAuditLog:output_type -> playtesthub.v1.ListAuditLogResponse
-	85,  // 174: playtesthub.v1.PlaytesthubService.RetryFailedDms:output_type -> playtesthub.v1.RetryFailedDmsResponse
-	88,  // 175: playtesthub.v1.PlaytesthubService.GetWorkerHealth:output_type -> playtesthub.v1.GetWorkerHealthResponse
-	92,  // 176: playtesthub.v1.PlaytesthubService.ListADTLinkages:output_type -> playtesthub.v1.ListADTLinkagesResponse
-	94,  // 177: playtesthub.v1.PlaytesthubService.StartADTLink:output_type -> playtesthub.v1.StartADTLinkResponse
-	96,  // 178: playtesthub.v1.PlaytesthubService.CompleteADTLink:output_type -> playtesthub.v1.CompleteADTLinkResponse
-	98,  // 179: playtesthub.v1.PlaytesthubService.UnlinkADT:output_type -> playtesthub.v1.UnlinkADTResponse
-	100, // 180: playtesthub.v1.PlaytesthubService.RecoverADTLinkage:output_type -> playtesthub.v1.RecoverADTLinkageResponse
-	102, // 181: playtesthub.v1.PlaytesthubService.ListADTBuilds:output_type -> playtesthub.v1.ListADTBuildsResponse
-	105, // 182: playtesthub.v1.PlaytesthubService.ListADTGames:output_type -> playtesthub.v1.ListADTGamesResponse
-	107, // 183: playtesthub.v1.PlaytesthubService.GetADTClientDiagnostics:output_type -> playtesthub.v1.GetADTClientDiagnosticsResponse
-	110, // 184: playtesthub.v1.PlaytesthubService.GetPlaytestParticipants:output_type -> playtesthub.v1.GetPlaytestParticipantsResponse
-	113, // 185: playtesthub.v1.PlaytesthubService.CreateAnnouncement:output_type -> playtesthub.v1.CreateAnnouncementResponse
-	115, // 186: playtesthub.v1.PlaytesthubService.ListAnnouncements:output_type -> playtesthub.v1.ListAnnouncementsResponse
-	144, // [144:187] is the sub-list for method output_type
-	101, // [101:144] is the sub-list for method input_type
-	101, // [101:101] is the sub-list for extension type_name
-	101, // [101:101] is the sub-list for extension extendee
-	0,   // [0:101] is the sub-list for field type_name
+	116, // 22: playtesthub.v1.Applicant.survey_response_submitted_at:type_name -> google.protobuf.Timestamp
+	116, // 23: playtesthub.v1.NDAAcceptance.accepted_at:type_name -> google.protobuf.Timestamp
+	5,   // 24: playtesthub.v1.Code.state:type_name -> playtesthub.v1.CodeState
+	116, // 25: playtesthub.v1.Code.reserved_at:type_name -> google.protobuf.Timestamp
+	116, // 26: playtesthub.v1.Code.granted_at:type_name -> google.protobuf.Timestamp
+	116, // 27: playtesthub.v1.Code.created_at:type_name -> google.protobuf.Timestamp
+	8,   // 28: playtesthub.v1.SurveyQuestion.type:type_name -> playtesthub.v1.SurveyQuestionType
+	16,  // 29: playtesthub.v1.SurveyQuestion.options:type_name -> playtesthub.v1.MultiChoiceOption
+	17,  // 30: playtesthub.v1.Survey.questions:type_name -> playtesthub.v1.SurveyQuestion
+	116, // 31: playtesthub.v1.Survey.created_at:type_name -> google.protobuf.Timestamp
+	19,  // 32: playtesthub.v1.SurveyAnswer.multi_choice:type_name -> playtesthub.v1.SurveyMultiChoiceAnswer
+	20,  // 33: playtesthub.v1.SurveyResponse.answers:type_name -> playtesthub.v1.SurveyAnswer
+	116, // 34: playtesthub.v1.SurveyResponse.submitted_at:type_name -> google.protobuf.Timestamp
+	116, // 35: playtesthub.v1.AuditLogEntry.created_at:type_name -> google.protobuf.Timestamp
+	10,  // 36: playtesthub.v1.GetPublicPlaytestResponse.playtest:type_name -> playtesthub.v1.PublicPlaytest
+	11,  // 37: playtesthub.v1.GetPlaytestForPlayerResponse.playtest:type_name -> playtesthub.v1.PlayerPlaytest
+	9,   // 38: playtesthub.v1.AdminGetPlaytestResponse.playtest:type_name -> playtesthub.v1.Playtest
+	9,   // 39: playtesthub.v1.ListPlaytestsResponse.playtests:type_name -> playtesthub.v1.Playtest
+	0,   // 40: playtesthub.v1.CreatePlaytestRequest.platforms:type_name -> playtesthub.v1.Platform
+	116, // 41: playtesthub.v1.CreatePlaytestRequest.starts_at:type_name -> google.protobuf.Timestamp
+	116, // 42: playtesthub.v1.CreatePlaytestRequest.ends_at:type_name -> google.protobuf.Timestamp
+	2,   // 43: playtesthub.v1.CreatePlaytestRequest.distribution_model:type_name -> playtesthub.v1.DistributionModel
+	9,   // 44: playtesthub.v1.CreatePlaytestResponse.playtest:type_name -> playtesthub.v1.Playtest
+	0,   // 45: playtesthub.v1.EditPlaytestRequest.platforms:type_name -> playtesthub.v1.Platform
+	116, // 46: playtesthub.v1.EditPlaytestRequest.starts_at:type_name -> google.protobuf.Timestamp
+	116, // 47: playtesthub.v1.EditPlaytestRequest.ends_at:type_name -> google.protobuf.Timestamp
+	9,   // 48: playtesthub.v1.EditPlaytestResponse.playtest:type_name -> playtesthub.v1.Playtest
+	1,   // 49: playtesthub.v1.TransitionPlaytestStatusRequest.target_status:type_name -> playtesthub.v1.PlaytestStatus
+	9,   // 50: playtesthub.v1.TransitionPlaytestStatusResponse.playtest:type_name -> playtesthub.v1.Playtest
+	0,   // 51: playtesthub.v1.SignupRequest.platforms:type_name -> playtesthub.v1.Platform
+	12,  // 52: playtesthub.v1.SignupResponse.applicant:type_name -> playtesthub.v1.Applicant
+	12,  // 53: playtesthub.v1.GetApplicantStatusResponse.applicant:type_name -> playtesthub.v1.Applicant
+	13,  // 54: playtesthub.v1.AcceptNDAResponse.acceptance:type_name -> playtesthub.v1.NDAAcceptance
+	2,   // 55: playtesthub.v1.GetGrantedCodeResponse.distribution_model:type_name -> playtesthub.v1.DistributionModel
+	116, // 56: playtesthub.v1.GetADTDownloadInfoResponse.expires_at:type_name -> google.protobuf.Timestamp
+	3,   // 57: playtesthub.v1.ListApplicantsRequest.status_filter:type_name -> playtesthub.v1.ApplicantStatus
+	12,  // 58: playtesthub.v1.ListApplicantsResponse.applicants:type_name -> playtesthub.v1.Applicant
+	12,  // 59: playtesthub.v1.ApproveApplicantResponse.applicant:type_name -> playtesthub.v1.Applicant
+	12,  // 60: playtesthub.v1.RejectApplicantResponse.applicant:type_name -> playtesthub.v1.Applicant
+	12,  // 61: playtesthub.v1.RetryDMResponse.applicant:type_name -> playtesthub.v1.Applicant
+	64,  // 62: playtesthub.v1.UploadCodesResponse.rejections:type_name -> playtesthub.v1.UploadCodesRejection
+	15,  // 63: playtesthub.v1.TopUpCodesResponse.pool:type_name -> playtesthub.v1.CodePoolStats
+	15,  // 64: playtesthub.v1.SyncFromAGSResponse.pool:type_name -> playtesthub.v1.CodePoolStats
+	15,  // 65: playtesthub.v1.GetCodePoolResponse.stats:type_name -> playtesthub.v1.CodePoolStats
+	14,  // 66: playtesthub.v1.GetCodePoolResponse.codes:type_name -> playtesthub.v1.Code
+	17,  // 67: playtesthub.v1.CreateSurveyRequest.questions:type_name -> playtesthub.v1.SurveyQuestion
+	18,  // 68: playtesthub.v1.CreateSurveyResponse.survey:type_name -> playtesthub.v1.Survey
+	17,  // 69: playtesthub.v1.EditSurveyRequest.questions:type_name -> playtesthub.v1.SurveyQuestion
+	18,  // 70: playtesthub.v1.EditSurveyResponse.survey:type_name -> playtesthub.v1.Survey
+	18,  // 71: playtesthub.v1.GetSurveyResponse.survey:type_name -> playtesthub.v1.Survey
+	20,  // 72: playtesthub.v1.SubmitSurveyResponseRequest.answers:type_name -> playtesthub.v1.SurveyAnswer
+	21,  // 73: playtesthub.v1.SubmitSurveyResponseResponse.response:type_name -> playtesthub.v1.SurveyResponse
+	21,  // 74: playtesthub.v1.ListSurveyResponsesResponse.responses:type_name -> playtesthub.v1.SurveyResponse
+	22,  // 75: playtesthub.v1.ListAuditLogResponse.entries:type_name -> playtesthub.v1.AuditLogEntry
+	116, // 76: playtesthub.v1.WorkerHealthEntry.last_tick_at:type_name -> google.protobuf.Timestamp
+	116, // 77: playtesthub.v1.WorkerHealthEntry.expires_at:type_name -> google.protobuf.Timestamp
+	87,  // 78: playtesthub.v1.GetWorkerHealthResponse.workers:type_name -> playtesthub.v1.WorkerHealthEntry
+	116, // 79: playtesthub.v1.ADTLinkage.linked_at:type_name -> google.protobuf.Timestamp
+	116, // 80: playtesthub.v1.ADTLinkage.deleted_at:type_name -> google.protobuf.Timestamp
+	116, // 81: playtesthub.v1.ADTBuild.uploaded_at:type_name -> google.protobuf.Timestamp
+	89,  // 82: playtesthub.v1.ListADTLinkagesResponse.linkages:type_name -> playtesthub.v1.ADTLinkage
+	116, // 83: playtesthub.v1.StartADTLinkResponse.expires_at:type_name -> google.protobuf.Timestamp
+	89,  // 84: playtesthub.v1.CompleteADTLinkResponse.linkage:type_name -> playtesthub.v1.ADTLinkage
+	89,  // 85: playtesthub.v1.RecoverADTLinkageResponse.linkage:type_name -> playtesthub.v1.ADTLinkage
+	90,  // 86: playtesthub.v1.ListADTBuildsResponse.builds:type_name -> playtesthub.v1.ADTBuild
+	116, // 87: playtesthub.v1.ADTGame.created_at:type_name -> google.protobuf.Timestamp
+	103, // 88: playtesthub.v1.ListADTGamesResponse.games:type_name -> playtesthub.v1.ADTGame
+	116, // 89: playtesthub.v1.ParticipantRow.signup_at:type_name -> google.protobuf.Timestamp
+	116, // 90: playtesthub.v1.ParticipantRow.nda_accepted_at:type_name -> google.protobuf.Timestamp
+	116, // 91: playtesthub.v1.ParticipantRow.code_sent_at:type_name -> google.protobuf.Timestamp
+	3,   // 92: playtesthub.v1.ParticipantRow.status:type_name -> playtesthub.v1.ApplicantStatus
+	116, // 93: playtesthub.v1.ParticipantRow.adt_download_at:type_name -> google.protobuf.Timestamp
+	3,   // 94: playtesthub.v1.GetPlaytestParticipantsRequest.status_filter:type_name -> playtesthub.v1.ApplicantStatus
+	108, // 95: playtesthub.v1.GetPlaytestParticipantsResponse.participants:type_name -> playtesthub.v1.ParticipantRow
+	6,   // 96: playtesthub.v1.Announcement.send_to_filter:type_name -> playtesthub.v1.AnnouncementSendToFilter
+	7,   // 97: playtesthub.v1.Announcement.status:type_name -> playtesthub.v1.AnnouncementStatus
+	116, // 98: playtesthub.v1.Announcement.created_at:type_name -> google.protobuf.Timestamp
+	6,   // 99: playtesthub.v1.CreateAnnouncementRequest.send_to_filter:type_name -> playtesthub.v1.AnnouncementSendToFilter
+	111, // 100: playtesthub.v1.CreateAnnouncementResponse.announcement:type_name -> playtesthub.v1.Announcement
+	111, // 101: playtesthub.v1.ListAnnouncementsResponse.announcements:type_name -> playtesthub.v1.Announcement
+	23,  // 102: playtesthub.v1.PlaytesthubService.GetPublicPlaytest:input_type -> playtesthub.v1.GetPublicPlaytestRequest
+	25,  // 103: playtesthub.v1.PlaytesthubService.GetPublicConfig:input_type -> playtesthub.v1.GetPublicConfigRequest
+	27,  // 104: playtesthub.v1.PlaytesthubService.GetPlaytestForPlayer:input_type -> playtesthub.v1.GetPlaytestForPlayerRequest
+	29,  // 105: playtesthub.v1.PlaytesthubService.WhoAmI:input_type -> playtesthub.v1.WhoAmIRequest
+	31,  // 106: playtesthub.v1.PlaytesthubService.AdminGetPlaytest:input_type -> playtesthub.v1.AdminGetPlaytestRequest
+	33,  // 107: playtesthub.v1.PlaytesthubService.ListPlaytests:input_type -> playtesthub.v1.ListPlaytestsRequest
+	35,  // 108: playtesthub.v1.PlaytesthubService.CreatePlaytest:input_type -> playtesthub.v1.CreatePlaytestRequest
+	37,  // 109: playtesthub.v1.PlaytesthubService.EditPlaytest:input_type -> playtesthub.v1.EditPlaytestRequest
+	39,  // 110: playtesthub.v1.PlaytesthubService.SoftDeletePlaytest:input_type -> playtesthub.v1.SoftDeletePlaytestRequest
+	41,  // 111: playtesthub.v1.PlaytesthubService.TransitionPlaytestStatus:input_type -> playtesthub.v1.TransitionPlaytestStatusRequest
+	47,  // 112: playtesthub.v1.PlaytesthubService.ExchangeDiscordCode:input_type -> playtesthub.v1.ExchangeDiscordCodeRequest
+	43,  // 113: playtesthub.v1.PlaytesthubService.Signup:input_type -> playtesthub.v1.SignupRequest
+	45,  // 114: playtesthub.v1.PlaytesthubService.GetApplicantStatus:input_type -> playtesthub.v1.GetApplicantStatusRequest
+	49,  // 115: playtesthub.v1.PlaytesthubService.AcceptNDA:input_type -> playtesthub.v1.AcceptNDARequest
+	51,  // 116: playtesthub.v1.PlaytesthubService.GetGrantedCode:input_type -> playtesthub.v1.GetGrantedCodeRequest
+	53,  // 117: playtesthub.v1.PlaytesthubService.GetADTDownloadInfo:input_type -> playtesthub.v1.GetADTDownloadInfoRequest
+	55,  // 118: playtesthub.v1.PlaytesthubService.ListApplicants:input_type -> playtesthub.v1.ListApplicantsRequest
+	57,  // 119: playtesthub.v1.PlaytesthubService.ApproveApplicant:input_type -> playtesthub.v1.ApproveApplicantRequest
+	59,  // 120: playtesthub.v1.PlaytesthubService.RejectApplicant:input_type -> playtesthub.v1.RejectApplicantRequest
+	61,  // 121: playtesthub.v1.PlaytesthubService.RetryDM:input_type -> playtesthub.v1.RetryDMRequest
+	63,  // 122: playtesthub.v1.PlaytesthubService.UploadCodes:input_type -> playtesthub.v1.UploadCodesRequest
+	66,  // 123: playtesthub.v1.PlaytesthubService.TopUpCodes:input_type -> playtesthub.v1.TopUpCodesRequest
+	68,  // 124: playtesthub.v1.PlaytesthubService.SyncFromAGS:input_type -> playtesthub.v1.SyncFromAGSRequest
+	70,  // 125: playtesthub.v1.PlaytesthubService.GetCodePool:input_type -> playtesthub.v1.GetCodePoolRequest
+	72,  // 126: playtesthub.v1.PlaytesthubService.CreateSurvey:input_type -> playtesthub.v1.CreateSurveyRequest
+	74,  // 127: playtesthub.v1.PlaytesthubService.EditSurvey:input_type -> playtesthub.v1.EditSurveyRequest
+	76,  // 128: playtesthub.v1.PlaytesthubService.GetSurvey:input_type -> playtesthub.v1.GetSurveyRequest
+	78,  // 129: playtesthub.v1.PlaytesthubService.SubmitSurveyResponse:input_type -> playtesthub.v1.SubmitSurveyResponseRequest
+	80,  // 130: playtesthub.v1.PlaytesthubService.ListSurveyResponses:input_type -> playtesthub.v1.ListSurveyResponsesRequest
+	82,  // 131: playtesthub.v1.PlaytesthubService.ListAuditLog:input_type -> playtesthub.v1.ListAuditLogRequest
+	84,  // 132: playtesthub.v1.PlaytesthubService.RetryFailedDms:input_type -> playtesthub.v1.RetryFailedDmsRequest
+	86,  // 133: playtesthub.v1.PlaytesthubService.GetWorkerHealth:input_type -> playtesthub.v1.GetWorkerHealthRequest
+	91,  // 134: playtesthub.v1.PlaytesthubService.ListADTLinkages:input_type -> playtesthub.v1.ListADTLinkagesRequest
+	93,  // 135: playtesthub.v1.PlaytesthubService.StartADTLink:input_type -> playtesthub.v1.StartADTLinkRequest
+	95,  // 136: playtesthub.v1.PlaytesthubService.CompleteADTLink:input_type -> playtesthub.v1.CompleteADTLinkRequest
+	97,  // 137: playtesthub.v1.PlaytesthubService.UnlinkADT:input_type -> playtesthub.v1.UnlinkADTRequest
+	99,  // 138: playtesthub.v1.PlaytesthubService.RecoverADTLinkage:input_type -> playtesthub.v1.RecoverADTLinkageRequest
+	101, // 139: playtesthub.v1.PlaytesthubService.ListADTBuilds:input_type -> playtesthub.v1.ListADTBuildsRequest
+	104, // 140: playtesthub.v1.PlaytesthubService.ListADTGames:input_type -> playtesthub.v1.ListADTGamesRequest
+	106, // 141: playtesthub.v1.PlaytesthubService.GetADTClientDiagnostics:input_type -> playtesthub.v1.GetADTClientDiagnosticsRequest
+	109, // 142: playtesthub.v1.PlaytesthubService.GetPlaytestParticipants:input_type -> playtesthub.v1.GetPlaytestParticipantsRequest
+	112, // 143: playtesthub.v1.PlaytesthubService.CreateAnnouncement:input_type -> playtesthub.v1.CreateAnnouncementRequest
+	114, // 144: playtesthub.v1.PlaytesthubService.ListAnnouncements:input_type -> playtesthub.v1.ListAnnouncementsRequest
+	24,  // 145: playtesthub.v1.PlaytesthubService.GetPublicPlaytest:output_type -> playtesthub.v1.GetPublicPlaytestResponse
+	26,  // 146: playtesthub.v1.PlaytesthubService.GetPublicConfig:output_type -> playtesthub.v1.GetPublicConfigResponse
+	28,  // 147: playtesthub.v1.PlaytesthubService.GetPlaytestForPlayer:output_type -> playtesthub.v1.GetPlaytestForPlayerResponse
+	30,  // 148: playtesthub.v1.PlaytesthubService.WhoAmI:output_type -> playtesthub.v1.WhoAmIResponse
+	32,  // 149: playtesthub.v1.PlaytesthubService.AdminGetPlaytest:output_type -> playtesthub.v1.AdminGetPlaytestResponse
+	34,  // 150: playtesthub.v1.PlaytesthubService.ListPlaytests:output_type -> playtesthub.v1.ListPlaytestsResponse
+	36,  // 151: playtesthub.v1.PlaytesthubService.CreatePlaytest:output_type -> playtesthub.v1.CreatePlaytestResponse
+	38,  // 152: playtesthub.v1.PlaytesthubService.EditPlaytest:output_type -> playtesthub.v1.EditPlaytestResponse
+	40,  // 153: playtesthub.v1.PlaytesthubService.SoftDeletePlaytest:output_type -> playtesthub.v1.SoftDeletePlaytestResponse
+	42,  // 154: playtesthub.v1.PlaytesthubService.TransitionPlaytestStatus:output_type -> playtesthub.v1.TransitionPlaytestStatusResponse
+	48,  // 155: playtesthub.v1.PlaytesthubService.ExchangeDiscordCode:output_type -> playtesthub.v1.ExchangeDiscordCodeResponse
+	44,  // 156: playtesthub.v1.PlaytesthubService.Signup:output_type -> playtesthub.v1.SignupResponse
+	46,  // 157: playtesthub.v1.PlaytesthubService.GetApplicantStatus:output_type -> playtesthub.v1.GetApplicantStatusResponse
+	50,  // 158: playtesthub.v1.PlaytesthubService.AcceptNDA:output_type -> playtesthub.v1.AcceptNDAResponse
+	52,  // 159: playtesthub.v1.PlaytesthubService.GetGrantedCode:output_type -> playtesthub.v1.GetGrantedCodeResponse
+	54,  // 160: playtesthub.v1.PlaytesthubService.GetADTDownloadInfo:output_type -> playtesthub.v1.GetADTDownloadInfoResponse
+	56,  // 161: playtesthub.v1.PlaytesthubService.ListApplicants:output_type -> playtesthub.v1.ListApplicantsResponse
+	58,  // 162: playtesthub.v1.PlaytesthubService.ApproveApplicant:output_type -> playtesthub.v1.ApproveApplicantResponse
+	60,  // 163: playtesthub.v1.PlaytesthubService.RejectApplicant:output_type -> playtesthub.v1.RejectApplicantResponse
+	62,  // 164: playtesthub.v1.PlaytesthubService.RetryDM:output_type -> playtesthub.v1.RetryDMResponse
+	65,  // 165: playtesthub.v1.PlaytesthubService.UploadCodes:output_type -> playtesthub.v1.UploadCodesResponse
+	67,  // 166: playtesthub.v1.PlaytesthubService.TopUpCodes:output_type -> playtesthub.v1.TopUpCodesResponse
+	69,  // 167: playtesthub.v1.PlaytesthubService.SyncFromAGS:output_type -> playtesthub.v1.SyncFromAGSResponse
+	71,  // 168: playtesthub.v1.PlaytesthubService.GetCodePool:output_type -> playtesthub.v1.GetCodePoolResponse
+	73,  // 169: playtesthub.v1.PlaytesthubService.CreateSurvey:output_type -> playtesthub.v1.CreateSurveyResponse
+	75,  // 170: playtesthub.v1.PlaytesthubService.EditSurvey:output_type -> playtesthub.v1.EditSurveyResponse
+	77,  // 171: playtesthub.v1.PlaytesthubService.GetSurvey:output_type -> playtesthub.v1.GetSurveyResponse
+	79,  // 172: playtesthub.v1.PlaytesthubService.SubmitSurveyResponse:output_type -> playtesthub.v1.SubmitSurveyResponseResponse
+	81,  // 173: playtesthub.v1.PlaytesthubService.ListSurveyResponses:output_type -> playtesthub.v1.ListSurveyResponsesResponse
+	83,  // 174: playtesthub.v1.PlaytesthubService.ListAuditLog:output_type -> playtesthub.v1.ListAuditLogResponse
+	85,  // 175: playtesthub.v1.PlaytesthubService.RetryFailedDms:output_type -> playtesthub.v1.RetryFailedDmsResponse
+	88,  // 176: playtesthub.v1.PlaytesthubService.GetWorkerHealth:output_type -> playtesthub.v1.GetWorkerHealthResponse
+	92,  // 177: playtesthub.v1.PlaytesthubService.ListADTLinkages:output_type -> playtesthub.v1.ListADTLinkagesResponse
+	94,  // 178: playtesthub.v1.PlaytesthubService.StartADTLink:output_type -> playtesthub.v1.StartADTLinkResponse
+	96,  // 179: playtesthub.v1.PlaytesthubService.CompleteADTLink:output_type -> playtesthub.v1.CompleteADTLinkResponse
+	98,  // 180: playtesthub.v1.PlaytesthubService.UnlinkADT:output_type -> playtesthub.v1.UnlinkADTResponse
+	100, // 181: playtesthub.v1.PlaytesthubService.RecoverADTLinkage:output_type -> playtesthub.v1.RecoverADTLinkageResponse
+	102, // 182: playtesthub.v1.PlaytesthubService.ListADTBuilds:output_type -> playtesthub.v1.ListADTBuildsResponse
+	105, // 183: playtesthub.v1.PlaytesthubService.ListADTGames:output_type -> playtesthub.v1.ListADTGamesResponse
+	107, // 184: playtesthub.v1.PlaytesthubService.GetADTClientDiagnostics:output_type -> playtesthub.v1.GetADTClientDiagnosticsResponse
+	110, // 185: playtesthub.v1.PlaytesthubService.GetPlaytestParticipants:output_type -> playtesthub.v1.GetPlaytestParticipantsResponse
+	113, // 186: playtesthub.v1.PlaytesthubService.CreateAnnouncement:output_type -> playtesthub.v1.CreateAnnouncementResponse
+	115, // 187: playtesthub.v1.PlaytesthubService.ListAnnouncements:output_type -> playtesthub.v1.ListAnnouncementsResponse
+	145, // [145:188] is the sub-list for method output_type
+	102, // [102:145] is the sub-list for method input_type
+	102, // [102:102] is the sub-list for extension type_name
+	102, // [102:102] is the sub-list for extension extendee
+	0,   // [0:102] is the sub-list for field type_name
 }
 
 func init() { file_playtesthub_v1_playtesthub_proto_init() }

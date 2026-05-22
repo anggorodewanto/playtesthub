@@ -270,7 +270,25 @@ func (s *PlaytesthubServiceServer) GetApplicantStatus(ctx context.Context, req *
 	if pt.Status == statusClosed && existing.Status != applicantStatusApproved {
 		return nil, status.Error(codes.NotFound, "playtest not found")
 	}
-	return &pb.GetApplicantStatusResponse{Applicant: playerApplicantToProto(existing)}, nil
+	out := playerApplicantToProto(existing)
+	// PRD §5.6 one-shot survey: surface the submission timestamp so the
+	// Pending-page CTA can render either "Submit feedback" or "Feedback
+	// submitted ✓" without an extra round-trip. Best-effort — the store
+	// may be unwired in earlier-milestone boots (M1/M2 lack the survey
+	// pipeline); on lookup error, fall through with the timestamp unset
+	// rather than failing the whole status read.
+	if s.surveyResponse != nil {
+		resp, err := s.surveyResponse.GetByPlaytestUser(ctx, pt.ID, userID)
+		if err == nil && resp != nil {
+			out.SurveyResponseSubmittedAt = timestamppb.New(resp.SubmittedAt)
+		} else if err != nil && !errors.Is(err, repo.ErrNotFound) {
+			slog.WarnContext(ctx, "fetching survey response for applicant status failed; leaving timestamp unset",
+				"playtestId", pt.ID.String(),
+				"userId", agsid.Format(userID),
+				"error", err.Error())
+		}
+	}
+	return &pb.GetApplicantStatusResponse{Applicant: out}, nil
 }
 
 // AcceptNDA records a click-accept of the current NDA text on a

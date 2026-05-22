@@ -2449,6 +2449,11 @@
         "autoApproved": {
           "type": "boolean",
           "description": "PRD §5.4 auto-approve (M5.A). True when this applicant was\napproved via the auto-approve signup chain rather than a manual\nApproveApplicant click. Used for cap accounting."
+        },
+        "surveyResponseSubmittedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Player-visible. Set when the caller has already submitted a survey\nresponse for this playtest (PRD §5.6 one-shot). Powers the\npost-submit \"Feedback submitted ✓\" affordance on the Pending page so\nthe client can flip CTA state without an extra round-trip. Unset\nwhen no response exists or surveys aren't configured."
         }
       },
       "description": "Applicant is the full admin-visible entity (schema.md §\"Applicant entity\").\nPlayer-visible responses carry the same message with restricted fields\npopulated — the handler layer enforces the visibility split (schema.md\nL86–88). Player-visible: status, granted_code_id (presence), approved_at,\nnda_version_hash."

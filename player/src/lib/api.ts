@@ -67,6 +67,11 @@ export type Applicant = {
   grantedCodeId?: string;
   approvedAt?: string;
   ndaVersionHash?: string;
+  // PRD §5.6: when the caller has already submitted a survey response
+  // for this playtest, the server returns the RFC3339 submission
+  // timestamp so the Pending CTA can flip between "Submit feedback" and
+  // "Feedback submitted ✓" without an extra round-trip.
+  surveyResponseSubmittedAt?: string;
 };
 
 export class ApiError extends Error {

@@ -234,6 +234,14 @@ C12. `[x]` **README walkthrough (Track C cadence) + `runbooks/admin-shell-tour.m
 
 **Track C milestone definition of done**: every Track A + Track B phase still green; admin shell uses the detail-page-with-tabs layout end-to-end; bulk announcement DM verified end-to-end in the golden-m5 e2e (recipients reach `SENT`); platforms column replacement deployed with the migration 0007 cutover runbook step documented and tested in a fresh testcontainers boot; PRD §4 / §5.1 / §5.4 / §5.7 / §5.9 + schema.md + errors.md + CHANGELOG v2.6 complete; the prototype's three admin scenarios match the live build screen-for-screen (UX sign-off check) **modulo the telemetry surface which is explicitly deferred to M6**.
 
+### Track D — Survey discovery (post-M5.C polish)
+
+Three-phase follow-on so approved players actually see the survey when one is configured. Each phase is independently mergeable; the three together land before the next milestone tag.
+
+D1. `[x]` **Surveys phase 1 — Pending CTA + `surveyResponseSubmittedAt` on `GetApplicantStatus`** — extends the player-visible `Applicant` proto with `survey_response_submitted_at` (field 16) and populates it from `s.surveyResponse.GetByPlaytestUser` inside the [`GetApplicantStatus`](../pkg/service/applicant.go) handler. The [Pending page](../player/src/routes/Pending.svelte) gains a survey CTA on the APPROVED branch (both STEAM_KEYS / AGS_CAMPAIGN and ADT) gated on `playtest.surveyId && !reacceptRequired`: nil timestamp renders an enabled `Submit feedback` link to `#${surveyPath(slug)}`, set timestamp renders a disabled `Feedback submitted ✓` label with a `<time>` tag. Two new handler tests in [`pkg/service/applicant_test.go`](../pkg/service/applicant_test.go) (timestamp unset → field nil; row present → field populated) and five new Vitest cases in [`player/tests/Pending.test.ts`](../player/tests/Pending.test.ts) (no surveyId → no CTA; surveyId + no response → link visible; surveyId + response → submitted label with `datetime`; ADT branch parity; NDA re-accept required → CTA hidden). No new RPCs and no migration — Phase 2 wires the approval DM, Phase 3 fans out the announcement on `CreateSurvey`.
+D2. `[ ]` **Surveys phase 2 — approval DM body appends survey link**
+D3. `[ ]` **Surveys phase 3 — `CreateSurvey` fan-out DM + idempotency**
+
 ---
 
 ## Cross-cutting rules

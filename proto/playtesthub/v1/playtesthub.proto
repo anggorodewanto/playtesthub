@@ -923,6 +923,12 @@ message Applicant {
   // approved via the auto-approve signup chain rather than a manual
   // ApproveApplicant click. Used for cap accounting.
   bool auto_approved = 15;
+  // Player-visible. Set when the caller has already submitted a survey
+  // response for this playtest (PRD §5.6 one-shot). Powers the
+  // post-submit "Feedback submitted ✓" affordance on the Pending page so
+  // the client can flip CTA state without an extra round-trip. Unset
+  // when no response exists or surveys aren't configured.
+  google.protobuf.Timestamp survey_response_submitted_at = 16;
 }
 
 // NDAAcceptance — append-only acceptance row (schema.md §"NDA"). PK is

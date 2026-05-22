@@ -11,7 +11,7 @@
     type GrantedCode,
     type PlayerPlaytest,
   } from '../lib/api';
-  import { navigate, ndaPath, playtestPath } from '../lib/router';
+  import { navigate, ndaPath, playtestPath, surveyPath } from '../lib/router';
   import Card from '../lib/ui/Card.svelte';
   import Banner from '../lib/ui/Banner.svelte';
 
@@ -345,6 +345,39 @@
           </p>
         {:else}
           <p class="text-sm text-slate-500">Loading your key…</p>
+        {/if}
+        {#if playtest?.surveyId && !reacceptRequired}
+          <!-- Survey discovery CTA (PRD §5.6). Server enforces
+               one-shot via SurveyResponseSubmittedAt on the applicant;
+               we flip the affordance on whether that timestamp is set. -->
+          <div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
+            {#if applicant.surveyResponseSubmittedAt}
+              <span
+                class="inline-flex items-center rounded-lg bg-slate-200 px-4 py-2 text-sm font-medium text-slate-600"
+                data-testid="survey-cta-submitted"
+              >
+                Feedback submitted
+                <span aria-hidden="true" class="ml-1">✓</span>
+              </span>
+              <p class="mt-2 text-xs text-slate-500">
+                Submitted
+                <time datetime={applicant.surveyResponseSubmittedAt}>
+                  {new Date(applicant.surveyResponseSubmittedAt).toLocaleString()}
+                </time>.
+              </p>
+            {:else}
+              <p class="mb-2 text-sm text-slate-700">
+                Help the studio — share your feedback on this playtest.
+              </p>
+              <a
+                href={`#${surveyPath(slug)}`}
+                data-testid="survey-cta-link"
+                class="inline-flex items-center rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-slate-700"
+              >
+                Submit feedback
+              </a>
+            {/if}
+          </div>
         {/if}
       {:else}
         <p class="text-sm text-slate-500">Status: {applicant.status}</p>
