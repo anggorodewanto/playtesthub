@@ -731,11 +731,11 @@ function ADTCreateFields({
   return (
     <>
       {linkageSelect}
-      <Form.Item label="ADT game id" name="adtGameId" rules={[{ required: true, message: 'Pick a game build via the picker' }]}>
-        <Input type="hidden" readOnly aria-hidden="true" />
+      <Form.Item name="adtGameId" hidden rules={[{ required: true, message: 'Pick a game build via the picker' }]}>
+        <Input />
       </Form.Item>
-      <Form.Item label="ADT build id" name="adtBuildId" rules={[{ required: true, message: 'Pick a build via the picker' }]}>
-        <Input type="hidden" readOnly aria-hidden="true" />
+      <Form.Item name="adtBuildId" hidden rules={[{ required: true, message: 'Pick a build via the picker' }]}>
+        <Input />
       </Form.Item>
       <Form.Item label="Game build">
         <Space direction="vertical" style={{ width: '100%' }}>
