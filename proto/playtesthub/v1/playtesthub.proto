@@ -699,6 +699,31 @@ service PlaytesthubService {
     };
   }
 
+  // ChangeADTBuild repoints an ADT playtest at a different build (and
+  // game) under the SAME linked ADT namespace. adt_namespace is NOT
+  // mutable here — it is the studio linkage scope; re-pointing it is a
+  // relink, not a build change (PRD §4.8 / §5.1). Verifies the new
+  // (adt_game_id, adt_build_id) pair against the linkage via ListBuilds
+  // before persisting.
+  rpc ChangeADTBuild(ChangeADTBuildRequest) returns (ChangeADTBuildResponse) {
+    option (playtesthub.v1.action) = ACTION_UPDATE;
+    option (playtesthub.v1.resource) = "ADMIN:NAMESPACE:{namespace}:EXTEND:APPUI";
+    option (google.api.http) = {
+      post: "/v1/admin/namespaces/{namespace}/playtests/{playtest_id}/adt/build:change"
+      body: "*"
+    };
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Repoint an ADT playtest at a different build (admin)"
+      description: "Mutates adt_game_id + adt_build_id on an ADT playtest after verifying the pair against the linked ADT namespace via ListBuilds. adt_namespace is immutable (relink instead). Non-ADT playtest → FailedPrecondition. Build absent from the (namespace, game) pair → InvalidArgument. Already-approved applicants keep the download URL already DM'd; future approvals + RetryDM re-mint against the new build (PRD §4.8.3)."
+      security: {
+        security_requirement: {
+          key: "Bearer"
+          value: {}
+        }
+      }
+    };
+  }
+
   // M5.C — participants surface backing the detail page Participants tab.
   // Cache-only read; the four ADT telemetry cache columns ship dormant in
   // M5.C (NULL/zero across the milestone — M6 lights them up).
@@ -1601,6 +1626,21 @@ message ListADTGamesRequest {
 }
 message ListADTGamesResponse {
   repeated ADTGame games = 1;
+}
+
+message ChangeADTBuildRequest {
+  string namespace = 1;
+  string playtest_id = 2;
+  // New ADT game id under the playtest's existing linked adt_namespace.
+  // Required. Verified against the linkage via ListBuilds before persist.
+  string adt_game_id = 3;
+  // New ADT build id; must belong to (adt_namespace, adt_game_id).
+  // Required.
+  string adt_build_id = 4;
+}
+message ChangeADTBuildResponse {
+  // The updated playtest row, carrying the new adt_game_id + adt_build_id.
+  Playtest playtest = 1;
 }
 
 message GetADTClientDiagnosticsRequest {

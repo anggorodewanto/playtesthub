@@ -653,6 +653,9 @@ log "pth adt linkage recover --dry-run prints the request body"
 log "pth adt build list --dry-run prints the request body"
 "$PTH_BIN" --namespace smoke adt build list --linkage-id 01234567-89ab-cdef-0123-456789abcdef --game-id game-x --dry-run >/dev/null \
     || fail "adt build list --dry-run exited non-zero"
+log "pth adt build change --dry-run prints the request body"
+"$PTH_BIN" --namespace smoke adt build change --playtest-id 01234567-89ab-cdef-0123-456789abcdef --game-id game-y --build-id build-002 --dry-run >/dev/null \
+    || fail "adt build change --dry-run exited non-zero"
 log "pth adt games list --dry-run prints the request body"
 "$PTH_BIN" --namespace smoke adt games list --linkage-id 01234567-89ab-cdef-0123-456789abcdef --dry-run >/dev/null \
     || fail "adt games list --dry-run exited non-zero"

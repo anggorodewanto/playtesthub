@@ -197,14 +197,22 @@ func runADTLinkageRecover(ctx context.Context, stdout, stderr io.Writer, g *Glob
 
 func runADTBuild(ctx context.Context, stdout, stderr io.Writer, g *Globals, args []string, factory playtestClientFactory) int {
 	if len(args) == 0 {
-		fmt.Fprintln(stderr, "adt build: usage: pth adt build list --linkage-id <id> --game-id <id>")
+		fmt.Fprintln(stderr, "adt build: usage: pth adt build {list|change} ...")
 		return exitLocalError
 	}
 	action, rest := args[0], args[1:]
-	if action != actionList {
+	switch action {
+	case actionList:
+		return runADTBuildList(ctx, stdout, stderr, g, rest, factory)
+	case "change":
+		return runADTBuildChange(ctx, stdout, stderr, g, rest, factory)
+	default:
 		fmt.Fprintf(stderr, "adt build: unknown action %q\n", action)
 		return exitLocalError
 	}
+}
+
+func runADTBuildList(ctx context.Context, stdout, stderr io.Writer, g *Globals, rest []string, factory playtestClientFactory) int {
 	fs := flag.NewFlagSet("adt build list", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	linkageID := fs.String("linkage-id", "", "adt_linkage_id (required)")
@@ -232,6 +240,43 @@ func runADTBuild(ctx context.Context, stdout, stderr io.Writer, g *Globals, args
 	return invokePlaytest(ctx, stdout, stderr, g, factory, "ListADTBuilds", req, *dryRun,
 		func(c pb.PlaytesthubServiceClient, cctx context.Context) (proto.Message, error) {
 			return c.ListADTBuilds(cctx, req)
+		})
+}
+
+func runADTBuildChange(ctx context.Context, stdout, stderr io.Writer, g *Globals, rest []string, factory playtestClientFactory) int {
+	fs := flag.NewFlagSet("adt build change", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	playtestID := fs.String("playtest-id", "", "playtest_id whose build to change (required)")
+	gameID := fs.String("game-id", "", "new ADT game id (required)")
+	buildID := fs.String("build-id", "", "new ADT build id (required)")
+	dryRun := fs.Bool("dry-run", false, "print the request JSON and exit without dialling")
+	if err := fs.Parse(rest); err != nil {
+		return exitLocalError
+	}
+	if *playtestID == "" {
+		fmt.Fprintln(stderr, "adt build change: --playtest-id is required")
+		return exitLocalError
+	}
+	if *gameID == "" {
+		fmt.Fprintln(stderr, "adt build change: --game-id is required")
+		return exitLocalError
+	}
+	if *buildID == "" {
+		fmt.Fprintln(stderr, "adt build change: --build-id is required")
+		return exitLocalError
+	}
+	if !g.requireNamespace(stderr, "adt build change") {
+		return exitLocalError
+	}
+	req := &pb.ChangeADTBuildRequest{
+		Namespace:  g.Namespace,
+		PlaytestId: *playtestID,
+		AdtGameId:  *gameID,
+		AdtBuildId: *buildID,
+	}
+	return invokePlaytest(ctx, stdout, stderr, g, factory, "ChangeADTBuild", req, *dryRun,
+		func(c pb.PlaytesthubServiceClient, cctx context.Context) (proto.Message, error) {
+			return c.ChangeADTBuild(cctx, req)
 		})
 }
 

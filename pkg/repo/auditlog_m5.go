@@ -12,11 +12,12 @@ import (
 // Audit-action constants for the M5 set. Doc-of-truth: schema.md
 // §"AuditLog — `action` enum".
 const (
-	ActionApplicantAutoApproved = "applicant.auto_approved"
-	ActionADTLinkageCreate      = "adt_linkage.create"
-	ActionADTLinkageDelete      = "adt_linkage.delete"
-	ActionADTLinkageRecover     = "adt_linkage.recover"
-	ActionAnnouncementCreate    = "announcement.create"
+	ActionApplicantAutoApproved  = "applicant.auto_approved"
+	ActionADTLinkageCreate       = "adt_linkage.create"
+	ActionADTLinkageDelete       = "adt_linkage.delete"
+	ActionADTLinkageRecover      = "adt_linkage.recover"
+	ActionAnnouncementCreate     = "announcement.create"
+	ActionPlaytestADTBuildChange = "playtest.adt_build_change"
 )
 
 // AppendApplicantAutoApproved records a successful auto-approve via the
@@ -66,6 +67,25 @@ func AppendAnnouncementCreate(ctx context.Context, store AuditLogStore, namespac
 		"sendToFilter":   sendToFilter,
 		"recipientCount": recipientCount,
 		"createdBy":      agsid.Format(actor),
+	})
+}
+
+// AppendPlaytestADTBuildChange records a ChangeADTBuild call repointing
+// an ADT playtest at a different build (PRD §4.8 / §5.1). Playtest-scoped
+// + admin-attributed. Identity columns only — adt_namespace is the
+// operator-supplied linkage identifier (not a credential, not PII), and
+// the before/after game+build ids let an auditor reconstruct exactly
+// what the operator swapped. adt_namespace is immutable across the
+// change so it is recorded once.
+func AppendPlaytestADTBuildChange(ctx context.Context, store AuditLogStore, namespace string, actor, playtestID uuid.UUID, adtNamespace, beforeGameID, beforeBuildID, afterGameID, afterBuildID string) error {
+	return appendAction(ctx, store, namespace, &playtestID, &actor, ActionPlaytestADTBuildChange, map[string]any{
+		"playtestId":    playtestID.String(),
+		"adtNamespace":  adtNamespace,
+		"beforeGameId":  beforeGameID,
+		"beforeBuildId": beforeBuildID,
+		"afterGameId":   afterGameID,
+		"afterBuildId":  afterBuildID,
+		"changedBy":     agsid.Format(actor),
 	})
 }
 

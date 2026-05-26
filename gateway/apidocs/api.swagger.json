@@ -726,6 +726,57 @@
         ]
       }
     },
+    "/v1/admin/namespaces/{namespace}/playtests/{playtestId}/adt/build:change": {
+      "post": {
+        "summary": "Repoint an ADT playtest at a different build (admin)",
+        "description": "Mutates adt_game_id + adt_build_id on an ADT playtest after verifying the pair against the linked ADT namespace via ListBuilds. adt_namespace is immutable (relink instead). Non-ADT playtest → FailedPrecondition. Build absent from the (namespace, game) pair → InvalidArgument. Already-approved applicants keep the download URL already DM'd; future approvals + RetryDM re-mint against the new build (PRD §4.8.3).",
+        "operationId": "PlaytesthubService_ChangeADTBuild",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ChangeADTBuildResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "playtestId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/PlaytesthubServiceChangeADTBuildBody"
+            }
+          }
+        ],
+        "tags": [
+          "PlaytesthubService"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
     "/v1/admin/namespaces/{namespace}/playtests/{playtestId}/announcements": {
       "get": {
         "summary": "List announcement history for a playtest (admin)",
@@ -1971,6 +2022,19 @@
     "PlaytesthubServiceApproveApplicantBody": {
       "type": "object"
     },
+    "PlaytesthubServiceChangeADTBuildBody": {
+      "type": "object",
+      "properties": {
+        "adtGameId": {
+          "type": "string",
+          "description": "New ADT game id under the playtest's existing linked adt_namespace.\nRequired. Verified against the linkage via ListBuilds before persist."
+        },
+        "adtBuildId": {
+          "type": "string",
+          "description": "New ADT build id; must belong to (adt_namespace, adt_game_id).\nRequired."
+        }
+      }
+    },
     "PlaytesthubServiceCompleteADTLinkBody": {
       "type": "object",
       "properties": {
@@ -2506,6 +2570,15 @@
         }
       },
       "description": "AuditLogEntry — one row from the AuditLog table (schema.md §\"AuditLog\ntable\"). before_json / after_json carry the JSONB payload columns\nserialized as opaque JSON strings — the client renders the diff and\nthe wire shape stays stable as schema.md grows new payload variants.\nactor_user_id absent ⇄ actorUserId IS NULL (system-emitted event)."
+    },
+    "v1ChangeADTBuildResponse": {
+      "type": "object",
+      "properties": {
+        "playtest": {
+          "$ref": "#/definitions/v1Playtest",
+          "description": "The updated playtest row, carrying the new adt_game_id + adt_build_id."
+        }
+      }
     },
     "v1Code": {
       "type": "object",

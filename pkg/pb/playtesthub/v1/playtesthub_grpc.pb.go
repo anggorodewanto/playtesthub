@@ -59,6 +59,7 @@ const (
 	PlaytesthubService_ListADTBuilds_FullMethodName            = "/playtesthub.v1.PlaytesthubService/ListADTBuilds"
 	PlaytesthubService_ListADTGames_FullMethodName             = "/playtesthub.v1.PlaytesthubService/ListADTGames"
 	PlaytesthubService_GetADTClientDiagnostics_FullMethodName  = "/playtesthub.v1.PlaytesthubService/GetADTClientDiagnostics"
+	PlaytesthubService_ChangeADTBuild_FullMethodName           = "/playtesthub.v1.PlaytesthubService/ChangeADTBuild"
 	PlaytesthubService_GetPlaytestParticipants_FullMethodName  = "/playtesthub.v1.PlaytesthubService/GetPlaytestParticipants"
 	PlaytesthubService_CreateAnnouncement_FullMethodName       = "/playtesthub.v1.PlaytesthubService/CreateAnnouncement"
 	PlaytesthubService_ListAnnouncements_FullMethodName        = "/playtesthub.v1.PlaytesthubService/ListAnnouncements"
@@ -122,6 +123,13 @@ type PlaytesthubServiceClient interface {
 	ListADTBuilds(ctx context.Context, in *ListADTBuildsRequest, opts ...grpc.CallOption) (*ListADTBuildsResponse, error)
 	ListADTGames(ctx context.Context, in *ListADTGamesRequest, opts ...grpc.CallOption) (*ListADTGamesResponse, error)
 	GetADTClientDiagnostics(ctx context.Context, in *GetADTClientDiagnosticsRequest, opts ...grpc.CallOption) (*GetADTClientDiagnosticsResponse, error)
+	// ChangeADTBuild repoints an ADT playtest at a different build (and
+	// game) under the SAME linked ADT namespace. adt_namespace is NOT
+	// mutable here — it is the studio linkage scope; re-pointing it is a
+	// relink, not a build change (PRD §4.8 / §5.1). Verifies the new
+	// (adt_game_id, adt_build_id) pair against the linkage via ListBuilds
+	// before persisting.
+	ChangeADTBuild(ctx context.Context, in *ChangeADTBuildRequest, opts ...grpc.CallOption) (*ChangeADTBuildResponse, error)
 	// M5.C — participants surface backing the detail page Participants tab.
 	// Cache-only read; the four ADT telemetry cache columns ship dormant in
 	// M5.C (NULL/zero across the milestone — M6 lights them up).
@@ -541,6 +549,16 @@ func (c *playtesthubServiceClient) GetADTClientDiagnostics(ctx context.Context, 
 	return out, nil
 }
 
+func (c *playtesthubServiceClient) ChangeADTBuild(ctx context.Context, in *ChangeADTBuildRequest, opts ...grpc.CallOption) (*ChangeADTBuildResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ChangeADTBuildResponse)
+	err := c.cc.Invoke(ctx, PlaytesthubService_ChangeADTBuild_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *playtesthubServiceClient) GetPlaytestParticipants(ctx context.Context, in *GetPlaytestParticipantsRequest, opts ...grpc.CallOption) (*GetPlaytestParticipantsResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetPlaytestParticipantsResponse)
@@ -629,6 +647,13 @@ type PlaytesthubServiceServer interface {
 	ListADTBuilds(context.Context, *ListADTBuildsRequest) (*ListADTBuildsResponse, error)
 	ListADTGames(context.Context, *ListADTGamesRequest) (*ListADTGamesResponse, error)
 	GetADTClientDiagnostics(context.Context, *GetADTClientDiagnosticsRequest) (*GetADTClientDiagnosticsResponse, error)
+	// ChangeADTBuild repoints an ADT playtest at a different build (and
+	// game) under the SAME linked ADT namespace. adt_namespace is NOT
+	// mutable here — it is the studio linkage scope; re-pointing it is a
+	// relink, not a build change (PRD §4.8 / §5.1). Verifies the new
+	// (adt_game_id, adt_build_id) pair against the linkage via ListBuilds
+	// before persisting.
+	ChangeADTBuild(context.Context, *ChangeADTBuildRequest) (*ChangeADTBuildResponse, error)
 	// M5.C — participants surface backing the detail page Participants tab.
 	// Cache-only read; the four ADT telemetry cache columns ship dormant in
 	// M5.C (NULL/zero across the milestone — M6 lights them up).
@@ -766,6 +791,9 @@ func (UnimplementedPlaytesthubServiceServer) ListADTGames(context.Context, *List
 }
 func (UnimplementedPlaytesthubServiceServer) GetADTClientDiagnostics(context.Context, *GetADTClientDiagnosticsRequest) (*GetADTClientDiagnosticsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetADTClientDiagnostics not implemented")
+}
+func (UnimplementedPlaytesthubServiceServer) ChangeADTBuild(context.Context, *ChangeADTBuildRequest) (*ChangeADTBuildResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ChangeADTBuild not implemented")
 }
 func (UnimplementedPlaytesthubServiceServer) GetPlaytestParticipants(context.Context, *GetPlaytestParticipantsRequest) (*GetPlaytestParticipantsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetPlaytestParticipants not implemented")
@@ -1516,6 +1544,24 @@ func _PlaytesthubService_GetADTClientDiagnostics_Handler(srv interface{}, ctx co
 	return interceptor(ctx, in, info, handler)
 }
 
+func _PlaytesthubService_ChangeADTBuild_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ChangeADTBuildRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PlaytesthubServiceServer).ChangeADTBuild(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PlaytesthubService_ChangeADTBuild_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PlaytesthubServiceServer).ChangeADTBuild(ctx, req.(*ChangeADTBuildRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _PlaytesthubService_GetPlaytestParticipants_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetPlaytestParticipantsRequest)
 	if err := dec(in); err != nil {
@@ -1736,6 +1782,10 @@ var PlaytesthubService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetADTClientDiagnostics",
 			Handler:    _PlaytesthubService_GetADTClientDiagnostics_Handler,
+		},
+		{
+			MethodName: "ChangeADTBuild",
+			Handler:    _PlaytesthubService_ChangeADTBuild_Handler,
 		},
 		{
 			MethodName: "GetPlaytestParticipants",

@@ -24,14 +24,18 @@ import type { V1Playtest } from '../playtesthubapi/generated-definitions/V1Playt
 import type { V1UploadCodesRejection } from '../playtesthubapi/generated-definitions/V1UploadCodesRejection'
 import {
   Key_PlaytesthubServiceAdmin,
+  usePlaytesthubServiceAdminApi_CreateAdtBuildChange_ByPlaytestIdMutation,
   usePlaytesthubServiceAdminApi_CreateCodesSyncFromAg_ByPlaytestIdMutation,
   usePlaytesthubServiceAdminApi_CreateCodesTopUp_ByPlaytestIdMutation,
   usePlaytesthubServiceAdminApi_CreateCodesUpload_ByPlaytestIdMutation,
   usePlaytesthubServiceAdminApi_GetAdtLinkages,
-  usePlaytesthubServiceAdminApi_GetCodes_ByPlaytestId
+  usePlaytesthubServiceAdminApi_GetCodes_ByPlaytestId,
+  usePlaytesthubServiceAdminApi_GetGamesAdt_ByAdtLinkageId
 } from '../playtesthubapi/generated-admin/queries/PlaytesthubServiceAdmin.query'
 import { toastError } from '../shared/api-error'
+import { ADTBuildPickerModal } from '../shared/adt-build-picker'
 import { DistributionModel } from '../shared/playtesthub-enums'
+import type { V1AdtGame } from '../playtesthubapi/generated-definitions/V1AdtGame'
 
 const POOL_LOW_RATIO = 0.1
 
@@ -65,10 +69,29 @@ export function DistributionTab({ playtest }: { playtest: V1Playtest }) {
 
 function ADTPanel({ playtest }: { playtest: V1Playtest }) {
   const { sdk } = useAppUIContext()
+  const queryClient = useQueryClient()
   const linkagesQuery = usePlaytesthubServiceAdminApi_GetAdtLinkages(sdk, {})
   const linkages = (linkagesQuery.data?.linkages ?? []) as V1AdtLinkage[]
   const linkage = linkages.find(l => l.adtNamespace === playtest.adtNamespace) ?? null
   const linked = Boolean(playtest.adtNamespace)
+
+  const [pickerOpen, setPickerOpen] = useState(false)
+
+  const gamesQuery = usePlaytesthubServiceAdminApi_GetGamesAdt_ByAdtLinkageId(
+    sdk,
+    { adtLinkageId: linkage?.id ?? '' },
+    { enabled: !!linkage?.id, retry: false }
+  )
+  const games = (gamesQuery.data?.games ?? []) as V1AdtGame[]
+
+  const changeBuildMutation = usePlaytesthubServiceAdminApi_CreateAdtBuildChange_ByPlaytestIdMutation(sdk, {
+    onSuccess: () => {
+      message.success('Build updated')
+      queryClient.invalidateQueries({ queryKey: [Key_PlaytesthubServiceAdmin.Playtests] })
+      setPickerOpen(false)
+    },
+    onError: toastError('change build')
+  })
 
   return (
     <Space direction="vertical" size="middle" style={{ width: '100%' }} data-testid="distribution-tab">
@@ -77,12 +100,9 @@ function ADTPanel({ playtest }: { playtest: V1Playtest }) {
         title="ADT Connection"
         extra={
           linked ? (
-            <Space>
-              <Tag color="green" style={{ marginInlineEnd: 0 }}>
-                ● Connected
-              </Tag>
-              <Button>Unlink</Button>
-            </Space>
+            <Tag color="green" style={{ marginInlineEnd: 0 }}>
+              ● Connected
+            </Tag>
           ) : (
             <Tag style={{ marginInlineEnd: 0 }}>Not Connected</Tag>
           )
@@ -110,7 +130,14 @@ function ADTPanel({ playtest }: { playtest: V1Playtest }) {
       </Card>
 
       {linked && (
-        <Card data-testid="adt-build-card" title="Game Build" extra={<Button>Change Build</Button>}>
+        <Card
+          data-testid="adt-build-card"
+          title="Game Build"
+          extra={
+            <Button onClick={() => setPickerOpen(true)} disabled={!linkage?.id}>
+              Change Build
+            </Button>
+          }>
           <Space direction="vertical" size="middle" style={{ width: '100%' }}>
             <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
               <div
@@ -149,9 +176,24 @@ function ADTPanel({ playtest }: { playtest: V1Playtest }) {
               icon={<CheckCircleFilled />}
               message="Approved participants will receive a direct download link via Discord DM from the PlaytestHub bot."
             />
+            <Typography.Text type="secondary" style={{ fontSize: 13 }}>
+              Changing the build applies to future approvals and DM retries only — already-approved participants keep the
+              download already sent.
+            </Typography.Text>
           </Space>
         </Card>
       )}
+
+      <ADTBuildPickerModal
+        open={pickerOpen}
+        adtLinkageId={linkage?.id ?? ''}
+        initialGameId={playtest.adtGameId ?? ''}
+        games={games}
+        onCancel={() => setPickerOpen(false)}
+        onPick={(gameId, buildId) =>
+          changeBuildMutation.mutate({ playtestId: playtest.id ?? '', data: { adtGameId: gameId, adtBuildId: buildId } })
+        }
+      />
     </Space>
   )
 }

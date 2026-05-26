@@ -552,6 +552,70 @@ func (s *PlaytesthubServiceServer) ListADTGames(ctx context.Context, req *pb.Lis
 	return &pb.ListADTGamesResponse{Games: out}, nil
 }
 
+// ChangeADTBuild repoints an ADT playtest at a different (game, build)
+// pair under its existing linked ADT namespace. adt_namespace is NOT
+// mutable here — it is the studio-linkage scope; re-pointing it is a
+// relink, not a build change (PRD §4.8 / §5.1). The new pair is verified
+// against the linkage via verifyADTBuild (the same ADT round-trip
+// CreatePlaytest's ADT branch uses) before the row is persisted.
+// Already-approved applicants keep the download URL already DM'd; future
+// approvals + RetryDM re-mint against the new build (PRD §4.8.3).
+func (s *PlaytesthubServiceServer) ChangeADTBuild(ctx context.Context, req *pb.ChangeADTBuildRequest) (*pb.ChangeADTBuildResponse, error) {
+	actor, err := requireActor(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.checkNamespace(req.GetNamespace()); err != nil {
+		return nil, err
+	}
+	id, err := parseReqUUID("playtest_id", req.GetPlaytestId())
+	if err != nil {
+		return nil, err
+	}
+	if req.GetAdtGameId() == "" || req.GetAdtBuildId() == "" {
+		return nil, status.Error(codes.InvalidArgument, "adt_game_id and adt_build_id are required")
+	}
+
+	current, err := s.playtest.GetByID(ctx, s.namespace, id)
+	if e := mapPlaytestLookupErr(err, playtestSoftDelete(current), "fetching playtest"); e != nil {
+		return nil, e
+	}
+	if current.DistributionModel != distModelADT {
+		return nil, status.Error(codes.FailedPrecondition, "playtest does not use ADT distribution; build can only be changed on ADT playtests")
+	}
+	if current.ADTNamespace == nil || *current.ADTNamespace == "" {
+		return nil, status.Error(codes.FailedPrecondition, "playtest has no linked ADT namespace; re-create the playtest")
+	}
+
+	if err := s.verifyADTBuild(ctx, *current.ADTNamespace, req.GetAdtGameId(), req.GetAdtBuildId()); err != nil {
+		return nil, err
+	}
+
+	var beforeGameID, beforeBuildID string
+	if current.ADTGameID != nil {
+		beforeGameID = *current.ADTGameID
+	}
+	if current.ADTBuildID != nil {
+		beforeBuildID = *current.ADTBuildID
+	}
+	newGame := req.GetAdtGameId()
+	newBuild := req.GetAdtBuildId()
+	current.ADTGameID = &newGame
+	current.ADTBuildID = &newBuild
+
+	got, err := s.playtest.Update(ctx, current)
+	if e := mapPlaytestLookupErr(err, nil, "updating playtest"); e != nil {
+		return nil, e
+	}
+
+	if s.audit != nil {
+		if auditErr := repo.AppendPlaytestADTBuildChange(ctx, s.audit, s.namespace, actor, got.ID, *current.ADTNamespace, beforeGameID, beforeBuildID, newGame, newBuild); auditErr != nil {
+			s.loggerOrDefault().Warn("audit append failed", "action", repo.ActionPlaytestADTBuildChange, "err", auditErr)
+		}
+	}
+	return &pb.ChangeADTBuildResponse{Playtest: playtestToProto(got)}, nil
+}
+
 // GetADTClientDiagnostics returns the snapshot the bootapp recorded
 // when it picked between adt.NewHTTPClient and adt.NewMemClient.
 // Booleans only — the secret-bearing env vars are reported as presence

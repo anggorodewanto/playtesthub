@@ -10,6 +10,7 @@ import type { Response } from '@accelbyte/sdk'
 import { Validate } from '@accelbyte/sdk'
 import type { AxiosInstance, AxiosRequestConfig } from 'axios'
 import { PlaytesthubServiceApproveApplicantBody } from '../../generated-definitions/PlaytesthubServiceApproveApplicantBody.js'
+import { PlaytesthubServiceChangeAdtBuildBody } from '../../generated-definitions/PlaytesthubServiceChangeAdtBuildBody.js'
 import { PlaytesthubServiceCompleteAdtLinkBody } from '../../generated-definitions/PlaytesthubServiceCompleteAdtLinkBody.js'
 import { PlaytesthubServiceCreateAnnouncementBody } from '../../generated-definitions/PlaytesthubServiceCreateAnnouncementBody.js'
 import { PlaytesthubServiceCreatePlaytestBody } from '../../generated-definitions/PlaytesthubServiceCreatePlaytestBody.js'
@@ -27,6 +28,7 @@ import { PlaytesthubServiceTransitionPlaytestStatusBody } from '../../generated-
 import { PlaytesthubServiceUploadCodesBody } from '../../generated-definitions/PlaytesthubServiceUploadCodesBody.js'
 import { V1AdminGetPlaytestResponse } from '../../generated-definitions/V1AdminGetPlaytestResponse.js'
 import { V1ApproveApplicantResponse } from '../../generated-definitions/V1ApproveApplicantResponse.js'
+import { V1ChangeAdtBuildResponse } from '../../generated-definitions/V1ChangeAdtBuildResponse.js'
 import { V1CompleteAdtLinkResponse } from '../../generated-definitions/V1CompleteAdtLinkResponse.js'
 import { V1CreateAnnouncementResponse } from '../../generated-definitions/V1CreateAnnouncementResponse.js'
 import { V1CreatePlaytestResponse } from '../../generated-definitions/V1CreatePlaytestResponse.js'
@@ -518,6 +520,26 @@ export class PlaytesthubServiceAdmin$ {
       () => resultPromise,
       V1TransitionPlaytestStatusResponse,
       'V1TransitionPlaytestStatusResponse'
+    )
+  }
+  /**
+   * Mutates adt_game_id + adt_build_id on an ADT playtest after verifying the pair against the linked ADT namespace via ListBuilds. adt_namespace is immutable (relink instead). Non-ADT playtest → FailedPrecondition. Build absent from the (namespace, game) pair → InvalidArgument. Already-approved applicants keep the download URL already DM'd; future approvals + RetryDM re-mint against the new build (PRD §4.8.3).
+   */
+  createAdtBuildChange_ByPlaytestId(
+    playtestId: string,
+    data: PlaytesthubServiceChangeAdtBuildBody
+  ): Promise<Response<V1ChangeAdtBuildResponse>> {
+    const params = {} as AxiosRequestConfig
+    const url = '/v1/admin/namespaces/{namespace}/playtests/{playtestId}/adt/build:change'
+      .replace('{namespace}', this.namespace)
+      .replace('{playtestId}', playtestId)
+    const resultPromise = this.axiosInstance.post(url, data, { params })
+
+    return Validate.validateOrReturnResponse(
+      this.useSchemaValidation,
+      () => resultPromise,
+      V1ChangeAdtBuildResponse,
+      'V1ChangeAdtBuildResponse'
     )
   }
   /**
