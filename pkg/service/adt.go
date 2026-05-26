@@ -600,10 +600,12 @@ func (s *PlaytesthubServiceServer) ChangeADTBuild(ctx context.Context, req *pb.C
 	}
 	newGame := req.GetAdtGameId()
 	newBuild := req.GetAdtBuildId()
-	current.ADTGameID = &newGame
-	current.ADTBuildID = &newBuild
 
-	got, err := s.playtest.Update(ctx, current)
+	// UpdateADTBuild, not the generic Update: the latter's SET whitelist
+	// omits adt_game_id / adt_build_id, so routing through it would accept
+	// the change and silently drop it before Postgres (the build-change
+	// recovery path would no-op).
+	got, err := s.playtest.UpdateADTBuild(ctx, s.namespace, current.ID, newGame, newBuild)
 	if e := mapPlaytestLookupErr(err, nil, "updating playtest"); e != nil {
 		return nil, e
 	}
@@ -614,6 +616,116 @@ func (s *PlaytesthubServiceServer) ChangeADTBuild(ctx context.Context, req *pb.C
 		}
 	}
 	return &pb.ChangeADTBuildResponse{Playtest: playtestToProto(got)}, nil
+}
+
+// ADT build-health values persisted to playtest.adt_build_status (M5.C).
+const (
+	adtBuildStatusOK          = "OK"
+	adtBuildStatusUnavailable = "UNAVAILABLE"
+	// adtBuildHealthCheckIdent is the ApplicantIdent forwarded to ADT on a
+	// CheckADTBuild probe so the throwaway issue is distinguishable from a
+	// real grant in ADT-side audit.
+	adtBuildHealthCheckIdent = "build-health-check"
+)
+
+// CheckADTBuild probes whether the playtest's current ADT build can still
+// mint a download URL (the same adt.Client.IssueDownloadURL call
+// ApproveApplicant makes) and persists the result so the detail page can
+// surface a gone/undownloadable build without an approval attempt. A
+// transient ADT failure (linkage missing / unreachable) surfaces as a
+// gRPC error and leaves the stored status untouched.
+func (s *PlaytesthubServiceServer) CheckADTBuild(ctx context.Context, req *pb.CheckADTBuildRequest) (*pb.CheckADTBuildResponse, error) {
+	if _, err := requireActor(ctx); err != nil {
+		return nil, err
+	}
+	if err := s.checkNamespace(req.GetNamespace()); err != nil {
+		return nil, err
+	}
+	id, err := parseReqUUID("playtest_id", req.GetPlaytestId())
+	if err != nil {
+		return nil, err
+	}
+
+	current, err := s.playtest.GetByID(ctx, s.namespace, id)
+	if e := mapPlaytestLookupErr(err, playtestSoftDelete(current), "fetching playtest"); e != nil {
+		return nil, e
+	}
+	if current.DistributionModel != distModelADT {
+		return nil, status.Error(codes.FailedPrecondition, "playtest does not use ADT distribution; build health only applies to ADT playtests")
+	}
+
+	health, probeErr := s.probeADTBuildHealth(ctx, current)
+	if probeErr != nil {
+		return nil, probeErr
+	}
+	got, err := s.playtest.SetADTBuildHealth(ctx, s.namespace, current.ID, health, time.Now().UTC())
+	if e := mapPlaytestLookupErr(err, nil, "persisting adt build health"); e != nil {
+		return nil, e
+	}
+	return &pb.CheckADTBuildResponse{Playtest: playtestToProto(got), Healthy: health == adtBuildStatusOK}, nil
+}
+
+// probeADTBuildHealth issues a download URL for the playtest's current
+// build and classifies the result into a persistable status. Unlike
+// resolveADTDownloadURL it ignores adt_fallback_download_url — a fallback
+// masks a dead build for approval but does not make the build itself
+// healthy, which is exactly what this surface must report. Returns
+// ("OK"|"UNAVAILABLE", nil) for determinate outcomes, or a gRPC error for
+// transient failures the caller must not persist.
+func (s *PlaytesthubServiceServer) probeADTBuildHealth(ctx context.Context, playtest *repo.Playtest) (string, error) {
+	if s.adtClient == nil {
+		return "", status.Error(codes.Internal, "ADT client not configured")
+	}
+	if playtest.ADTNamespace == nil || playtest.ADTGameID == nil || playtest.ADTBuildID == nil {
+		return "", status.Error(codes.Internal, "ADT playtest missing identifiers")
+	}
+	studio, err := s.resolveStudioNamespace(ctx)
+	if err != nil {
+		return "", err
+	}
+	_, issueErr := s.adtClient.IssueDownloadURL(ctx, adt.IssueDownloadURLParams{
+		StudioNamespace: studio,
+		ADTNamespace:    *playtest.ADTNamespace,
+		ADTGameID:       *playtest.ADTGameID,
+		ADTBuildID:      *playtest.ADTBuildID,
+		ApplicantIdent:  adtBuildHealthCheckIdent,
+	})
+	if health, ok := adtBuildHealthFromIssueErr(issueErr); ok {
+		return health, nil
+	}
+	if errors.Is(issueErr, adt.ErrLinkageMissing) {
+		return "", status.Error(codes.FailedPrecondition, "adt linkage no longer exists or service token rejected, re-link required")
+	}
+	return "", status.Errorf(codes.Unavailable, "calling ADT IssueDownloadURL: %v", issueErr)
+}
+
+// adtBuildHealthFromIssueErr maps an IssueDownloadURL error into a
+// persistable adt_build_status. ok=false means the error is transient
+// (linkage missing / unreachable) and the last-known status must be left
+// in place rather than overwritten.
+func adtBuildHealthFromIssueErr(issueErr error) (string, bool) {
+	if issueErr == nil {
+		return adtBuildStatusOK, true
+	}
+	if errors.Is(issueErr, adt.ErrBuildNotFound) {
+		return adtBuildStatusUnavailable, true
+	}
+	return "", false
+}
+
+// recordADTBuildHealth opportunistically persists build health observed
+// while resolving a download URL on the approve / RetryDM paths. Best
+// effort: a write failure is logged, never surfaced, so it cannot mask
+// the primary approve outcome. Transient ADT errors are skipped so a
+// blip does not clobber a previously-good status.
+func (s *PlaytesthubServiceServer) recordADTBuildHealth(ctx context.Context, playtest *repo.Playtest, issueErr error) {
+	health, ok := adtBuildHealthFromIssueErr(issueErr)
+	if !ok {
+		return
+	}
+	if _, err := s.playtest.SetADTBuildHealth(ctx, s.namespace, playtest.ID, health, time.Now().UTC()); err != nil {
+		s.loggerOrDefault().Warn("recording adt build health failed", "playtestId", playtest.ID, "err", err)
+	}
 }
 
 // GetADTClientDiagnostics returns the snapshot the bootapp recorded

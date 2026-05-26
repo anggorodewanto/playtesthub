@@ -43,6 +43,41 @@ func TestRunADTGamesList_DryRun(t *testing.T) {
 	}
 }
 
+// TestRunADTBuildCheck_DryRun pins that `pth adt build check` emits a
+// CheckADTBuild request body and does not dial.
+func TestRunADTBuildCheck_DryRun(t *testing.T) {
+	stub := &stubPlaytestClient{}
+	var stdout, stderr bytes.Buffer
+	g := &Globals{Addr: "localhost:6565", Namespace: testNamespaceDev}
+	code := runADT(t.Context(), &stdout, &stderr, g, []string{
+		"build", "check",
+		"--playtest-id", "01234567-89ab-cdef-0123-456789abcdef",
+		"--dry-run",
+	}, factoryFor(stub))
+	if code != exitOK {
+		t.Fatalf("exit=%d, want %d (stderr=%q)", code, exitOK, stderr.String())
+	}
+	var got map[string]any
+	if err := json.Unmarshal(bytes.TrimSpace(stdout.Bytes()), &got); err != nil {
+		t.Fatalf("stdout not JSON: %v: %q", err, stdout.String())
+	}
+	if got["playtest_id"] != "01234567-89ab-cdef-0123-456789abcdef" {
+		t.Errorf("playtest_id = %v", got["playtest_id"])
+	}
+}
+
+func TestRunADTBuildCheck_RequiresPlaytestID(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	g := &Globals{Addr: "localhost:6565", Namespace: testNamespaceDev}
+	code := runADT(t.Context(), &stdout, &stderr, g, []string{"build", "check", "--dry-run"}, factoryFor(&stubPlaytestClient{}))
+	if code != exitLocalError {
+		t.Fatalf("exit=%d, want %d", code, exitLocalError)
+	}
+	if !strings.Contains(stderr.String(), "--playtest-id") {
+		t.Errorf("stderr missing --playtest-id hint: %q", stderr.String())
+	}
+}
+
 func TestRunADTGamesList_RequiresLinkageID(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	g := &Globals{Addr: "localhost:6565", Namespace: testNamespaceDev}

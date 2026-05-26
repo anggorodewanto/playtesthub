@@ -23,6 +23,7 @@ const mockGetAdtLinkages = vi.fn()
 const mockGetAdtGames = vi.fn()
 const mockGetAdtBuilds = vi.fn()
 const mockChangeAdtBuild = vi.fn()
+const mockCheckAdtBuild = vi.fn()
 const mockApprove = vi.fn()
 const mockReject = vi.fn()
 const mockRetryDm = vi.fn()
@@ -49,7 +50,8 @@ vi.mock('./playtesthubapi/generated-admin/queries/PlaytesthubServiceAdmin.query'
     Survey_ByPlaytestId: 'survey-by-playtest-id',
     GamesAdt_ByAdtLinkageId: 'adt-games-by-linkage-id',
     BuildsAdt_ByAdtLinkageId: 'adt-builds-by-linkage-id',
-    AdtBuildChange_ByPlaytestId: 'adt-build-change-by-playtest-id'
+    AdtBuildChange_ByPlaytestId: 'adt-build-change-by-playtest-id',
+    AdtBuildCheck_ByPlaytestId: 'adt-build-check-by-playtest-id'
   },
   usePlaytesthubServiceAdminApi_GetPlaytests: (...a: unknown[]) => mockGetPlaytests(...a),
   usePlaytesthubServiceAdminApi_CreatePlaytest_ByPlaytestIdTransitionStatuMutation: (...a: unknown[]) =>
@@ -67,6 +69,7 @@ vi.mock('./playtesthubapi/generated-admin/queries/PlaytesthubServiceAdmin.query'
   usePlaytesthubServiceAdminApi_GetGamesAdt_ByAdtLinkageId: (...a: unknown[]) => mockGetAdtGames(...a),
   usePlaytesthubServiceAdminApi_GetBuildsAdt_ByAdtLinkageId: (...a: unknown[]) => mockGetAdtBuilds(...a),
   usePlaytesthubServiceAdminApi_CreateAdtBuildChange_ByPlaytestIdMutation: (...a: unknown[]) => mockChangeAdtBuild(...a),
+  usePlaytesthubServiceAdminApi_CreateAdtBuildCheck_ByPlaytestIdMutation: (...a: unknown[]) => mockCheckAdtBuild(...a),
   usePlaytesthubServiceAdminApi_CreateApplicant_ByApplicantIdApproveMutation: (...a: unknown[]) =>
     mockApprove(...a),
   usePlaytesthubServiceAdminApi_CreateApplicant_ByApplicantIdRejectMutation: (...a: unknown[]) => mockReject(...a),
@@ -130,6 +133,7 @@ beforeEach(() => {
   mockGetAdtGames.mockReturnValue({ data: { games: [] }, isLoading: false, error: null })
   mockGetAdtBuilds.mockReturnValue({ data: { builds: [] }, isLoading: false, error: null })
   mockChangeAdtBuild.mockReturnValue({ mutate: vi.fn(), isPending: false, isError: false, error: null })
+  mockCheckAdtBuild.mockReturnValue({ mutate: vi.fn(), isPending: false, isError: false, error: null })
   mockApprove.mockReturnValue({ mutate: vi.fn(), isPending: false })
   mockReject.mockReturnValue({ mutate: vi.fn(), isPending: false })
   mockRetryDm.mockReturnValue({ mutate: vi.fn(), isPending: false })

@@ -60,6 +60,7 @@ const (
 	PlaytesthubService_ListADTGames_FullMethodName             = "/playtesthub.v1.PlaytesthubService/ListADTGames"
 	PlaytesthubService_GetADTClientDiagnostics_FullMethodName  = "/playtesthub.v1.PlaytesthubService/GetADTClientDiagnostics"
 	PlaytesthubService_ChangeADTBuild_FullMethodName           = "/playtesthub.v1.PlaytesthubService/ChangeADTBuild"
+	PlaytesthubService_CheckADTBuild_FullMethodName            = "/playtesthub.v1.PlaytesthubService/CheckADTBuild"
 	PlaytesthubService_GetPlaytestParticipants_FullMethodName  = "/playtesthub.v1.PlaytesthubService/GetPlaytestParticipants"
 	PlaytesthubService_CreateAnnouncement_FullMethodName       = "/playtesthub.v1.PlaytesthubService/CreateAnnouncement"
 	PlaytesthubService_ListAnnouncements_FullMethodName        = "/playtesthub.v1.PlaytesthubService/ListAnnouncements"
@@ -130,6 +131,14 @@ type PlaytesthubServiceClient interface {
 	// (adt_game_id, adt_build_id) pair against the linkage via ListBuilds
 	// before persisting.
 	ChangeADTBuild(ctx context.Context, in *ChangeADTBuildRequest, opts ...grpc.CallOption) (*ChangeADTBuildResponse, error)
+	// CheckADTBuild probes whether the playtest's current ADT build can still
+	// mint a download URL — the same adt.Client.IssueDownloadURL call
+	// ApproveApplicant makes — and persists the result to adt_build_status +
+	// adt_build_checked_at so the detail page surfaces a gone/undownloadable
+	// build without an approval attempt. Side effect: ADT mints a throwaway
+	// URL on success, so this is an explicit on-demand action, not a passive
+	// read.
+	CheckADTBuild(ctx context.Context, in *CheckADTBuildRequest, opts ...grpc.CallOption) (*CheckADTBuildResponse, error)
 	// M5.C — participants surface backing the detail page Participants tab.
 	// Cache-only read; the four ADT telemetry cache columns ship dormant in
 	// M5.C (NULL/zero across the milestone — M6 lights them up).
@@ -559,6 +568,16 @@ func (c *playtesthubServiceClient) ChangeADTBuild(ctx context.Context, in *Chang
 	return out, nil
 }
 
+func (c *playtesthubServiceClient) CheckADTBuild(ctx context.Context, in *CheckADTBuildRequest, opts ...grpc.CallOption) (*CheckADTBuildResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CheckADTBuildResponse)
+	err := c.cc.Invoke(ctx, PlaytesthubService_CheckADTBuild_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *playtesthubServiceClient) GetPlaytestParticipants(ctx context.Context, in *GetPlaytestParticipantsRequest, opts ...grpc.CallOption) (*GetPlaytestParticipantsResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetPlaytestParticipantsResponse)
@@ -654,6 +673,14 @@ type PlaytesthubServiceServer interface {
 	// (adt_game_id, adt_build_id) pair against the linkage via ListBuilds
 	// before persisting.
 	ChangeADTBuild(context.Context, *ChangeADTBuildRequest) (*ChangeADTBuildResponse, error)
+	// CheckADTBuild probes whether the playtest's current ADT build can still
+	// mint a download URL — the same adt.Client.IssueDownloadURL call
+	// ApproveApplicant makes — and persists the result to adt_build_status +
+	// adt_build_checked_at so the detail page surfaces a gone/undownloadable
+	// build without an approval attempt. Side effect: ADT mints a throwaway
+	// URL on success, so this is an explicit on-demand action, not a passive
+	// read.
+	CheckADTBuild(context.Context, *CheckADTBuildRequest) (*CheckADTBuildResponse, error)
 	// M5.C — participants surface backing the detail page Participants tab.
 	// Cache-only read; the four ADT telemetry cache columns ship dormant in
 	// M5.C (NULL/zero across the milestone — M6 lights them up).
@@ -794,6 +821,9 @@ func (UnimplementedPlaytesthubServiceServer) GetADTClientDiagnostics(context.Con
 }
 func (UnimplementedPlaytesthubServiceServer) ChangeADTBuild(context.Context, *ChangeADTBuildRequest) (*ChangeADTBuildResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ChangeADTBuild not implemented")
+}
+func (UnimplementedPlaytesthubServiceServer) CheckADTBuild(context.Context, *CheckADTBuildRequest) (*CheckADTBuildResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CheckADTBuild not implemented")
 }
 func (UnimplementedPlaytesthubServiceServer) GetPlaytestParticipants(context.Context, *GetPlaytestParticipantsRequest) (*GetPlaytestParticipantsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetPlaytestParticipants not implemented")
@@ -1562,6 +1592,24 @@ func _PlaytesthubService_ChangeADTBuild_Handler(srv interface{}, ctx context.Con
 	return interceptor(ctx, in, info, handler)
 }
 
+func _PlaytesthubService_CheckADTBuild_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CheckADTBuildRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PlaytesthubServiceServer).CheckADTBuild(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PlaytesthubService_CheckADTBuild_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PlaytesthubServiceServer).CheckADTBuild(ctx, req.(*CheckADTBuildRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _PlaytesthubService_GetPlaytestParticipants_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetPlaytestParticipantsRequest)
 	if err := dec(in); err != nil {
@@ -1786,6 +1834,10 @@ var PlaytesthubService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ChangeADTBuild",
 			Handler:    _PlaytesthubService_ChangeADTBuild_Handler,
+		},
+		{
+			MethodName: "CheckADTBuild",
+			Handler:    _PlaytesthubService_CheckADTBuild_Handler,
 		},
 		{
 			MethodName: "GetPlaytestParticipants",

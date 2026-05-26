@@ -777,6 +777,57 @@
         ]
       }
     },
+    "/v1/admin/namespaces/{namespace}/playtests/{playtestId}/adt/build:check": {
+      "post": {
+        "summary": "Probe + persist an ADT playtest's build download health (admin)",
+        "description": "Issues a download URL for the playtest's current adt_build_id (same call as ApproveApplicant) and persists adt_build_status: 'OK' when a URL was minted, 'UNAVAILABLE' when ADT returns build-not-found. Non-ADT playtest → FailedPrecondition. Linkage missing / ADT unreachable → FailedPrecondition / Unavailable (status not overwritten). Side effect: a throwaway download URL is minted on success.",
+        "operationId": "PlaytesthubService_CheckADTBuild",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1CheckADTBuildResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "playtestId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/PlaytesthubServiceCheckADTBuildBody"
+            }
+          }
+        ],
+        "tags": [
+          "PlaytesthubService"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
     "/v1/admin/namespaces/{namespace}/playtests/{playtestId}/announcements": {
       "get": {
         "summary": "List announcement history for a playtest (admin)",
@@ -2035,6 +2086,9 @@
         }
       }
     },
+    "PlaytesthubServiceCheckADTBuildBody": {
+      "type": "object"
+    },
     "PlaytesthubServiceCompleteADTLinkBody": {
       "type": "object",
       "properties": {
@@ -2577,6 +2631,19 @@
         "playtest": {
           "$ref": "#/definitions/v1Playtest",
           "description": "The updated playtest row, carrying the new adt_game_id + adt_build_id."
+        }
+      }
+    },
+    "v1CheckADTBuildResponse": {
+      "type": "object",
+      "properties": {
+        "playtest": {
+          "$ref": "#/definitions/v1Playtest",
+          "description": "The updated playtest row, carrying the refreshed adt_build_status +\nadt_build_checked_at."
+        },
+        "healthy": {
+          "type": "boolean",
+          "description": "healthy = (adt_build_status == \"OK\") — convenience mirror so the\ncaller need not re-parse the string."
         }
       }
     },
@@ -3237,6 +3304,14 @@
         },
         "adtFallbackDownloadUrl": {
           "type": "string"
+        },
+        "adtBuildStatus": {
+          "type": "string",
+          "description": "ADT build health (M5.C, \"build gone\" surfacing). Last observed result\nof issuing a download URL for adt_build_id: \"OK\" (a URL was minted),\n\"UNAVAILABLE\" (ADT returned build-not-found — the same signal that\nfails ApproveApplicant), or unset (never checked / not an ADT playtest).\nWritten by ApproveApplicant/RetryDM opportunistically and on demand by\nCheckADTBuild. adt_build_checked_at is when the status was last observed."
+        },
+        "adtBuildCheckedAt": {
+          "type": "string",
+          "format": "date-time"
         }
       },
       "description": "Playtest is the full admin-visible entity. Field semantics: PRD §5.1."

@@ -1,4 +1,4 @@
-import { CheckCircleFilled, CodeSandboxOutlined } from '@ant-design/icons'
+import { CheckCircleFilled, CodeSandboxOutlined, ExclamationCircleFilled } from '@ant-design/icons'
 import { useAppUIContext } from '@accelbyte/sdk-extend-app-ui'
 import { useQueryClient } from '@tanstack/react-query'
 import {
@@ -25,6 +25,7 @@ import type { V1UploadCodesRejection } from '../playtesthubapi/generated-definit
 import {
   Key_PlaytesthubServiceAdmin,
   usePlaytesthubServiceAdminApi_CreateAdtBuildChange_ByPlaytestIdMutation,
+  usePlaytesthubServiceAdminApi_CreateAdtBuildCheck_ByPlaytestIdMutation,
   usePlaytesthubServiceAdminApi_CreateCodesSyncFromAg_ByPlaytestIdMutation,
   usePlaytesthubServiceAdminApi_CreateCodesTopUp_ByPlaytestIdMutation,
   usePlaytesthubServiceAdminApi_CreateCodesUpload_ByPlaytestIdMutation,
@@ -93,6 +94,15 @@ function ADTPanel({ playtest }: { playtest: V1Playtest }) {
     onError: toastError('change build')
   })
 
+  const checkBuildMutation = usePlaytesthubServiceAdminApi_CreateAdtBuildCheck_ByPlaytestIdMutation(sdk, {
+    onSuccess: data => {
+      if (data.healthy) message.success('Build is available in ADT')
+      else message.warning('Build is no longer available in ADT')
+      queryClient.invalidateQueries({ queryKey: [Key_PlaytesthubServiceAdmin.Playtests] })
+    },
+    onError: toastError('check build')
+  })
+
   return (
     <Space direction="vertical" size="middle" style={{ width: '100%' }} data-testid="distribution-tab">
       <Card
@@ -134,9 +144,17 @@ function ADTPanel({ playtest }: { playtest: V1Playtest }) {
           data-testid="adt-build-card"
           title="Game Build"
           extra={
-            <Button onClick={() => setPickerOpen(true)} disabled={!linkage?.id}>
-              Change Build
-            </Button>
+            <Space>
+              <Button
+                onClick={() => checkBuildMutation.mutate({ playtestId: playtest.id ?? '', data: {} })}
+                loading={checkBuildMutation.isPending}
+                data-testid="adt-check-build-btn">
+                Check build
+              </Button>
+              <Button onClick={() => setPickerOpen(true)} disabled={!linkage?.id}>
+                Change Build
+              </Button>
+            </Space>
           }>
           <Space direction="vertical" size="middle" style={{ width: '100%' }}>
             <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
@@ -170,6 +188,7 @@ function ADTPanel({ playtest }: { playtest: V1Playtest }) {
                 </Typography.Text>
               </div>
             </div>
+            <BuildHealthAlert playtest={playtest} />
             <Alert
               type="success"
               showIcon
@@ -196,6 +215,41 @@ function ADTPanel({ playtest }: { playtest: V1Playtest }) {
       />
     </Space>
   )
+}
+
+// BuildHealthAlert surfaces the last observed ADT build download health
+// (adt_build_status, written by approve attempts and the Check build
+// button) so a gone/undownloadable build is visible without an approval.
+// Renders nothing until the build has been checked at least once.
+function BuildHealthAlert({ playtest }: { playtest: V1Playtest }) {
+  const status = playtest.adtBuildStatus ?? ''
+  const checkedAt = playtest.adtBuildCheckedAt ? dayjs(playtest.adtBuildCheckedAt).format('MMM D, YYYY, h:mm A') : null
+  const suffix = checkedAt ? ` (last checked ${checkedAt})` : ''
+
+  if (status === 'UNAVAILABLE') {
+    return (
+      <Alert
+        type="error"
+        showIcon
+        icon={<ExclamationCircleFilled />}
+        data-testid="adt-build-health-alert"
+        message="This build is no longer available in ADT"
+        description={`Approvals will fail until you set a fallback download URL or change the build to a current one${suffix}.`}
+      />
+    )
+  }
+  if (status === 'OK') {
+    return (
+      <Alert
+        type="success"
+        showIcon
+        icon={<CheckCircleFilled />}
+        data-testid="adt-build-health-alert"
+        message={`Build is available in ADT${suffix}.`}
+      />
+    )
+  }
+  return null
 }
 
 function SteamKeysPanel({ playtest }: { playtest: V1Playtest }) {

@@ -11,6 +11,7 @@ import { ApiUtils, Network } from '@accelbyte/sdk'
 import type { AxiosRequestConfig, AxiosResponse } from 'axios'
 import { PlaytesthubServiceApproveApplicantBody } from '../generated-definitions/PlaytesthubServiceApproveApplicantBody.js'
 import { PlaytesthubServiceChangeAdtBuildBody } from '../generated-definitions/PlaytesthubServiceChangeAdtBuildBody.js'
+import { PlaytesthubServiceCheckAdtBuildBody } from '../generated-definitions/PlaytesthubServiceCheckAdtBuildBody.js'
 import { PlaytesthubServiceCompleteAdtLinkBody } from '../generated-definitions/PlaytesthubServiceCompleteAdtLinkBody.js'
 import { PlaytesthubServiceCreateAnnouncementBody } from '../generated-definitions/PlaytesthubServiceCreateAnnouncementBody.js'
 import { PlaytesthubServiceCreatePlaytestBody } from '../generated-definitions/PlaytesthubServiceCreatePlaytestBody.js'
@@ -29,6 +30,7 @@ import { PlaytesthubServiceUploadCodesBody } from '../generated-definitions/Play
 import { V1AdminGetPlaytestResponse } from '../generated-definitions/V1AdminGetPlaytestResponse.js'
 import { V1ApproveApplicantResponse } from '../generated-definitions/V1ApproveApplicantResponse.js'
 import { V1ChangeAdtBuildResponse } from '../generated-definitions/V1ChangeAdtBuildResponse.js'
+import { V1CheckAdtBuildResponse } from '../generated-definitions/V1CheckAdtBuildResponse.js'
 import { V1CompleteAdtLinkResponse } from '../generated-definitions/V1CompleteAdtLinkResponse.js'
 import { V1CreateAnnouncementResponse } from '../generated-definitions/V1CreateAnnouncementResponse.js'
 import { V1CreatePlaytestResponse } from '../generated-definitions/V1CreatePlaytestResponse.js'
@@ -330,6 +332,16 @@ export function PlaytesthubServiceAdminApi(sdk: AccelByteSDK, args?: SdkSetConfi
     return resp.response
   }
 
+  async function createAdtBuildCheck_ByPlaytestId(
+    playtestId: string,
+    data: PlaytesthubServiceCheckAdtBuildBody
+  ): Promise<AxiosResponse<V1CheckAdtBuildResponse>> {
+    const $ = new PlaytesthubServiceAdmin$(axiosInstance, namespace, useSchemaValidation)
+    const resp = await $.createAdtBuildCheck_ByPlaytestId(playtestId, data)
+    if (resp.error) throw resp.error
+    return resp.response
+  }
+
   async function createPlaytest_ByPlaytestIdTransitionStatu(
     playtestId: string,
     data: PlaytesthubServiceTransitionPlaytestStatusBody
@@ -482,6 +494,10 @@ export function PlaytesthubServiceAdminApi(sdk: AccelByteSDK, args?: SdkSetConfi
      * Resolves recipients at call time (NOT a stored snapshot). Subject + message are PII-sensitive and are never written to audit JSONB or structured logs.
      */
     createAnnouncement_ByPlaytestId,
+    /**
+     * Issues a download URL for the playtest's current adt_build_id (same call as ApproveApplicant) and persists adt_build_status: 'OK' when a URL was minted, 'UNAVAILABLE' when ADT returns build-not-found. Non-ADT playtest → FailedPrecondition. Linkage missing / ADT unreachable → FailedPrecondition / Unavailable (status not overwritten). Side effect: a throwaway download URL is minted on success.
+     */
+    createAdtBuildCheck_ByPlaytestId,
 
     createPlaytest_ByPlaytestIdTransitionStatu,
     /**

@@ -35,7 +35,9 @@ export const V1Playtest = z.object({
   adtNamespace: z.string().nullish(),
   adtGameId: z.string().nullish(),
   adtBuildId: z.string().nullish(),
-  adtFallbackDownloadUrl: z.string().nullish()
+  adtFallbackDownloadUrl: z.string().nullish(),
+  adtBuildStatus: z.string().nullish(),
+  adtBuildCheckedAt: z.string().nullish()
 })
 
 export interface V1Playtest extends z.TypeOf<typeof V1Playtest> {}

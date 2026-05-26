@@ -128,6 +128,33 @@ func (f *fakePlaytestStore) SetSurveyID(_ context.Context, namespace string, pla
 	return repo.ErrNotFound
 }
 
+func (f *fakePlaytestStore) UpdateADTBuild(_ context.Context, namespace string, id uuid.UUID, adtGameID, adtBuildID string) (*repo.Playtest, error) {
+	for _, r := range f.rows {
+		if r.Namespace == namespace && r.ID == id && r.DeletedAt == nil {
+			g, b := adtGameID, adtBuildID
+			r.ADTGameID = &g
+			r.ADTBuildID = &b
+			r.UpdatedAt = time.Now()
+			ret := *r
+			return &ret, nil
+		}
+	}
+	return nil, repo.ErrNotFound
+}
+
+func (f *fakePlaytestStore) SetADTBuildHealth(_ context.Context, namespace string, id uuid.UUID, status string, checkedAt time.Time) (*repo.Playtest, error) {
+	for _, r := range f.rows {
+		if r.Namespace == namespace && r.ID == id && r.DeletedAt == nil {
+			s, c := status, checkedAt
+			r.ADTBuildStatus = &s
+			r.ADTBuildCheckedAt = &c
+			ret := *r
+			return &ret, nil
+		}
+	}
+	return nil, repo.ErrNotFound
+}
+
 func (f *fakePlaytestStore) ListDueForAutoTransition(_ context.Context, namespace string, now time.Time) ([]*repo.Playtest, error) {
 	out := make([]*repo.Playtest, 0)
 	for _, r := range f.rows {

@@ -11,6 +11,7 @@ import { Validate } from '@accelbyte/sdk'
 import type { AxiosInstance, AxiosRequestConfig } from 'axios'
 import { PlaytesthubServiceApproveApplicantBody } from '../../generated-definitions/PlaytesthubServiceApproveApplicantBody.js'
 import { PlaytesthubServiceChangeAdtBuildBody } from '../../generated-definitions/PlaytesthubServiceChangeAdtBuildBody.js'
+import { PlaytesthubServiceCheckAdtBuildBody } from '../../generated-definitions/PlaytesthubServiceCheckAdtBuildBody.js'
 import { PlaytesthubServiceCompleteAdtLinkBody } from '../../generated-definitions/PlaytesthubServiceCompleteAdtLinkBody.js'
 import { PlaytesthubServiceCreateAnnouncementBody } from '../../generated-definitions/PlaytesthubServiceCreateAnnouncementBody.js'
 import { PlaytesthubServiceCreatePlaytestBody } from '../../generated-definitions/PlaytesthubServiceCreatePlaytestBody.js'
@@ -29,6 +30,7 @@ import { PlaytesthubServiceUploadCodesBody } from '../../generated-definitions/P
 import { V1AdminGetPlaytestResponse } from '../../generated-definitions/V1AdminGetPlaytestResponse.js'
 import { V1ApproveApplicantResponse } from '../../generated-definitions/V1ApproveApplicantResponse.js'
 import { V1ChangeAdtBuildResponse } from '../../generated-definitions/V1ChangeAdtBuildResponse.js'
+import { V1CheckAdtBuildResponse } from '../../generated-definitions/V1CheckAdtBuildResponse.js'
 import { V1CompleteAdtLinkResponse } from '../../generated-definitions/V1CompleteAdtLinkResponse.js'
 import { V1CreateAnnouncementResponse } from '../../generated-definitions/V1CreateAnnouncementResponse.js'
 import { V1CreatePlaytestResponse } from '../../generated-definitions/V1CreatePlaytestResponse.js'
@@ -502,6 +504,26 @@ export class PlaytesthubServiceAdmin$ {
       () => resultPromise,
       V1CreateAnnouncementResponse,
       'V1CreateAnnouncementResponse'
+    )
+  }
+  /**
+   * Issues a download URL for the playtest's current adt_build_id (same call as ApproveApplicant) and persists adt_build_status: 'OK' when a URL was minted, 'UNAVAILABLE' when ADT returns build-not-found. Non-ADT playtest → FailedPrecondition. Linkage missing / ADT unreachable → FailedPrecondition / Unavailable (status not overwritten). Side effect: a throwaway download URL is minted on success.
+   */
+  createAdtBuildCheck_ByPlaytestId(
+    playtestId: string,
+    data: PlaytesthubServiceCheckAdtBuildBody
+  ): Promise<Response<V1CheckAdtBuildResponse>> {
+    const params = {} as AxiosRequestConfig
+    const url = '/v1/admin/namespaces/{namespace}/playtests/{playtestId}/adt/build:check'
+      .replace('{namespace}', this.namespace)
+      .replace('{playtestId}', playtestId)
+    const resultPromise = this.axiosInstance.post(url, data, { params })
+
+    return Validate.validateOrReturnResponse(
+      this.useSchemaValidation,
+      () => resultPromise,
+      V1CheckAdtBuildResponse,
+      'V1CheckAdtBuildResponse'
     )
   }
 

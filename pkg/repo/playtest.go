@@ -48,14 +48,22 @@ type Playtest struct {
 	ADTGameID              *string
 	ADTBuildID             *string
 	ADTFallbackDownloadURL *string
-	CreatedAt              time.Time
-	UpdatedAt              time.Time
-	DeletedAt              *time.Time
+	// ADTBuildStatus / ADTBuildCheckedAt — M5.C build-health surfacing.
+	// ADTBuildStatus is nil (never checked / non-ADT), "OK", or
+	// "UNAVAILABLE" (ADT build-not-found). Written by SetADTBuildHealth,
+	// not the generic Update. See migration 0009.
+	ADTBuildStatus    *string
+	ADTBuildCheckedAt *time.Time
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
+	DeletedAt         *time.Time
 }
 
 // PlaytestStore is the data access surface the service layer depends on.
 // Mocks for unit tests (phase 6) are generated against this interface;
 // PgPlaytestStore is the only production implementation.
+//
+//nolint:interfacebloat // single source of truth for playtest persistence; the ADT build mutators are deliberate distinct writers (see UpdateADTBuild / SetADTBuildHealth docs).
 type PlaytestStore interface {
 	Create(ctx context.Context, p *Playtest) (*Playtest, error)
 	// CreateTx is the tx-bound variant used by the AGS_CAMPAIGN
@@ -82,6 +90,19 @@ type PlaytestStore interface {
 	// spec"). Returns ErrNotFound when the playtest is missing or
 	// soft-deleted.
 	SetSurveyID(ctx context.Context, namespace string, playtestID, surveyID uuid.UUID) error
+	// UpdateADTBuild repoints an ADT playtest at a new (adt_game_id,
+	// adt_build_id) pair. Distinct from Update, whose SET whitelist
+	// deliberately omits the build identifiers — ChangeADTBuild needs to
+	// persist them and must not route through the generic editor (which
+	// would silently drop them). Returns ErrNotFound when the row is
+	// missing or soft-deleted.
+	UpdateADTBuild(ctx context.Context, namespace string, id uuid.UUID, adtGameID, adtBuildID string) (*Playtest, error)
+	// SetADTBuildHealth records the last observed ADT build download
+	// health (M5.C "build gone" surfacing). status is "OK" or
+	// "UNAVAILABLE"; checkedAt is the observation time. Does NOT touch
+	// updated_at — a health probe is not a content edit. Returns
+	// ErrNotFound when the row is missing or soft-deleted.
+	SetADTBuildHealth(ctx context.Context, namespace string, id uuid.UUID, status string, checkedAt time.Time) (*Playtest, error)
 }
 
 // PgPlaytestStore is the Postgres-backed PlaytestStore.
@@ -100,6 +121,7 @@ const playtestColumns = `
 	ags_item_id, ags_campaign_id, initial_code_quantity,
 	auto_approve, auto_approve_limit,
 	adt_namespace, adt_game_id, adt_build_id, adt_fallback_download_url,
+	adt_build_status, adt_build_checked_at,
 	created_at, updated_at, deleted_at`
 
 // Create inserts a new playtest row. The caller supplies business
@@ -267,6 +289,56 @@ func (s *PgPlaytestStore) Update(ctx context.Context, p *Playtest) (*Playtest, e
 	return got, nil
 }
 
+// UpdateADTBuild persists a new (adt_game_id, adt_build_id) pair for an
+// ADT playtest. The generic Update omits these columns on purpose, so
+// ChangeADTBuild routes here; without it the build change is accepted by
+// the service layer but never reaches Postgres.
+func (s *PgPlaytestStore) UpdateADTBuild(ctx context.Context, namespace string, id uuid.UUID, adtGameID, adtBuildID string) (*Playtest, error) {
+	const sql = `
+		UPDATE playtest
+		   SET adt_game_id = $3,
+		       adt_build_id = $4,
+		       updated_at = NOW()
+		 WHERE namespace = $1
+		   AND id = $2
+		   AND deleted_at IS NULL
+		RETURNING ` + playtestColumns
+
+	row := s.pool.QueryRow(ctx, sql, namespace, id, adtGameID, adtBuildID)
+	got, err := scanPlaytest(row)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("updating playtest adt build: %w", classifyPgError(err))
+	}
+	return got, nil
+}
+
+// SetADTBuildHealth writes the two health columns only — never
+// updated_at, since an approve-time probe or an on-demand check is not a
+// content edit and must not bump the row's edit timestamp.
+func (s *PgPlaytestStore) SetADTBuildHealth(ctx context.Context, namespace string, id uuid.UUID, status string, checkedAt time.Time) (*Playtest, error) {
+	const sql = `
+		UPDATE playtest
+		   SET adt_build_status = $3,
+		       adt_build_checked_at = $4
+		 WHERE namespace = $1
+		   AND id = $2
+		   AND deleted_at IS NULL
+		RETURNING ` + playtestColumns
+
+	row := s.pool.QueryRow(ctx, sql, namespace, id, status, checkedAt)
+	got, err := scanPlaytest(row)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("setting playtest adt build health: %w", classifyPgError(err))
+	}
+	return got, nil
+}
+
 // SoftDelete marks the row deleted. Subsequent Create calls that reuse
 // the slug fail with ErrUniqueViolation (PRD §5.1 slug uniqueness
 // spans live and soft-deleted rows).
@@ -395,6 +467,8 @@ func scanPlaytest(row pgx.Row) (*Playtest, error) {
 		adtGameID    pgtype.Text
 		adtBuildID   pgtype.Text
 		adtFallback  pgtype.Text
+		adtBuildStat pgtype.Text
+		adtBuildChk  pgtype.Timestamptz
 		deletedAt    pgtype.Timestamptz
 	)
 	err := row.Scan(
@@ -422,6 +496,8 @@ func scanPlaytest(row pgx.Row) (*Playtest, error) {
 		&adtGameID,
 		&adtBuildID,
 		&adtFallback,
+		&adtBuildStat,
+		&adtBuildChk,
 		&p.CreatedAt,
 		&p.UpdatedAt,
 		&deletedAt,
@@ -440,6 +516,8 @@ func scanPlaytest(row pgx.Row) (*Playtest, error) {
 	p.ADTGameID = stringPtrFromPg(adtGameID)
 	p.ADTBuildID = stringPtrFromPg(adtBuildID)
 	p.ADTFallbackDownloadURL = stringPtrFromPg(adtFallback)
+	p.ADTBuildStatus = stringPtrFromPg(adtBuildStat)
+	p.ADTBuildCheckedAt = timePtrFromPg(adtBuildChk)
 	p.DeletedAt = timePtrFromPg(deletedAt)
 	return &p, nil
 }

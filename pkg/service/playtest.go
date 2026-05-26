@@ -711,6 +711,13 @@ func playtestToProto(p *repo.Playtest) *pb.Playtest {
 		v := *p.ADTFallbackDownloadURL
 		out.AdtFallbackDownloadUrl = &v
 	}
+	if p.ADTBuildStatus != nil {
+		v := *p.ADTBuildStatus
+		out.AdtBuildStatus = &v
+	}
+	if p.ADTBuildCheckedAt != nil {
+		out.AdtBuildCheckedAt = timestamppb.New(*p.ADTBuildCheckedAt)
+	}
 	if p.DeletedAt != nil {
 		out.DeletedAt = timestamppb.New(*p.DeletedAt)
 	}

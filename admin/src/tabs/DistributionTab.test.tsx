@@ -16,6 +16,7 @@ const mockGetAdtLinkages = vi.fn()
 const mockGetAdtGames = vi.fn()
 const mockGetAdtBuilds = vi.fn()
 const mockChangeAdtBuild = vi.fn()
+const mockCheckAdtBuild = vi.fn()
 
 vi.mock('../playtesthubapi/generated-admin/queries/PlaytesthubServiceAdmin.query', () => ({
   Key_PlaytesthubServiceAdmin: {
@@ -23,7 +24,8 @@ vi.mock('../playtesthubapi/generated-admin/queries/PlaytesthubServiceAdmin.query
     Codes_ByPlaytestId: 'codes-by-playtest-id',
     GamesAdt_ByAdtLinkageId: 'adt-games-by-linkage-id',
     BuildsAdt_ByAdtLinkageId: 'adt-builds-by-linkage-id',
-    AdtBuildChange_ByPlaytestId: 'adt-build-change-by-playtest-id'
+    AdtBuildChange_ByPlaytestId: 'adt-build-change-by-playtest-id',
+    AdtBuildCheck_ByPlaytestId: 'adt-build-check-by-playtest-id'
   },
   usePlaytesthubServiceAdminApi_GetCodes_ByPlaytestId: (...a: unknown[]) => mockGetCodes(...a),
   usePlaytesthubServiceAdminApi_CreateCodesUpload_ByPlaytestIdMutation: (...a: unknown[]) => mockUploadCodes(...a),
@@ -32,7 +34,8 @@ vi.mock('../playtesthubapi/generated-admin/queries/PlaytesthubServiceAdmin.query
   usePlaytesthubServiceAdminApi_GetAdtLinkages: (...a: unknown[]) => mockGetAdtLinkages(...a),
   usePlaytesthubServiceAdminApi_GetGamesAdt_ByAdtLinkageId: (...a: unknown[]) => mockGetAdtGames(...a),
   usePlaytesthubServiceAdminApi_GetBuildsAdt_ByAdtLinkageId: (...a: unknown[]) => mockGetAdtBuilds(...a),
-  usePlaytesthubServiceAdminApi_CreateAdtBuildChange_ByPlaytestIdMutation: (...a: unknown[]) => mockChangeAdtBuild(...a)
+  usePlaytesthubServiceAdminApi_CreateAdtBuildChange_ByPlaytestIdMutation: (...a: unknown[]) => mockChangeAdtBuild(...a),
+  usePlaytesthubServiceAdminApi_CreateAdtBuildCheck_ByPlaytestIdMutation: (...a: unknown[]) => mockCheckAdtBuild(...a)
 }))
 
 // Stub the build picker so its onPick prop can be driven deterministically
@@ -84,6 +87,7 @@ beforeEach(() => {
   mockGetAdtGames.mockReturnValue({ data: { games: [{ id: 'game-1', name: 'Starfield Dev' }] }, isLoading: false, error: null })
   mockGetAdtBuilds.mockReturnValue({ data: { builds: [] }, isLoading: false, error: null })
   mockChangeAdtBuild.mockReturnValue({ mutate: vi.fn(), isPending: false, isError: false, error: null })
+  mockCheckAdtBuild.mockReturnValue({ mutate: vi.fn(), isPending: false, isError: false, error: null })
 })
 
 describe('ADTPanel (Change Build)', () => {
@@ -111,5 +115,33 @@ describe('ADTPanel (Change Build)', () => {
     await waitFor(() =>
       expect(mutate).toHaveBeenCalledWith({ playtestId: 'pt-adt', data: { adtGameId: 'game-2', adtBuildId: 'build-9' } })
     )
+  })
+})
+
+describe('ADTPanel (build health surfacing)', () => {
+  it('shows no health alert before the build has been checked', () => {
+    renderTab(ADT_PT)
+    expect(screen.queryByTestId('adt-build-health-alert')).not.toBeInTheDocument()
+  })
+
+  it('surfaces an error alert when the build is UNAVAILABLE', () => {
+    renderTab({ ...ADT_PT, adtBuildStatus: 'UNAVAILABLE', adtBuildCheckedAt: '2026-05-26T10:00:00Z' })
+    const alert = screen.getByTestId('adt-build-health-alert')
+    expect(alert).toHaveTextContent(/no longer available in ADT/i)
+    expect(alert).toHaveTextContent(/fallback download URL or change the build/i)
+  })
+
+  it('surfaces a success alert when the build is OK', () => {
+    renderTab({ ...ADT_PT, adtBuildStatus: 'OK', adtBuildCheckedAt: '2026-05-26T10:00:00Z' })
+    expect(screen.getByTestId('adt-build-health-alert')).toHaveTextContent(/available in ADT/i)
+  })
+
+  it('calls CheckADTBuild with the playtestId when Check build is clicked', async () => {
+    const mutate = vi.fn()
+    mockCheckAdtBuild.mockReturnValue({ mutate, isPending: false, isError: false, error: null })
+    renderTab(ADT_PT)
+    const user = userEvent.setup()
+    await user.click(screen.getByTestId('adt-check-build-btn'))
+    await waitFor(() => expect(mutate).toHaveBeenCalledWith({ playtestId: 'pt-adt', data: {} }))
   })
 })

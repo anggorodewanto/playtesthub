@@ -197,7 +197,7 @@ func runADTLinkageRecover(ctx context.Context, stdout, stderr io.Writer, g *Glob
 
 func runADTBuild(ctx context.Context, stdout, stderr io.Writer, g *Globals, args []string, factory playtestClientFactory) int {
 	if len(args) == 0 {
-		fmt.Fprintln(stderr, "adt build: usage: pth adt build {list|change} ...")
+		fmt.Fprintln(stderr, "adt build: usage: pth adt build {list|change|check} ...")
 		return exitLocalError
 	}
 	action, rest := args[0], args[1:]
@@ -206,6 +206,8 @@ func runADTBuild(ctx context.Context, stdout, stderr io.Writer, g *Globals, args
 		return runADTBuildList(ctx, stdout, stderr, g, rest, factory)
 	case "change":
 		return runADTBuildChange(ctx, stdout, stderr, g, rest, factory)
+	case "check":
+		return runADTBuildCheck(ctx, stdout, stderr, g, rest, factory)
 	default:
 		fmt.Fprintf(stderr, "adt build: unknown action %q\n", action)
 		return exitLocalError
@@ -277,6 +279,31 @@ func runADTBuildChange(ctx context.Context, stdout, stderr io.Writer, g *Globals
 	return invokePlaytest(ctx, stdout, stderr, g, factory, "ChangeADTBuild", req, *dryRun,
 		func(c pb.PlaytesthubServiceClient, cctx context.Context) (proto.Message, error) {
 			return c.ChangeADTBuild(cctx, req)
+		})
+}
+
+func runADTBuildCheck(ctx context.Context, stdout, stderr io.Writer, g *Globals, rest []string, factory playtestClientFactory) int {
+	fs := flag.NewFlagSet("adt build check", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	playtestID := fs.String("playtest-id", "", "playtest_id whose build health to probe (required)")
+	dryRun := fs.Bool("dry-run", false, "print the request JSON and exit without dialling")
+	if err := fs.Parse(rest); err != nil {
+		return exitLocalError
+	}
+	if *playtestID == "" {
+		fmt.Fprintln(stderr, "adt build check: --playtest-id is required")
+		return exitLocalError
+	}
+	if !g.requireNamespace(stderr, "adt build check") {
+		return exitLocalError
+	}
+	req := &pb.CheckADTBuildRequest{
+		Namespace:  g.Namespace,
+		PlaytestId: *playtestID,
+	}
+	return invokePlaytest(ctx, stdout, stderr, g, factory, "CheckADTBuild", req, *dryRun,
+		func(c pb.PlaytesthubServiceClient, cctx context.Context) (proto.Message, error) {
+			return c.CheckADTBuild(cctx, req)
 		})
 }
 

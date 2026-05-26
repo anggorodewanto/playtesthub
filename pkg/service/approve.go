@@ -170,6 +170,10 @@ func (s *PlaytesthubServiceServer) resolveADTDownloadURL(ctx context.Context, pl
 		ADTBuildID:      *playtest.ADTBuildID,
 		ApplicantIdent:  applicant.ID.String(),
 	})
+	// Record build health from this real issue attempt (M5.C) before any
+	// fallback masks it — so the detail page reflects a dead ADT build even
+	// when adt_fallback_download_url is keeping approvals working.
+	s.recordADTBuildHealth(ctx, playtest, issueErr)
 	if issueErr == nil {
 		return issued.URLs, adtURLSourceIssued, nil
 	}

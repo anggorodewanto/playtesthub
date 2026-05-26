@@ -14,6 +14,7 @@ import { PlaytesthubServiceAdminApi } from '../PlaytesthubServiceAdminApi.js'
 
 import { PlaytesthubServiceApproveApplicantBody } from '../../generated-definitions/PlaytesthubServiceApproveApplicantBody.js'
 import { PlaytesthubServiceChangeAdtBuildBody } from '../../generated-definitions/PlaytesthubServiceChangeAdtBuildBody.js'
+import { PlaytesthubServiceCheckAdtBuildBody } from '../../generated-definitions/PlaytesthubServiceCheckAdtBuildBody.js'
 import { PlaytesthubServiceCompleteAdtLinkBody } from '../../generated-definitions/PlaytesthubServiceCompleteAdtLinkBody.js'
 import { PlaytesthubServiceCreateAnnouncementBody } from '../../generated-definitions/PlaytesthubServiceCreateAnnouncementBody.js'
 import { PlaytesthubServiceCreatePlaytestBody } from '../../generated-definitions/PlaytesthubServiceCreatePlaytestBody.js'
@@ -32,6 +33,7 @@ import { PlaytesthubServiceUploadCodesBody } from '../../generated-definitions/P
 import { V1AdminGetPlaytestResponse } from '../../generated-definitions/V1AdminGetPlaytestResponse.js'
 import { V1ApproveApplicantResponse } from '../../generated-definitions/V1ApproveApplicantResponse.js'
 import { V1ChangeAdtBuildResponse } from '../../generated-definitions/V1ChangeAdtBuildResponse.js'
+import { V1CheckAdtBuildResponse } from '../../generated-definitions/V1CheckAdtBuildResponse.js'
 import { V1CompleteAdtLinkResponse } from '../../generated-definitions/V1CompleteAdtLinkResponse.js'
 import { V1CreateAnnouncementResponse } from '../../generated-definitions/V1CreateAnnouncementResponse.js'
 import { V1CreatePlaytestResponse } from '../../generated-definitions/V1CreatePlaytestResponse.js'
@@ -87,6 +89,7 @@ export const Key_PlaytesthubServiceAdmin = {
   Participants_ByPlaytestId: 'Playtesthubapi.PlaytesthubServiceAdmin.Participants_ByPlaytestId',
   Announcements_ByPlaytestId: 'Playtesthubapi.PlaytesthubServiceAdmin.Announcements_ByPlaytestId',
   Announcement_ByPlaytestId: 'Playtesthubapi.PlaytesthubServiceAdmin.Announcement_ByPlaytestId',
+  AdtBuildCheck_ByPlaytestId: 'Playtesthubapi.PlaytesthubServiceAdmin.AdtBuildCheck_ByPlaytestId',
   Playtest_ByPlaytestIdTransitionStatu: 'Playtesthubapi.PlaytesthubServiceAdmin.Playtest_ByPlaytestIdTransitionStatu',
   AdtBuildChange_ByPlaytestId: 'Playtesthubapi.PlaytesthubServiceAdmin.AdtBuildChange_ByPlaytestId',
   SurveyResponses_ByPlaytestId: 'Playtesthubapi.PlaytesthubServiceAdmin.SurveyResponses_ByPlaytestId',
@@ -1087,6 +1090,49 @@ export const usePlaytesthubServiceAdminApi_CreateAnnouncement_ByPlaytestIdMutati
 
   return useMutation({
     mutationKey: [Key_PlaytesthubServiceAdmin.Announcement_ByPlaytestId],
+    mutationFn,
+    ...options
+  })
+}
+
+/**
+ * Issues a download URL for the playtest's current adt_build_id (same call as ApproveApplicant) and persists adt_build_status: 'OK' when a URL was minted, 'UNAVAILABLE' when ADT returns build-not-found. Non-ADT playtest → FailedPrecondition. Linkage missing / ADT unreachable → FailedPrecondition / Unavailable (status not overwritten). Side effect: a throwaway download URL is minted on success.
+ *
+ * #### Default Query Options
+ * The default options include:
+ * ```
+ * {
+ *    queryKey: [Key_PlaytesthubServiceAdmin.AdtBuildCheck_ByPlaytestId, input]
+ * }
+ * ```
+ */
+export const usePlaytesthubServiceAdminApi_CreateAdtBuildCheck_ByPlaytestIdMutation = (
+  sdk: AccelByteSDK,
+  options?: Omit<
+    UseMutationOptions<
+      V1CheckAdtBuildResponse,
+      AxiosError<ApiError>,
+      SdkSetConfigParam & { playtestId: string; data: PlaytesthubServiceCheckAdtBuildBody }
+    >,
+    'mutationKey'
+  >,
+  callback?: (data: V1CheckAdtBuildResponse) => void
+): UseMutationResult<
+  V1CheckAdtBuildResponse,
+  AxiosError<ApiError>,
+  SdkSetConfigParam & { playtestId: string; data: PlaytesthubServiceCheckAdtBuildBody }
+> => {
+  const mutationFn = async (input: SdkSetConfigParam & { playtestId: string; data: PlaytesthubServiceCheckAdtBuildBody }) => {
+    const response = await PlaytesthubServiceAdminApi(sdk, {
+      coreConfig: input.coreConfig,
+      axiosConfig: input.axiosConfig
+    }).createAdtBuildCheck_ByPlaytestId(input.playtestId, input.data)
+    callback?.(response.data)
+    return response.data
+  }
+
+  return useMutation({
+    mutationKey: [Key_PlaytesthubServiceAdmin.AdtBuildCheck_ByPlaytestId],
     mutationFn,
     ...options
   })

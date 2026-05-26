@@ -61,6 +61,7 @@ func TestServiceDescriptorMethods(t *testing.T) {
 		"GetADTClientDiagnostics": true,
 		"GetADTDownloadInfo":      true,
 		"ChangeADTBuild":          true,
+		"CheckADTBuild":           true,
 		// M5.C (participants + announcements)
 		"GetPlaytestParticipants": true,
 		"CreateAnnouncement":      true,
