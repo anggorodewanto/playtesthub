@@ -114,7 +114,7 @@ export const usePlaytesthubServiceAdminApi_GetPlaytests = (
 }
 
 /**
- * STEAM_KEYS only in M1; distribution_model=AGS_CAMPAIGN returns Unimplemented until M2.
+ * Create a playtest with distribution_model STEAM_KEYS, AGS_CAMPAIGN, or ADT.
  *
  * #### Default Query Options
  * The default options include:

@@ -8093,7 +8093,7 @@ const file_playtesthub_v1_playtesthub_proto_rawDesc = "" +
 	" SURVEY_QUESTION_TYPE_UNSPECIFIED\x10\x00\x12\x1d\n" +
 	"\x19SURVEY_QUESTION_TYPE_TEXT\x10\x01\x12\x1f\n" +
 	"\x1bSURVEY_QUESTION_TYPE_RATING\x10\x02\x12%\n" +
-	"!SURVEY_QUESTION_TYPE_MULTI_CHOICE\x10\x032\xe9\xa3\x01\n" +
+	"!SURVEY_QUESTION_TYPE_MULTI_CHOICE\x10\x032ݣ\x01\n" +
 	"\x12PlaytesthubService\x12\xa0\x02\n" +
 	"\x11GetPublicPlaytest\x12(.playtesthub.v1.GetPublicPlaytestRequest\x1a).playtesthub.v1.GetPublicPlaytestResponse\"\xb5\x01\x92A\x8e\x01\x12(Get a playtest by slug (unauthenticated)\x1abReturns the public field subset for an OPEN playtest. NotFound for DRAFT, CLOSED, or soft-deleted.\x82\xd3\xe4\x93\x02\x1d\x12\x1b/v1/public/playtests/{slug}\x12\xa7\x03\n" +
 	"\x0fGetPublicConfig\x12&.playtesthub.v1.GetPublicConfigRequest\x1a'.playtesthub.v1.GetPublicConfigResponse\"\xc2\x02\x92A\xa5\x02\x12.Get the public client config (unauthenticated)\x1a\xf2\x01Returns environment-derived client config that both the admin and player frontends need to construct cross-app URLs. player_base_url is the public origin of the player Svelte bundle (from backend env PLAYER_BASE_URL); empty string when unset.\x82\xd3\xe4\x93\x02\x13\x12\x11/v1/public/config\x12\xac\x02\n" +
@@ -8112,8 +8112,8 @@ const file_playtesthub_v1_playtesthub_proto_rawDesc = "" +
 	"\rListPlaytests\x12$.playtesthub.v1.ListPlaytestsRequest\x1a%.playtesthub.v1.ListPlaytestsResponse\"\xb5\x01\x92AP\x12@List playtests in a namespace (admin, unpaginated; 100-item cap)b\f\n" +
 	"\n" +
 	"\n" +
-	"\x06Bearer\x12\x00\x8a\xb5\x18(ADMIN:NAMESPACE:{namespace}:EXTEND:APPUI\x90\xb5\x18\x02\x82\xd3\xe4\x93\x02,\x12*/v1/admin/namespaces/{namespace}/playtests\x12\xcc\x02\n" +
-	"\x0eCreatePlaytest\x12%.playtesthub.v1.CreatePlaytestRequest\x1a&.playtesthub.v1.CreatePlaytestResponse\"\xea\x01\x92A\x81\x01\x12\x19Create a playtest (admin)\x1aVSTEAM_KEYS only in M1; distribution_model=AGS_CAMPAIGN returns Unimplemented until M2.b\f\n" +
+	"\x06Bearer\x12\x00\x8a\xb5\x18(ADMIN:NAMESPACE:{namespace}:EXTEND:APPUI\x90\xb5\x18\x02\x82\xd3\xe4\x93\x02,\x12*/v1/admin/namespaces/{namespace}/playtests\x12\xc0\x02\n" +
+	"\x0eCreatePlaytest\x12%.playtesthub.v1.CreatePlaytestRequest\x1a&.playtesthub.v1.CreatePlaytestResponse\"\xde\x01\x92Av\x12\x19Create a playtest (admin)\x1aKCreate a playtest with distribution_model STEAM_KEYS, AGS_CAMPAIGN, or ADT.b\f\n" +
 	"\n" +
 	"\n" +
 	"\x06Bearer\x12\x00\x8a\xb5\x18(ADMIN:NAMESPACE:{namespace}:EXTEND:APPUI\x90\xb5\x18\x01\x82\xd3\xe4\x93\x02/:\x01*\"*/v1/admin/namespaces/{namespace}/playtests\x12\x95\x03\n" +

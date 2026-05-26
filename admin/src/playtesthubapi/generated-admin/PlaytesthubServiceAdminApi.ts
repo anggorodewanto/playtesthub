@@ -383,7 +383,7 @@ export function PlaytesthubServiceAdminApi(sdk: AccelByteSDK, args?: SdkSetConfi
   return {
     getPlaytests,
     /**
-     * STEAM_KEYS only in M1; distribution_model=AGS_CAMPAIGN returns Unimplemented until M2.
+     * Create a playtest with distribution_model STEAM_KEYS, AGS_CAMPAIGN, or ADT.
      */
     createPlaytest,
     /**

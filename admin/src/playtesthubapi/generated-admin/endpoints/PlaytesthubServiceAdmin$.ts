@@ -83,7 +83,7 @@ export class PlaytesthubServiceAdmin$ {
     )
   }
   /**
-   * STEAM_KEYS only in M1; distribution_model=AGS_CAMPAIGN returns Unimplemented until M2.
+   * Create a playtest with distribution_model STEAM_KEYS, AGS_CAMPAIGN, or ADT.
    */
   createPlaytest(data: PlaytesthubServiceCreatePlaytestBody): Promise<Response<V1CreatePlaytestResponse>> {
     const params = {} as AxiosRequestConfig

@@ -178,8 +178,8 @@ func requireActor(ctx context.Context) (uuid.UUID, error) {
 	return id, nil
 }
 
-// CreatePlaytest inserts a new playtest row. STEAM_KEYS only in M1 —
-// AGS_CAMPAIGN returns Unimplemented until M2 (errors.md).
+// CreatePlaytest inserts a new playtest row. Accepts STEAM_KEYS,
+// AGS_CAMPAIGN, and ADT distribution models.
 func (s *PlaytesthubServiceServer) CreatePlaytest(ctx context.Context, req *pb.CreatePlaytestRequest) (*pb.CreatePlaytestResponse, error) {
 	if _, err := requireActor(ctx); err != nil {
 		return nil, err
